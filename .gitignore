@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Large climate/geospatial data
+data/*
+!data/README.md
+*.nc
+*.grib
+*.grb
+*.h5
+*.hdf
+*.tif
+*.tiff
+*.zip
+*.7z
+
+# Outputs
+outputs/*
+!outputs/README.md
+!outputs/figures/
+!outputs/tables/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# OneDrive temporary files
+~$*
+*.tmp

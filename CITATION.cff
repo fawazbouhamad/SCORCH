@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite it as below."
+title: "SCORCH: Spatial Characterization of Heatwaves"
+authors:
+  - family-names: "Bouhamad"
+    given-names: "Fawaz"
+year: 2026
+version: "1.0.0"
+repository-code: "https://github.com/fawazbouhamad/SCORCH"
