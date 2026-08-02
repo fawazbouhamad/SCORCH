@@ -1,12 +1,13 @@
 MIT License
 
-Copyright (c) 2026 Fawaz Bouhamad
+Copyright (c) 2026 Fawaz Bouhamad and Nasser Najibi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, subject to the following conditions:
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
@@ -18,3 +19,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Data and attribution notices
+
+This file is the repository's controlling legal and attribution notice. It
+carries the MIT licence text above for the software and repository
+configuration, and the attribution notices below; the complete
+non-overlapping path table that assigns rights to every deployed file is
+docs/LICENSES_AND_ATTRIBUTION.md, and the companion deposit's own
+controlling notice is its LICENSE.txt.
+
+This repository redistributes no raw provider data. Derived data products and
+their attribution requirements are described in
+docs/LICENSES_AND_ATTRIBUTION.md, including the required Copernicus/ECMWF
+notice for ERA5-derived content and the applicable GHCN-Daily source/use
+terms and NOAA/NCEI attribution for GHCN-Daily-derived content. The
+auxiliary Method-A analysis data under data/auxiliary/ is the authors'
+original processing under CC BY 4.0 with the Copernicus terms continuing to
+apply to the underlying ERA5-derived material, and the frozen station-donor
+artwork under assets/frozen_figures/figS1_station_donor/ is the authors'
+CC BY 4.0 artwork depicting GHCN-Daily and ERA5 material that remains
+subject to those providers' terms.
+Author-created processed data and documentation in the companion archive use
+CC BY 4.0 as the primary licence for the authors' contributions. Other files
+retain the path-specific MIT, GHCN-Daily source/use, and Copernicus terms
+described in docs/LICENSES_AND_ATTRIBUTION.md and the deposit's LICENSE.txt.

@@ -1,0 +1,209 @@
+# SCORCH canonical FAST reconstruction configuration (bundled package data).
+#
+# This file ships INSIDE the installed `scorch` wheel, so
+#
+#     scorch reproduce --base-dir <deposit-root> --route fast
+#
+# works after `pip install` with no repository checkout and no
+# repository-relative configs path. Pass --config only to override it.
+#
+# Route "fast" is the COMPLETE, CONNECTED processed-field -> catalog
+# reconstruction. Starting from the deposited CF NetCDF field and the
+# parameters below, every stage writes newly generated intermediates under
+# <out-dir>/reconstruction/ and each later stage consumes ONLY those newly
+# generated files. The deposited final catalogs are used exclusively as
+# comparison targets, never as upstream inputs.
+#
+# There is NO executable "full" route. Reconstructing the processed field
+# from provider-managed ERA5 is a provider-level guide (structurally
+# validated, not rerun end to end): see docs/PROVIDER_RECONSTRUCTION_GUIDE.md
+# or run `scorch reconstruction-guide`.
+#
+# Repository-level FIGURE reproduction (the 15 regenerated publication
+# figures) is NOT part of this config: it needs the cloned repository's
+# scripts/ tree and run_reproduction.py. See README.
+#
+# SECTION SEMANTICS (validated by
+# scorch.pipeline.validate_reconstruction_config; a config violating them
+# fails loudly BEFORE any stage runs). The schema is COMPLETE as well as
+# closed: every operative parameter, every fixed rule and every expected
+# count below is REQUIRED -- a config that omits one fails loudly instead
+# of silently running on a module default:
+#   parameters:      operative values CONSUMED by the stages. Unknown keys
+#                    are rejected and every key is required -- nothing here
+#                    can be silently ignored or silently defaulted.
+#   fixed_rules:     canonical categorical algorithm rules. The code
+#                    implements exactly ONE value per rule; every rule must
+#                    be declared and any other value is rejected loudly
+#                    (changing a rule requires changing the code, not this
+#                    file).
+#   expected_counts: expected results of the canonical reconstruction,
+#                    including the DERIVED threshold Theta; every key is
+#                    required.
+#   provenance:      documentation-only records; NOT consumed by the fast
+#                    route (they describe the provider-level producer and
+#                    the repository-level scripts).
+name: scorch-fast-reconstruction-v6
+base_dir: "."
+
+# Operative parameters (single source of truth for the fast reconstruction;
+# every key below is consumed by at least one stage).
+parameters:
+  sigma: 1.25                     # ellipse scale (rebuild-catalog)
+  var_floor_km2: 1.0              # PCA eigenvalue floor for ellipse geometry
+                                  # (rebuild-catalog -> evaluate_cluster_ellipse
+                                  #  -> ellipse_semi_axes_km)
+  grid_step_deg: 1.0              # grid-cell size for the DBSCAN distances
+  p95_quantile: 0.95              # pandas default linear interpolation
+  bigday_quantile: 0.975          # day-selection quantile ...
+  bigday_quantile_method: higher  # ... and its interpolation method; together
+                                  # they DERIVE Theta (see expected_counts)
+  heatwave_min_len_days: 3
+  heatwave_min_exceed_days: 3
+  dbscan_eps_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+  dbscan_min_samples_grid: [4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+# Canonical categorical rules. Exactly ONE value per rule is supported: the
+# implementation implements precisely these rules, and the config loader
+# fails loudly on any other value (no rule can be silently ignored).
+fixed_rules:
+  exceedance_rule: tmax_ge_threshold   # val >= thr_p95 (canonical producer)
+  heatwave_split_rule: two_consecutive_zeros
+  heatwave_gap_rule: unlimited_single_zero_bridging
+  dbscan_metric: precomputed_euclidean_grid_cell_distance
+  dbscan_selection: modal_component_count_prefer_nonzero
+  dbscan_tie_rule: keep_all_combos_of_all_tied_modal_counts_then_average
+  dbscan_min_samples_rounding: half_up_min_1
+  event_global_eps_rule: max_daily_avg_eps
+  event_global_minpts_rule: max_daily_rounded_minpts
+
+# Expected results of the canonical reconstruction. theta_threshold is a
+# DERIVED value: Theta = quantile(bigday_quantile, bigday_quantile_method)
+# of the daily heatwave-cell counts. It is recorded here as the expected
+# derived threshold (a day is selected when NHW >= Theta) -- it is NOT an
+# independent operative input, and parameters: must not carry it.
+expected_counts:
+  valid_one_degree_cells: 1800
+  warm_season_days: 15738
+  theta_threshold: 371
+  selected_days: 395
+  events: 51
+  ellipses: 760
+  type_counts: {1: 3, 2: 4, 3: 20, 4: 24}
+
+# Documentation-only provenance records. The fast route does NOT consume
+# these: box_agg describes the provider-level 1-degree aggregation that
+# produced the deposited field (see docs/PROVIDER_RECONSTRUCTION_GUIDE.md),
+# and the seeds are consumed by the named repository-level scripts, not by
+# any builtin stage (DBSCAN with a precomputed metric is deterministic).
+provenance:
+  box_agg: mean                   # provider-level aggregation to 1 degree
+  seeds:
+    review_seed: 20260617         # scripts/six_task_review (research repo)
+    dbscan_numpy_seed: 0          # recorded for completeness; unused by DBSCAN
+    lgcp_cv_seed: 20260704        # scripts/lgcp k-fold cross-validation
+
+stages:
+  # (a) thresholds + authoritative exceedance of the deposited field
+  - name: field-products
+    kind: builtin
+    builtin: field_products
+    route: fast
+    inputs:
+      field_nc: gridded/scorch_processed_daily_tmax_field_v1.0.0.nc
+    comparison_targets:
+      - "gridded/scorch_processed_daily_tmax_field_v1.0.0.nc (stored thresholds + exceedance)"
+
+  # (b) rerun grid-level heatwave labelling; (c) daily regional coverage
+  - name: relabel-heatwaves
+    kind: builtin
+    builtin: relabel_heatwaves
+    route: fast
+    inputs:
+      field_nc: gridded/scorch_processed_daily_tmax_field_v1.0.0.nc
+    outputs:
+      - reconstruction/heatwave_labels_relabelled.npz
+      - reconstruction/daily_regional_coverage.csv
+    comparison_targets:
+      - "gridded/scorch_processed_daily_tmax_field_v1.0.0.nc (heatwave_id)"
+      - gridded/fig02_daily_extent.csv
+
+  # (d) NHW >= Theta selection + consecutive compound events
+  - name: select-days-events
+    kind: builtin
+    builtin: select_days_events
+    route: fast
+    inputs:
+      coverage_csv: reconstruction/daily_regional_coverage.csv
+    outputs:
+      - reconstruction/selected_days_events.csv
+    comparison_targets:
+      - selected_days/selected_days_395.csv
+
+  # (e) 395 daily Method-A DBSCAN parameter selections
+  - name: daily-dbscan-params
+    kind: builtin
+    builtin: daily_dbscan_params
+    route: fast
+    inputs:
+      selected_csv: reconstruction/selected_days_events.csv
+      labels_npz: reconstruction/heatwave_labels_relabelled.npz
+    outputs:
+      - reconstruction/daily_selected_parameters.csv
+    comparison_targets:
+      - "catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv (canonical_daily_* columns)"
+
+  # (f) 51 event-global parameter pairs from the new daily results
+  - name: event-global-params
+    kind: builtin
+    builtin: event_global_params
+    route: fast
+    inputs:
+      daily_params_csv: reconstruction/daily_selected_parameters.csv
+      selected_csv: reconstruction/selected_days_events.csv
+    outputs:
+      - reconstruction/event_global_max_parameters.csv
+    comparison_targets:
+      - catalogs/event_global_max_parameters.csv
+
+  # (g) cluster every selected day with the new event parameters;
+  # (h) fit the PCA ellipses
+  - name: rebuild-catalog
+    kind: builtin
+    builtin: rebuild_catalog
+    route: fast
+    inputs:
+      selected_csv: reconstruction/selected_days_events.csv
+      event_params_csv: reconstruction/event_global_max_parameters.csv
+      labels_npz: reconstruction/heatwave_labels_relabelled.npz
+    outputs:
+      - reconstruction/structure_labels.csv
+      - reconstruction/master_cluster_ellipse_catalog.csv
+    comparison_targets:
+      - catalogs/final_labels_event_global_max.csv
+      - catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv
+
+  # (i, j) typology of the reconstructed catalog
+  - name: classify-reconstructed
+    kind: builtin
+    builtin: classify_reconstructed
+    route: fast
+    inputs:
+      catalog_csv: reconstruction/master_cluster_ellipse_catalog.csv
+    outputs:
+      - reconstruction/event_typology.csv
+    comparison_targets:
+      - "catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv (v3_type)"
+
+  # Final schema/count validation of the DEPOSITED catalog against the
+  # expected_counts: of THIS config (comparison target integrity; not an
+  # upstream input to any stage above).
+  - name: validate-deposited-catalog
+    kind: builtin
+    builtin: validate_catalog
+    route: fast
+    inputs:
+      master_csv: catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv
+      parameters_csv: catalogs/event_global_max_parameters.csv
+    params:
+      expect_canonical_counts: true

@@ -1,38 +1,38 @@
 # Python
 __pycache__/
 *.py[cod]
-.ipynb_checkpoints/
-
-# Virtual environments
+*.egg-info/
+.eggs/
+build/
+dist/
 .venv/
 venv/
-env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
-# Large climate/geospatial data
+# Data (deposits are fetched, not committed).
+# NOTE: data/* (not data/) so that data/auxiliary/ -- small auxiliary inputs that
+# SHIP with the code, e.g. the Method-A parameter grid used by Fig. A.2 --
+# can be re-included below (git cannot re-include under an excluded parent).
+scorch_data/
 data/*
-!data/README.md
+!data/auxiliary/
 *.nc
-*.grib
-*.grb
-*.h5
-*.hdf
-*.tif
-*.tiff
-*.zip
-*.7z
+*.zarr/
+*.csv.gz
 
-# Outputs
-outputs/*
-!outputs/README.md
-!outputs/figures/
-!outputs/tables/
-
-# OS / editor
+# OS
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
+desktop.ini
 
-# OneDrive temporary files
-~$*
-*.tmp
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Regenerated verification outputs (kept locally, not in the public repo)
+reproduced/

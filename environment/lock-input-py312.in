@@ -1,0 +1,45 @@
+# Direct-dependency input for environment/requirements-lock-py312.txt.
+#
+# Every version below is the EXACT version installed in the Python 3.12.10
+# environment that produced the paper outputs (the same pins recorded in
+# environment.yml). Regenerate the hash lock with, from environment/:
+#
+#     pip-compile --generate-hashes --output-file requirements-lock-py312.txt \
+#         lock-input-py312.in
+#
+# run inside a clean Python 3.12 virtual environment (pip install pip-tools).
+# The scorch-heatwaves package itself is intentionally NOT listed (installed
+# separately with `pip install --no-deps .`).
+
+# core (scorch-heatwaves install_requires)
+numpy==2.4.6
+pandas==3.0.3
+scipy==1.17.1
+scikit-learn==1.9.0
+pyyaml==6.0.3
+openpyxl==3.1.5
+
+# [maps]
+matplotlib==3.10.9
+cartopy==0.25.0
+shapely==2.1.2
+pyproj==3.7.2
+
+# [download]
+xarray==2026.4.0
+netCDF4==1.7.4
+dask==2026.3.0
+zarr==3.2.1
+gcsfs==2026.5.0
+cdsapi==0.7.7
+
+# [figures]
+pymannkendall==1.4.3
+imageio==2.37.3
+pillow==12.2.0
+pypdf==6.12.2
+# pandas DataFrame.to_markdown (statistics + power-law Markdown tables)
+tabulate==0.10.0
+
+# [dev]
+pytest==9.0.3

@@ -1,0 +1,99 @@
+# LICENCES AND ATTRIBUTION
+
+## Licence scope by path (authoritative)
+
+Every file deployed to the public repository (the `scorch-release` tree
+minus the never-deployed `reproduced/` outputs, the materialized
+`publication_outputs/` tree, any downloaded `scorch_data/`, and tool
+caches) and every file in the companion Zenodo data deposit falls under
+exactly one row below. `publication_outputs/` is excluded because it is
+deterministic output rather than source: it is assembled by
+`scripts/publication/build_publication_outputs.py` from files that are
+themselves covered by the rows below, so classifying it would licence the
+same material twice. Each assembled file inherits the licence of the row
+that covers the input it was materialized from; `publication_outputs/`
+carries its own `README.md` recording that inheritance, and every figure's
+`PROVENANCE.txt` names the input it was routed from by SHA-256. The two governing legal
+notices - this repository's `LICENSE` file and the deposit's
+`LICENSE.txt` - have their own explicit rows: each is the controlling
+legal and attribution notice for its collection and is not additionally
+covered by any content row.
+
+| Path | Licence |
+|---|---|
+| `src/**`, `scripts/**`, `tests/**`, `run_reproduction.py`, `Makefile`, `configs/**` | MIT (see `LICENSE`) |
+| `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | MIT (see `LICENSE`) |
+| `docs/**`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `CITATION.cff`, `.zenodo.json` (author-created documentation and record metadata) | CC BY 4.0 |
+| `assets/frozen_figures/**` except `figS1_station_donor/**` (author-created frozen figure assets and their checksum/README records) | CC BY 4.0 |
+| `assets/frozen_figures/figS1_station_donor/**` (frozen station-comparison artwork) | CC BY 4.0 for the authors' artwork; the depicted station observations remain subject to the GHCN-Daily source/use terms and attribution, and the depicted reanalysis values to the current Copernicus ERA5 terms and required attribution |
+| `assets/manuscript_final/**` (the nine authenticated manuscript-final figure rasters and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the two frozen slide exports |
+| `data/auxiliary/**` (author-generated Method-A analysis data) | CC BY 4.0 for the authors' original processing and contribution + current Copernicus ERA5 terms and required attribution for the underlying ERA5-derived material |
+| `LICENSE` (repository licence file) | The repository's controlling legal and attribution notice: it carries the MIT licence text and the data attribution notices and governs the rows above rather than being separately licensed content |
+| Data deposit: `LICENSE.txt` | The deposit's controlling legal and attribution notice; its section 0 is the deposit's authoritative path table |
+| Data deposit: `validate_deposit.py` | **MIT** (software, not CC BY) |
+| Data deposit: author-created processed data and documentation not otherwise identified in this table | CC BY 4.0 for the authors' original contributions |
+| Data deposit: ERA5-derived files (`gridded/**`, `lgcp/tmax_covariate_grid_all_boxes.csv`, `lgcp/covariate_raster_km.csv`, `validation_station/era5_*`, `figure_table_source_data/fig02/*`) | CC BY 4.0 for the authors' processing + current Copernicus ERA5 terms and required attribution |
+| Data deposit: `validation_station/ghcnd_*`, `merged_station_validation.csv`, `recompute_result.json` | GHCN-Daily source/use terms and attribution (applicable source-provider rights retained); authors' processing CC BY 4.0; the merged file's ERA5 column also carries the Copernicus terms; `recompute_result.json` is the authors' derived output under CC BY 4.0 |
+
+`validate_deposit.py` is SOFTWARE and is licensed MIT. Any earlier statement
+assigning it to CC BY 4.0 alone is superseded. The deposit's own
+`LICENSE.txt` carries the same path table together with the FULL legal texts
+of the MIT licence and the CC BY 4.0 summary, and the ERA5 and NOAA notices.
+
+Full licence texts: the complete MIT text is in this repository's `LICENSE`
+file and in section 2 of the deposit's `LICENSE.txt`. The complete CC BY 4.0
+legal code is at https://creativecommons.org/licenses/by/4.0/legalcode
+(summary: https://creativecommons.org/licenses/by/4.0/); section 1 of the
+deposit's `LICENSE.txt` reproduces the operative summary and points to that
+legal code.
+
+## Source datasets (not owned by the SCORCH authors; not redistributed raw)
+
+### ERA5 (Copernicus Climate Change Service, ECMWF)
+- Dataset: ERA5 hourly data on single levels from 1940 to present,
+  DOI 10.24381/cds.adbb2d47. Accessed for this work through the ARCO-ERA5
+  public mirror on Google Cloud (Google Research arco-era5 project).
+- Licence: ERA5 is distributed under Creative Commons Attribution 4.0 terms
+  together with the Copernicus licence conditions accepted at download time.
+  The terms in force are published on the dataset's Licence tab at
+  https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels
+  which supersedes the retired ECMWF licence URL
+  (`apps.ecmwf.int/datasets/licences/copernicus/`) cited by earlier versions
+  of this release.
+- Required notice, which must accompany all ERA5-derived content:
+  "Contains modified Copernicus Climate Change Service information
+  [1940-2025]; neither the European Commission nor ECMWF is responsible for
+  any use of the Copernicus information."
+- Citation: Hersbach et al. (2020), Q. J. R. Meteorol. Soc., 10.1002/qj.3803.
+
+### GHCN-Daily (NOAA NCEI)
+- Dataset: Global Historical Climatology Network - Daily,
+  DOI 10.7289/V5D21VHZ. Station GHCND:EG000062414 (Aswan, Egypt).
+- Terms: GHCN-Daily source material is distributed by NOAA/NCEI.
+  GHCN-Daily integrates observations from international source datasets;
+  users should follow the dataset's current use constraints
+  (https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/gov.noaa.ncdc%3AC00861/html
+  and https://www.ncei.noaa.gov/archive) and observe any applicable
+  source-provider rights. NOAA requests citation of the
+  dataset and the descriptive paper.
+- Citation: Menne et al. (2012), J. Atmos. Oceanic Technol., 10.1175/JTECH-D-11-00103.1.
+
+### Basemap data
+- Figure basemaps use Natural Earth public-domain data fetched by cartopy at
+  render time; no basemap data are redistributed here.
+
+## Third-party software dependencies
+
+Dependencies are installed from their own distributions and are not vendored
+into this repository. Principal licences: numpy, pandas, scipy, scikit-learn,
+xarray, dask, zarr, gcsfs, netCDF4, pyproj, shapely, matplotlib (BSD-style);
+cartopy (BSD-3-Clause); pyyaml, openpyxl (MIT); cdsapi (Apache-2.0);
+R spatstat family (GPL-2 or later, used as an external runtime, not linked or
+redistributed). A full inventory with versions is in
+docs/THIRD_PARTY_DEPENDENCIES.md.
+
+## Non-claims
+
+The SCORCH authors claim no ownership of ERA5, ARCO-ERA5, GHCN-Daily, or
+Natural Earth data. Nothing in this repository grants rights to those
+datasets beyond their providers' own terms.

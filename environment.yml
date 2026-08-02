@@ -1,0 +1,42 @@
+# Conda environment for the full SCORCH workflow (analysis + maps + download).
+# Pins mirror the environment that produced the paper outputs
+# (CPython 3.12.10 on Windows 11; see
+# environment/requirements-lock-py312.txt for the complete transitive pip
+# lock with hashes
+# and environment/renv.lock for R).
+name: scorch
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.10
+  - numpy=2.4.6
+  - pandas=3.0.3
+  - scipy=1.17.1
+  - scikit-learn=1.9.0
+  - matplotlib=3.10.9
+  - cartopy=0.25.0
+  - shapely=2.1.2
+  - pyproj=3.7.2
+  - openpyxl=3.1.5
+  - pyyaml=6.0.3
+  - pillow=12.2.0
+  - xarray=2026.4.0
+  - netcdf4=1.7.4
+  - dask=2026.3.0
+  - zarr=3.2.1
+  - gcsfs=2026.5.0
+  - imageio=2.37.3
+  - pymannkendall=1.4.3
+  - pypdf=6.12.2
+  # Markdown table rendering used by the repository-level statistics and
+  # power-law scripts (pandas DataFrame.to_markdown).
+  - tabulate=0.10.0
+  # Development (testing) dependency; not needed to run the workflow.
+  - pytest=9.0.3
+  - pip
+  - pip:
+      - cdsapi==0.7.7
+# R side (not managed by conda here): R 4.5.1 with spatstat 3.6-1
+# (spatstat.geom 3.8-1, spatstat.model 3.7-1, spatstat.explore 3.8-1) and
+# jsonlite 2.0.0. See environment/renv.lock and docs/R_WORKFLOW.md for the
+# mixed-language workflow description.

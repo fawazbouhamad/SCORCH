@@ -1,9 +1,78 @@
 cff-version: 1.2.0
-message: "If you use this repository, please cite it as below."
-title: "SCORCH: Spatial Characterization of Heatwaves"
-authors:
-  - family-names: "Bouhamad"
-    given-names: "Fawaz"
-year: 2026
-version: "1.0.0"
+message: >-
+  If you use this software, please cite it using the metadata below, and cite
+  the associated article once its DOI is available.
+type: software
+title: "SCORCH (Spatiotemporal Classification of Regional Compound Heatwaves): software and reproducibility workflow"
+version: 1.0.0
+license: MIT
 repository-code: "https://github.com/fawazbouhamad/SCORCH"
+url: "https://github.com/fawazbouhamad/SCORCH"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21717874"
+    description: >-
+      Zenodo archive of this software release (version DOI of the release
+      tag v1.0.0).
+references:
+  - type: data
+    title: >-
+      Processed data and reproducibility inputs for the SCORCH framework
+    authors:
+      - family-names: Bouhamad
+        given-names: Fawaz
+      - family-names: Najibi
+        given-names: Nasser
+    year: 2026
+    doi: "10.5281/zenodo.21717752"
+    notes: >-
+      Companion Zenodo processed-data record underlying the SCORCH
+      analyses; primary CC BY 4.0 for author-created processed data and
+      documentation, with path-specific MIT, GHCN-Daily source/use, and
+      Copernicus terms recorded in the deposit LICENSE.txt. This
+      software record declares isSupplementTo to it.
+authors:
+  - family-names: Bouhamad
+    given-names: Fawaz
+    affiliation: >-
+      Department of Agricultural and Biological Engineering, University of
+      Florida, Gainesville, FL 32611, USA
+  - family-names: Najibi
+    given-names: Nasser
+    affiliation: >-
+      Department of Agricultural and Biological Engineering, University of
+      Florida, Gainesville, FL 32611, USA
+keywords:
+  - compound heatwaves
+  - ERA5 reanalysis
+  - spatiotemporal clustering
+  - DBSCAN
+  - PCA ellipses
+  - log-Gaussian Cox process
+  - Eastern Mediterranean and Middle East
+abstract: >-
+  SCORCH (Spatiotemporal Classification of Regional Compound Heatwaves)
+  identifies, clusters, and classifies regionally extensive compound
+  heatwaves from ERA5-derived daily maximum temperature fields over the
+  Eastern Mediterranean and Middle East (1 degree grid, April-September,
+  1940-2025), characterizes daily heat structures with PCA ellipses, assigns
+  Type 1-4 event typologies, and summarizes the relative spatial
+  concentration of heat-structure centroids with a log-Gaussian Cox process
+  centroid-concentration model. The fitted surface is a relative
+  concentration summary, not a probability, risk, hazard, or susceptibility
+  estimate.
+preferred-citation:
+  type: article
+  title: >-
+    Understanding the Spatiotemporal Organization of Regionally Extensive
+    Heatwaves Using the SCORCH Framework
+  authors:
+    - family-names: Bouhamad
+      given-names: Fawaz
+    - family-names: Najibi
+      given-names: Nasser
+  journal: Weather and Climate Extremes
+  year: 2026
+  notes: >-
+    Manuscript prepared for submission to Weather and Climate Extremes. Add
+    the article DOI when assigned.

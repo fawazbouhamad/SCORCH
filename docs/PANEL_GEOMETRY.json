@@ -1,0 +1,1235 @@
+{
+ "note": "Declared manuscript panels and the measured crop geometry used to cut them out of the authenticated manuscript-final raster. Coordinates are absolute pixels in that raster. A region excludes SHARED chrome (figure title, headers spanning more than one panel, shared legends, shared colorbars); shared chrome is never bisected and survives only in the composite. Figures with no panel letters in the manuscript are absent and must never be given panels. This file is self-sufficient: 'trim' states the trimming policy, and every panel carries both its split rectangle and the final rectangle actually exported, so a rebuild is checkable without re-deriving anything.",
+ "trim": {
+  "description": "A split rectangle inherits the composite's outer margins, so it is shrunk onto its own ink and then given a small margin back. Trimming only ever removes blank rows/columns, so an exported panel is always a sub-rectangle of the manuscript composite and no plotted content can be lost.",
+  "grayscale": "RGBA/LA/P composited over opaque white, then converted to 8-bit L",
+  "ink_threshold": 250,
+  "ink_predicate": "gray < 250",
+  "margin_px": "int(min(60, max(8, round(0.01 * min(width, height)))))",
+  "panel_pixels_sha256": "SHA-256 of the cropped panel's raw RGB pixel buffer (PIL Image.convert('RGB').crop(box).tobytes()). Hashing pixels rather than PNG bytes keeps the check independent of which PNG encoder or Pillow version writes the file."
+ },
+ "declared_panels_total": 45,
+ "lettered_figures": 12,
+ "figures": [
+  {
+   "label": "Fig. 2.",
+   "folder": "Figure_02",
+   "manuscript_final_sha256": "62c20697282bddc0aa199782dec574fe0d84048ed6d3eaf117c839d31505b46f",
+   "composite_width": 8400,
+   "composite_height": 2941,
+   "panels": [
+    "a",
+    "b"
+   ],
+   "panel_count": 2,
+   "shared_chrome_excluded": false,
+   "ink_px": 11273255,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [],
+     "cols": [
+      4199
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      4199,
+      2941
+     ],
+     "box": [
+      61,
+      25,
+      4142,
+      2866
+     ],
+     "width": 4081,
+     "height": 2841,
+     "pixels_sha256": "b41fbbb31d47c218ef6c3eeee4a8deb5ef4772a8c2790145ad7ff44f5e95492c"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      4199,
+      0,
+      8400,
+      2941
+     ],
+     "box": [
+      4257,
+      0,
+      8341,
+      2892
+     ],
+     "width": 4084,
+     "height": 2892,
+     "pixels_sha256": "5c695ae7d31e437909414149faec57f132d891aa4f0d6f650324e013ceae85c5"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 3.",
+   "folder": "Figure_03",
+   "manuscript_final_sha256": "cc3ea5e16261601023a3fa2f83ea4885c567de6eb761fee98210942f5bac93f6",
+   "composite_width": 7325,
+   "composite_height": 8005,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e"
+   ],
+   "panel_count": 5,
+   "shared_chrome_excluded": false,
+   "ink_px": 33186119,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [
+      2713,
+      5283
+     ],
+     "cols": [
+      [
+       3478
+      ],
+      [
+       3655
+      ],
+      []
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      3478,
+      2713
+     ],
+     "box": [
+      76,
+      70,
+      3305,
+      2696
+     ],
+     "width": 3229,
+     "height": 2626,
+     "pixels_sha256": "4b0cc2ec7b2f05a071302351fa627768803ed7043b393cd57c3a5a6d45989d85"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      3478,
+      0,
+      7325,
+      2713
+     ],
+     "box": [
+      3651,
+      70,
+      7241,
+      2516
+     ],
+     "width": 3590,
+     "height": 2446,
+     "pixels_sha256": "67812839fd95ccbabbc6b297906d72cbf992339922517f75362c699e5941a10f"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      2713,
+      3655,
+      5283
+     ],
+     "box": [
+      77,
+      2731,
+      3655,
+      5175
+     ],
+     "width": 3578,
+     "height": 2444,
+     "pixels_sha256": "0e07cc252080a9a87a6f870ac679bf87f1ffb765107ca5413d736a11eef0a331"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      3655,
+      2713,
+      7325,
+      5283
+     ],
+     "box": [
+      3655,
+      2731,
+      7176,
+      5175
+     ],
+     "width": 3521,
+     "height": 2444,
+     "pixels_sha256": "1a5755c254230c4ccc01993b6e5ecdeb17607b957ec9e5031ecd16b34171695c"
+    },
+    {
+     "panel": "e",
+     "split_box": [
+      0,
+      5283,
+      7325,
+      8005
+     ],
+     "box": [
+      1964,
+      5390,
+      5582,
+      7836
+     ],
+     "width": 3618,
+     "height": 2446,
+     "pixels_sha256": "cd73c98d0a6c8811029cb2f2c9de9addd9d96ffe729bbe360a379df38ff0a878"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 6.",
+   "folder": "Figure_06",
+   "manuscript_final_sha256": "f45272bc0030022fda3d5bdfdbe51e33b4d96d749e5f120d07cbabef8fb01cfe",
+   "composite_width": 1950,
+   "composite_height": 1580,
+   "panels": [
+    "a",
+    "b"
+   ],
+   "panel_count": 2,
+   "shared_chrome_excluded": true,
+   "ink_px": 624072,
+   "ink_outside_panels_px": 11804,
+   "ink_outside_panels_pct": 1.8914,
+   "blocks": [
+    {
+     "region": [
+      0,
+      200,
+      1950,
+      1471
+     ],
+     "rows": [
+      833
+     ],
+     "cols": []
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      200,
+      1950,
+      833
+     ],
+     "box": [
+      10,
+      204,
+      1897,
+      826
+     ],
+     "width": 1887,
+     "height": 622,
+     "pixels_sha256": "1ede8325a7b68a78ffdb95b3dbd5fa7d0e72ab68ae67a98c53fa67e35640b7e0"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      0,
+      833,
+      1950,
+      1471
+     ],
+     "box": [
+      7,
+      841,
+      1897,
+      1463
+     ],
+     "width": 1890,
+     "height": 622,
+     "pixels_sha256": "a9cb6bc5d221c5cc7e7a7b773fb125c1047cb0d2d17294a1eefa46365b6bdd28"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 8.",
+   "folder": "Figure_08",
+   "manuscript_final_sha256": "c64f1a16441b3f73d57bde6a75953d261e45cade7d7b7766ca36977aa6bccb6b",
+   "composite_width": 1950,
+   "composite_height": 1489,
+   "panels": [
+    "a",
+    "b",
+    "c"
+   ],
+   "panel_count": 3,
+   "shared_chrome_excluded": true,
+   "ink_px": 513584,
+   "ink_outside_panels_px": 3140,
+   "ink_outside_panels_pct": 0.6114,
+   "blocks": [
+    {
+     "region": [
+      0,
+      41,
+      1950,
+      1489
+     ],
+     "rows": [
+      505,
+      1013
+     ],
+     "cols": []
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      41,
+      1950,
+      505
+     ],
+     "box": [
+      11,
+      41,
+      1931,
+      462
+     ],
+     "width": 1920,
+     "height": 421,
+     "pixels_sha256": "ed7a077359b4cbea5a4bc05bf6171a05625738d9740c4f874102541d431ab8ce"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      0,
+      505,
+      1950,
+      1013
+     ],
+     "box": [
+      9,
+      549,
+      1931,
+      972
+     ],
+     "width": 1922,
+     "height": 423,
+     "pixels_sha256": "165dc9801108c17596108682d6842c56922c54df22eb0808ab486869eac3db10"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      1013,
+      1950,
+      1489
+     ],
+     "box": [
+      11,
+      1054,
+      1942,
+      1480
+     ],
+     "width": 1931,
+     "height": 426,
+     "pixels_sha256": "0913aa8030a881043adbe997e1e59ed89a55c397f19d6ee6d5d5c597dea1147d"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 9.",
+   "folder": "Figure_09",
+   "manuscript_final_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+   "composite_width": 1950,
+   "composite_height": 637,
+   "panels": [
+    "a",
+    "b",
+    "c"
+   ],
+   "panel_count": 3,
+   "shared_chrome_excluded": true,
+   "ink_px": 94694,
+   "ink_outside_panels_px": 2779,
+   "ink_outside_panels_pct": 2.9347,
+   "blocks": [
+    {
+     "region": [
+      0,
+      0,
+      1950,
+      563
+     ],
+     "rows": [],
+     "cols": [
+      660,
+      1282
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      660,
+      563
+     ],
+     "box": [
+      27,
+      28,
+      660,
+      557
+     ],
+     "width": 633,
+     "height": 529,
+     "pixels_sha256": "5869efc01c7e4662cd9c029819a89c387c12c73c113433ec49e3e1520e4e4f30"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      660,
+      0,
+      1282,
+      563
+     ],
+     "box": [
+      661,
+      28,
+      1282,
+      557
+     ],
+     "width": 621,
+     "height": 529,
+     "pixels_sha256": "1ba869558cafb0e44f55a88bcb2bf557020d8d582d3ee029bfb3de22a0d76916"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      1282,
+      0,
+      1950,
+      563
+     ],
+     "box": [
+      1282,
+      28,
+      1930,
+      557
+     ],
+     "width": 648,
+     "height": 529,
+     "pixels_sha256": "b7fc7c3e3260958a2a1e189186815b7c397ec3f7fc9cbaf84b865620c6775657"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 10.",
+   "folder": "Figure_10",
+   "manuscript_final_sha256": "be5a528857a05843560d277d1c11cee02c944c21bfda1cd24324e13846b1def1",
+   "composite_width": 1950,
+   "composite_height": 1222,
+   "panels": [
+    "a",
+    "b"
+   ],
+   "panel_count": 2,
+   "shared_chrome_excluded": false,
+   "ink_px": 186894,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [
+      558
+     ],
+     "cols": []
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      1950,
+      558
+     ],
+     "box": [
+      19,
+      13,
+      1917,
+      514
+     ],
+     "width": 1898,
+     "height": 501,
+     "pixels_sha256": "6090ae6fa650d39de4aa8b6751d5027b52f0f74b7037107f21ca6dfae67a04bd"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      0,
+      558,
+      1950,
+      1222
+     ],
+     "box": [
+      16,
+      602,
+      1936,
+      1204
+     ],
+     "width": 1920,
+     "height": 602,
+     "pixels_sha256": "665d4a330bf8b7e9e8824ef4f79ff28870e79177d801942aec8b3e12c3b722ed"
+    }
+   ]
+  },
+  {
+   "label": "Fig. 11.",
+   "folder": "Figure_11",
+   "manuscript_final_sha256": "9ada5400232aa424b109fe32f0d22b7fa09ec632be42bda7f8bfa44063c37fd4",
+   "composite_width": 1950,
+   "composite_height": 1673,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "panel_count": 4,
+   "shared_chrome_excluded": false,
+   "ink_px": 227661,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [
+      836
+     ],
+     "cols": [
+      979
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      979,
+      836
+     ],
+     "box": [
+      10,
+      11,
+      940,
+      825
+     ],
+     "width": 930,
+     "height": 814,
+     "pixels_sha256": "df4d2ad9714187acfafe2786988616b9fafc19ae87c15905d9e37d7685c52651"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      979,
+      0,
+      1950,
+      836
+     ],
+     "box": [
+      1018,
+      11,
+      1940,
+      712
+     ],
+     "width": 922,
+     "height": 701,
+     "pixels_sha256": "02abeb58bb445bd9708e6787949f44bca1747c432c6f2b63a9ae786a58f81cf0"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      836,
+      979,
+      1673
+     ],
+     "box": [
+      13,
+      847,
+      940,
+      1661
+     ],
+     "width": 927,
+     "height": 814,
+     "pixels_sha256": "75f927c45cd431dcad42ede35f351b1ca76991479a682aa8bd1564978d7826cc"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      979,
+      836,
+      1950,
+      1673
+     ],
+     "box": [
+      1018,
+      847,
+      1940,
+      1548
+     ],
+     "width": 922,
+     "height": 701,
+     "pixels_sha256": "e1560ea8fb1383343d39691525bf52ab49c22668a091db3158f62e7206ce00e4"
+    }
+   ]
+  },
+  {
+   "label": "Fig. A.",
+   "folder": "Appendix_A",
+   "manuscript_final_sha256": "ca9c49e703aa28fe20dd5a463e57beea5c4adc62e5dd3b0086c05660325acb74",
+   "composite_width": 1950,
+   "composite_height": 1781,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "panel_count": 4,
+   "shared_chrome_excluded": false,
+   "ink_px": 1823043,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [
+      895
+     ],
+     "cols": [
+      972
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      972,
+      895
+     ],
+     "box": [
+      46,
+      64,
+      924,
+      854
+     ],
+     "width": 878,
+     "height": 790,
+     "pixels_sha256": "f7bc4054ff98fcf5ab71bccd2e3c0f5c83c21b6104d1725fc7adfb59d8bd20c7"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      972,
+      0,
+      1950,
+      895
+     ],
+     "box": [
+      1021,
+      64,
+      1910,
+      854
+     ],
+     "width": 889,
+     "height": 790,
+     "pixels_sha256": "95da6d5e4814e8cf9da4a1023d6189cced0110fc0b0a83f7e1314c43e4590ce3"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      895,
+      972,
+      1781
+     ],
+     "box": [
+      46,
+      937,
+      924,
+      1727
+     ],
+     "width": 878,
+     "height": 790,
+     "pixels_sha256": "5b0c94b57877a731ca5bd5eaf51e87fd32cce1b18dc54e3ee8ffedd26d783325"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      972,
+      895,
+      1950,
+      1781
+     ],
+     "box": [
+      1021,
+      937,
+      1905,
+      1727
+     ],
+     "width": 884,
+     "height": 790,
+     "pixels_sha256": "ae25b49474e3c37157ace57937b0e1de6be58c719e7aecf3dcb9d77b92640962"
+    }
+   ]
+  },
+  {
+   "label": "Fig. B.",
+   "folder": "Appendix_B",
+   "manuscript_final_sha256": "916fed8eafbd535028fd1c1f04f611db58c9b78f9a1d7ee0cdc95567ed1b3fd5",
+   "composite_width": 5340,
+   "composite_height": 7488,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f"
+   ],
+   "panel_count": 6,
+   "shared_chrome_excluded": false,
+   "ink_px": 12042902,
+   "ink_outside_panels_px": 0,
+   "ink_outside_panels_pct": 0.0,
+   "blocks": [
+    {
+     "region": null,
+     "rows": [
+      2449,
+      4825
+     ],
+     "cols": [
+      2800
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      2800,
+      2449
+     ],
+     "box": [
+      232,
+      117,
+      2668,
+      2405
+     ],
+     "width": 2436,
+     "height": 2288,
+     "pixels_sha256": "edbce0d171d3ed5dccc607c4512bfa9c755c1faa9dbe1539549e10e326dfe959"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      2800,
+      0,
+      5340,
+      2449
+     ],
+     "box": [
+      2932,
+      117,
+      5248,
+      2405
+     ],
+     "width": 2316,
+     "height": 2288,
+     "pixels_sha256": "8c65b7be0d32b86cb7dd801f75ee0b0edf85e201ca6a98964b5d91db71455465"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      2449,
+      2800,
+      4825
+     ],
+     "box": [
+      232,
+      2493,
+      2668,
+      4781
+     ],
+     "width": 2436,
+     "height": 2288,
+     "pixels_sha256": "201b7a800dd45c38b7a41ca1819f3cee926b4f4cae47daf2f949b6171d3d8d13"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      2800,
+      2449,
+      5340,
+      4825
+     ],
+     "box": [
+      2932,
+      2493,
+      5248,
+      4781
+     ],
+     "width": 2316,
+     "height": 2288,
+     "pixels_sha256": "898ec9070b03e059e7cdf258bc6d9c7c11f3cd3c5c5345127e5be787988e1f9a"
+    },
+    {
+     "panel": "e",
+     "split_box": [
+      0,
+      4825,
+      2800,
+      7488
+     ],
+     "box": [
+      229,
+      4866,
+      2671,
+      7294
+     ],
+     "width": 2442,
+     "height": 2428,
+     "pixels_sha256": "db155af61b499c02230f798e3e9e149df580e9eb312aa17162f9533b57849ec3"
+    },
+    {
+     "panel": "f",
+     "split_box": [
+      2800,
+      4825,
+      5340,
+      7488
+     ],
+     "box": [
+      2931,
+      4868,
+      5249,
+      7292
+     ],
+     "width": 2318,
+     "height": 2424,
+     "pixels_sha256": "d2994d27d29d0733946c7e8a8dfba0dffac93517a70c0c1c3872d92cde1a7b48"
+    }
+   ]
+  },
+  {
+   "label": "Fig. C.",
+   "folder": "Appendix_C",
+   "manuscript_final_sha256": "07872152bae8bd2b215bddc8e3db23df4c052824f7ee329eefa64c55eda274e4",
+   "composite_width": 1950,
+   "composite_height": 1330,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "panel_count": 4,
+   "shared_chrome_excluded": true,
+   "ink_px": 246442,
+   "ink_outside_panels_px": 3367,
+   "ink_outside_panels_pct": 1.3662,
+   "blocks": [
+    {
+     "region": [
+      0,
+      0,
+      1950,
+      1218
+     ],
+     "rows": [
+      608
+     ],
+     "cols": [
+      987
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      987,
+      608
+     ],
+     "box": [
+      52,
+      37,
+      936,
+      594
+     ],
+     "width": 884,
+     "height": 557,
+     "pixels_sha256": "b4da41c2b5f63c5af98ea27eb111eb02053aa2bf0a818fabe92db1807ed1f411"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      987,
+      0,
+      1950,
+      608
+     ],
+     "box": [
+      1027,
+      37,
+      1911,
+      594
+     ],
+     "width": 884,
+     "height": 557,
+     "pixels_sha256": "900a11033b9b114a714543ded5ab4937d30e542282e9ef95e54cb8949994903f"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      608,
+      987,
+      1218
+     ],
+     "box": [
+      63,
+      623,
+      936,
+      1179
+     ],
+     "width": 873,
+     "height": 556,
+     "pixels_sha256": "c319f0785c930f55c9d49d5b67e2a4e16f5652951af79c61618827b6ce386fb1"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      987,
+      608,
+      1950,
+      1218
+     ],
+     "box": [
+      1038,
+      623,
+      1911,
+      1179
+     ],
+     "width": 873,
+     "height": 556,
+     "pixels_sha256": "05e84e92d17ea0fb08a62b8d67881dd8e0ec41c0d0b818da3bce78f72a97c536"
+    }
+   ]
+  },
+  {
+   "label": "Fig. D.",
+   "folder": "Appendix_D",
+   "manuscript_final_sha256": "b7c48232d9f48c9dbf29291470562699590f7ed4f5be50ecb7087f37684574ae",
+   "composite_width": 6050,
+   "composite_height": 6019,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f"
+   ],
+   "panel_count": 6,
+   "shared_chrome_excluded": true,
+   "ink_px": 17816734,
+   "ink_outside_panels_px": 568354,
+   "ink_outside_panels_pct": 3.19,
+   "blocks": [
+    {
+     "region": [
+      0,
+      0,
+      5532,
+      5742
+     ],
+     "rows": [
+      1934,
+      3844
+     ],
+     "cols": [
+      2961
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      0,
+      2961,
+      1934
+     ],
+     "box": [
+      240,
+      53,
+      2800,
+      1893
+     ],
+     "width": 2560,
+     "height": 1840,
+     "pixels_sha256": "760c587c06f81e3fccdc0418f1c1afe5689ea85d501f039dcd108c1a1602c50f"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      2961,
+      0,
+      5532,
+      1934
+     ],
+     "box": [
+      3123,
+      53,
+      5472,
+      1868
+     ],
+     "width": 2349,
+     "height": 1815,
+     "pixels_sha256": "93459edc5a04be1a6d755eb76987233c684d0934870db07088ffee4a7871a054"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      1934,
+      2961,
+      3844
+     ],
+     "box": [
+      348,
+      1976,
+      2697,
+      3791
+     ],
+     "width": 2349,
+     "height": 1815,
+     "pixels_sha256": "3d8871e343a8cae344c2eb71169dcf7fa4fece1719245200c9ba2ce6e21e3720"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      2961,
+      1934,
+      5532,
+      3844
+     ],
+     "box": [
+      3123,
+      1976,
+      5472,
+      3791
+     ],
+     "width": 2349,
+     "height": 1815,
+     "pixels_sha256": "f421c9c80f36a71faed686dcc890c3633b267dc613f5f9ac60d710165b1f4fd9"
+    },
+    {
+     "panel": "e",
+     "split_box": [
+      0,
+      3844,
+      2961,
+      5742
+     ],
+     "box": [
+      348,
+      3899,
+      2697,
+      5714
+     ],
+     "width": 2349,
+     "height": 1815,
+     "pixels_sha256": "48ffdb9c4cd4a6e0d711f53015e0f762afc00ec6bd322a88f4c5f5be29b96a11"
+    },
+    {
+     "panel": "f",
+     "split_box": [
+      2961,
+      3844,
+      5532,
+      5742
+     ],
+     "box": [
+      3123,
+      3898,
+      5472,
+      5714
+     ],
+     "width": 2349,
+     "height": 1816,
+     "pixels_sha256": "b07e2cc686033fdc96646eb3a527003cd8a6242566f258cc67202e92c4ee37ba"
+    }
+   ]
+  },
+  {
+   "label": "Fig. S.1.",
+   "folder": "Figure_S1",
+   "manuscript_final_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+   "composite_width": 7440,
+   "composite_height": 6422,
+   "panels": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "panel_count": 4,
+   "shared_chrome_excluded": true,
+   "ink_px": 5708816,
+   "ink_outside_panels_px": 103209,
+   "ink_outside_panels_pct": 1.8079,
+   "blocks": [
+    {
+     "region": [
+      0,
+      473,
+      7440,
+      3157
+     ],
+     "rows": [],
+     "cols": [
+      3794
+     ]
+    },
+    {
+     "region": [
+      0,
+      3681,
+      7440,
+      6422
+     ],
+     "rows": [],
+     "cols": [
+      4718
+     ]
+    }
+   ],
+   "declared_panels": [
+    {
+     "panel": "a",
+     "split_box": [
+      0,
+      473,
+      3794,
+      3157
+     ],
+     "box": [
+      410,
+      473,
+      3635,
+      3152
+     ],
+     "width": 3225,
+     "height": 2679,
+     "pixels_sha256": "774d1fd9cbec51e850516f76372b7e314cdc9e085016e70bba9fed33d6fe6044"
+    },
+    {
+     "panel": "b",
+     "split_box": [
+      3794,
+      473,
+      7440,
+      3157
+     ],
+     "box": [
+      3954,
+      473,
+      7179,
+      3152
+     ],
+     "width": 3225,
+     "height": 2679,
+     "pixels_sha256": "585a40df3729815c62bde1c18fa79f2a5e0bf4fd23a55e72e1ddee64d3d5a092"
+    },
+    {
+     "panel": "c",
+     "split_box": [
+      0,
+      3681,
+      4718,
+      6422
+     ],
+     "box": [
+      36,
+      3681,
+      4677,
+      6369
+     ],
+     "width": 4641,
+     "height": 2688,
+     "pixels_sha256": "3cb3bfb0ae3f12d562d402758a96a71f694a9a3f6c498071a3d5d066915b3ffa"
+    },
+    {
+     "panel": "d",
+     "split_box": [
+      4718,
+      3681,
+      7440,
+      6422
+     ],
+     "box": [
+      4760,
+      3681,
+      7399,
+      6370
+     ],
+     "width": 2639,
+     "height": 2689,
+     "pixels_sha256": "21fc3b12abeb8abb21633cfa4acfd13ae6c3da787f2aec25088e65b3bf55b068"
+    }
+   ]
+  }
+ ]
+}

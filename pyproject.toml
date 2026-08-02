@@ -1,0 +1,115 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scorch-heatwaves"
+version = "1.0.0"
+description = "SCORCH (Spatiotemporal Classification of Regional Compound Heatwaves): spatiotemporal clustering, PCA-ellipse geometry, and typology of regionally extensive compound heatwaves (ERA5, Eastern Mediterranean and Middle East)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Fawaz Bouhamad" },
+    { name = "Nasser Najibi" },
+]
+keywords = [
+    "heatwaves",
+    "compound events",
+    "ERA5",
+    "spatiotemporal clustering",
+    "DBSCAN",
+    "PCA",
+    "climate extremes",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+dependencies = [
+    "numpy>=2.0",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "pyyaml",
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+maps = [
+    "matplotlib",
+    "cartopy",
+    "shapely",
+    "pyproj",
+]
+download = [
+    "xarray",
+    "netCDF4",
+    "dask",
+    "zarr",
+    "gcsfs",
+    "cdsapi",
+]
+figures = [
+    "pymannkendall",
+    "imageio",
+    "Pillow",
+    "pypdf",
+    # pandas DataFrame.to_markdown (statistics + power-law Markdown tables)
+    "tabulate",
+]
+full = [
+    "matplotlib",
+    "cartopy",
+    "shapely",
+    "pyproj",
+    "xarray",
+    "netCDF4",
+    "dask",
+    "zarr",
+    "gcsfs",
+    "cdsapi",
+    "pymannkendall",
+    "imageio",
+    "Pillow",
+    "pypdf",
+    "tabulate",
+]
+dev = [
+    "pytest",
+    # netCDF4 lets the full advertised test suite run (the field-stage and
+    # deposit NetCDF tests need it); without it those tests skip.
+    "netCDF4",
+]
+
+[project.urls]
+Homepage = "https://github.com/fawazbouhamad/SCORCH"
+Repository = "https://github.com/fawazbouhamad/SCORCH"
+Issues = "https://github.com/fawazbouhamad/SCORCH/issues"
+
+[project.scripts]
+scorch = "scorch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scorch = ["configs/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Known benign artifact of the netCDF4/cftime binary wheels: importing
+    # netCDF4 AFTER pandas/scikit-learn/scipy emits "numpy.ndarray size
+    # changed" on every numpy 2.x tested, INCLUDING the exact hash-locked
+    # reproduction environment (see docs/REPRODUCIBILITY_REPORT.md,
+    # section 1). It does not indicate a real incompatibility here (all
+    # tests pass; every canonical number reproduces). Filtered by exact
+    # message so any OTHER binary-compatibility warning still surfaces.
+    "ignore:numpy.ndarray size changed:RuntimeWarning",
+]
