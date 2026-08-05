@@ -13,3 +13,8 @@
 *.pdf binary
 *.xlsx binary
 *.nc binary
+
+# Byte-canonical frozen sigma-sensitivity matrices: the Figure A producer
+# regenerates these BYTE-identically (CRLF exactly as originally emitted and
+# as pinned by tests/test_figA_sigma_matrices.py). Never EOL-normalize.
+scripts/figures/figA1_inputs/*.csv -text

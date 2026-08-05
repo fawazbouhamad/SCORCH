@@ -3,7 +3,7 @@
 """Phase 2E — Figure C candidate: SCORCH-selected DBSCAN parameters by
 event type (slides 19-22 unified into one 2x2 figure).
 
-Published as Fig. C in the appendices since 2026-07-30. The directory name
+Designated Fig. C in the appendices since 2026-07-30. The directory name
 "figA3" and the output filename are LEGACY INTERNAL names, not the current
 publication label.
 

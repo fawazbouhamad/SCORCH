@@ -11,7 +11,7 @@
   Type 4: multi-day event with MIXED structure -- at least one day with
           exactly 1 ellipse AND at least one other day with >1 ellipse.
 
-(No event-day has 0 ellipses in the published catalog, so every day is 1
+(No event-day has 0 ellipses in the canonical catalog, so every day is 1
 or >1.)
 """
 from __future__ import annotations
@@ -51,7 +51,7 @@ def classify_events(master_df, event_col="new_event_id", date_col="date"):
     Parameters
     ----------
     master_df : DataFrame with one row per ellipse, carrying at least the
-        event id and date columns (the published master schema).
+        event id and date columns (the canonical master schema).
     event_col, date_col : column names (canonical defaults).
 
     Returns

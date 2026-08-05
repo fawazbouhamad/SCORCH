@@ -362,7 +362,7 @@
   {
    "label": "Fig. 9.",
    "folder": "Figure_09",
-   "manuscript_final_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+   "manuscript_final_sha256": "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431",
    "composite_width": 1950,
    "composite_height": 637,
    "panels": [
@@ -372,9 +372,9 @@
    ],
    "panel_count": 3,
    "shared_chrome_excluded": true,
-   "ink_px": 94694,
+   "ink_px": 92570,
    "ink_outside_panels_px": 2779,
-   "ink_outside_panels_pct": 2.9347,
+   "ink_outside_panels_pct": 3.0021,
    "blocks": [
     {
      "region": [
@@ -443,7 +443,7 @@
      ],
      "width": 648,
      "height": 529,
-     "pixels_sha256": "b7fc7c3e3260958a2a1e189186815b7c397ec3f7fc9cbaf84b865620c6775657"
+     "pixels_sha256": "e67941d918f63ea93a241da889e04716b27b3295d8720272d81e08b38a6b1b02"
     }
    ]
   },
@@ -1116,9 +1116,9 @@
   {
    "label": "Fig. S.1.",
    "folder": "Figure_S1",
-   "manuscript_final_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+   "manuscript_final_sha256": "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538",
    "composite_width": 7440,
-   "composite_height": 6422,
+   "composite_height": 6559,
    "panels": [
     "a",
     "b",
@@ -1127,9 +1127,9 @@
    ],
    "panel_count": 4,
    "shared_chrome_excluded": true,
-   "ink_px": 5708816,
-   "ink_outside_panels_px": 103209,
-   "ink_outside_panels_pct": 1.8079,
+   "ink_px": 5449486,
+   "ink_outside_panels_px": 102029,
+   "ink_outside_panels_pct": 1.8723,
    "blocks": [
     {
      "region": [
@@ -1148,11 +1148,11 @@
       0,
       3681,
       7440,
-      6422
+      6559
      ],
      "rows": [],
      "cols": [
-      4718
+      4615
      ]
     }
    ],
@@ -1169,11 +1169,11 @@
       410,
       473,
       3635,
-      3152
+      3153
      ],
      "width": 3225,
-     "height": 2679,
-     "pixels_sha256": "774d1fd9cbec51e850516f76372b7e314cdc9e085016e70bba9fed33d6fe6044"
+     "height": 2680,
+     "pixels_sha256": "769754a4206f41c9f0c49451cc8aadaaea95a669cb86d66d78ef18d34282491b"
     },
     {
      "panel": "b",
@@ -1187,47 +1187,47 @@
       3954,
       473,
       7179,
-      3152
+      3153
      ],
      "width": 3225,
-     "height": 2679,
-     "pixels_sha256": "585a40df3729815c62bde1c18fa79f2a5e0bf4fd23a55e72e1ddee64d3d5a092"
+     "height": 2680,
+     "pixels_sha256": "d419ec61202a63f58e80ab7dd91f3baf509d1aa93e9119109e35c11f9fa9fca7"
     },
     {
      "panel": "c",
      "split_box": [
       0,
       3681,
-      4718,
-      6422
+      4615,
+      6559
      ],
      "box": [
       36,
       3681,
-      4677,
-      6369
+      4545,
+      6336
      ],
-     "width": 4641,
-     "height": 2688,
-     "pixels_sha256": "3cb3bfb0ae3f12d562d402758a96a71f694a9a3f6c498071a3d5d066915b3ffa"
+     "width": 4509,
+     "height": 2655,
+     "pixels_sha256": "bcea14722a1742a283c82cfc9bdcfd3230f9e0a6ab0af6e3a926266cec42c6d5"
     },
     {
      "panel": "d",
      "split_box": [
-      4718,
+      4615,
       3681,
       7440,
-      6422
+      6559
      ],
      "box": [
-      4760,
+      4687,
       3681,
-      7399,
-      6370
+      7408,
+      6486
      ],
-     "width": 2639,
-     "height": 2689,
-     "pixels_sha256": "21fc3b12abeb8abb21633cfa4acfd13ae6c3da787f2aec25088e65b3bf55b068"
+     "width": 2721,
+     "height": 2805,
+     "pixels_sha256": "9ecc3a01ff95281a751f28e3811db9f912169f0e6d176c5585919e785b3bc239"
     }
    ]
   }

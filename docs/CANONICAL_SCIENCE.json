@@ -1,0 +1,540 @@
+{
+  "$schema_version": "1.0.0",
+  "contract_name": "SCORCH canonical science contract",
+  "release_candidate": "v1.0.0",
+  "source_working_branch": "alignment-v1.0.1 (internal, never-public pre-release working branch of the research repository; not a release version)",
+  "base_commit": "a5853793b6e09bffd78dd93701edeb1419be8a2a (research repository)",
+  "generated": "2026-08-04",
+  "decisions_doc": "ALIGNMENT_DECISIONS.md (shipped in the release as docs/ALIGNMENT_DECISIONS.md)",
+  "status": "REMEDIATED LOCAL RELEASE CANDIDATE - NOT PUBLISHED, NOT TAGGED, NOT PUSHED",
+  "domain_and_selection": {
+    "grid_resolution_deg": 1.0,
+    "domain_lon_deg": [
+      20,
+      70
+    ],
+    "domain_lat_deg": [
+      10,
+      46
+    ],
+    "valid_grid_cells": 1800,
+    "warm_season_months": "April-September",
+    "threshold_methodology": "pooled April-September local p95 (retained unchanged)",
+    "record_days": 15738,
+    "record_years": [
+      1940,
+      2025
+    ],
+    "regional_coverage_threshold_cells": 371,
+    "regional_coverage_percentile": 97.5,
+    "regional_coverage_domain_fraction": 0.2061,
+    "selected_event_days": 395
+  },
+  "catalog_invariants": {
+    "source_csv": "deposit catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv (byte-identical to the research-tree original clean/data/ copy)",
+    "source_csv_sha256": "ed91dab5a1f05b2331c78e5ea801f5484b5730cb813230cda4d26e92ba3531e1",
+    "labels_csv": "deposit catalogs/final_labels_event_global_max.csv (byte-identical to the research-tree original clean/data/ copy)",
+    "labels_csv_sha256": "e1c9c6cc883addc8aea856db919c0ccb4d9840a88872dfb19154d25154c50c39",
+    "structures_total": 760,
+    "events_total": 51,
+    "event_days_total": 395,
+    "events_by_type": {
+      "Type 1": 3,
+      "Type 2": 4,
+      "Type 3": 20,
+      "Type 4": 24
+    },
+    "selected_event_days_by_type": {
+      "Type 1": 3,
+      "Type 2": 4,
+      "Type 3": 75,
+      "Type 4": 313
+    },
+    "structures_by_type": {
+      "Type 1": 3,
+      "Type 2": 13,
+      "Type 3": 185,
+      "Type 4": 559
+    },
+    "mean_duration_days_by_type": {
+      "Type 1": 1.0,
+      "Type 2": 1.0,
+      "Type 3": 3.75,
+      "Type 4": 13.041666666666666
+    },
+    "max_duration_days_by_type": {
+      "Type 1": 1,
+      "Type 2": 1,
+      "Type 3": 10,
+      "Type 4": 40
+    },
+    "note": "3/4/75/313 are SELECTED EVENT-DAYS (distinct dates), NOT events. Events are 3/4/20/24.",
+    "table1_column_order": [
+      "Compound Heatwave Typologies",
+      "Frequency of Occurrence (Number of Selected Event-Days)",
+      "Number of Compound Events",
+      "Longest Compound Event (days)",
+      "Average Duration (days/event)",
+      "Average Number of Ellipses per Compound Event",
+      "Min Ellipses per Compound Event",
+      "Max Ellipses per Compound Event"
+    ]
+  },
+  "type_labels": {
+    "canonical_public": {
+      "1": "Widespread (Isolated)",
+      "2": "Spatially Clustered",
+      "3": "Temporally Clustered",
+      "4": "Compound Clustering (Multi-Type)"
+    },
+    "source_of_truth": "alignment brief controlled vocabulary; matches the manuscript Fig. 4 caption and abstract",
+    "legacy_internal_aliases": {
+      "event_type_name": {
+        "1": "Independent",
+        "2": "Spatially clustered",
+        "3": "Temporally clustered",
+        "4": "Mixed"
+      },
+      "event_type_original": {
+        "1": "Independent",
+        "2": "Independent Simultaneous",
+        "3": "Back-to-Back",
+        "4": "Mixed Multi-Day"
+      }
+    },
+    "policy": "'Independent' is a DOCUMENTED LEGACY ALIAS for Type 1 only. It must never appear as a public label.",
+    "table_cell_form": {
+      "1": "Type 1: Widespread (Isolated)",
+      "2": "Type 2: Spatially Clustered",
+      "3": "Type 3: Temporally Clustered",
+      "4": "Type 4: Compound Clustering (Multi-Type)"
+    }
+  },
+  "ellipse_geometry": {
+    "sigma": 1.25,
+    "variance_floor_km2": 1.0,
+    "axis_floor_km": null,
+    "axis_floor_note": "A separate 1 km SEMI-AXIS floor was removed 2026-07-28. It provably never binds: with the variance floor applied first, sigma*sqrt(max(eig,1)) >= sigma km for sigma >= 1. Empirically confirmed - the sensitivity matrices regenerate byte-identically before and after removal.",
+    "geometry": "full-axis ellipse geometry as implemented",
+    "km_per_deg_lon_at_equator": 111.32,
+    "km_per_deg_lat": 110.574,
+    "module": "scripts/figures/common/ellipse_pca.py (release copy; canonical kernel also ships as src/scorch/_kernel/ellipse_pca.py)",
+    "module_sha256": "6eb03c77941e6c85f49f82b99aa577ef2c41bbe241f7e239aee7a071f5538a44",
+    "research_tree_original": "scripts/common/ellipse_pca.py in the research repository (external, not shipped), sha256 3abde72b3be9a3ce9c18b6fd81f04128ff1b7c2798c18f6c957ec8369d69ab52; the release copy adds explicit var_floor parameter plumbing with the canonical default 1.0 km^2 and is the copy from which the four sensitivity matrices regenerate byte-identically (see sigma_sensitivity_figureA.verification_status)",
+    "reconstruction_tolerance_rel": 1e-12
+  },
+  "orientation": {
+    "catalog_convention": {
+      "column": "orientation_deg",
+      "definition": "counterclockwise from EAST",
+      "range": "[0, 180)",
+      "verified_against": "atan2(pc1_vec_y, pc1_vec_x)",
+      "status": "LEGACY - preserved unchanged"
+    },
+    "manuscript_convention": {
+      "definition": "clockwise from NORTH",
+      "range": "(-90, 90]",
+      "transform": "theta_north = wrap(90 - theta_east)"
+    },
+    "aggregation": {
+      "required": "doubled-angle axial mean",
+      "formula": "0.5 * atan2(mean(sin(2*theta)), mean(cos(2*theta)))",
+      "resultant_length": "hypot(mean(cos(2*theta)), mean(sin(2*theta)))",
+      "forbidden": "arithmetic mean of orientation angles - invalid for 180-degree-periodic axial data",
+      "module": "scripts/figures/common/scorch_axial.py",
+      "module_sha256": "4535b5f6a523ce42a42a0bf887f7d64bb231b3dc54529cb4e53fd8957a0cb095",
+      "module_sha256_note": "updated in the R3 remediation after a comment-only lifecycle-wording fix in the module ('published convention' -> 'manuscript convention'); executable logic unchanged (pre-R3 hash 9d248373d9195d6147f21144ce6114f13a007a29655bf520a6182c4cdb8ce101, superseded)",
+      "tests": "tests/test_scorch_axial.py",
+      "degenerate_resultant_tolerance": 1e-12
+    },
+    "acceptance_cases": [
+      {
+        "id": "wrap_extreme",
+        "inputs_deg": [
+          89.0,
+          -89.0
+        ],
+        "expect_abs_deg": 90.0,
+        "must_not_equal_deg": 0.0,
+        "tol": 1e-09
+      },
+      {
+        "id": "period_invariance",
+        "property": "adding 180 to any subset of inputs leaves the axial mean unchanged",
+        "tol": 1e-12
+      },
+      {
+        "id": "simple_pair",
+        "inputs_deg": [
+          10.0,
+          20.0
+        ],
+        "expect_deg": 15.0,
+        "tol": 1e-12
+      },
+      {
+        "id": "event_4",
+        "inputs_deg_east_ccw": [
+          173.9412887267695,
+          50.01512076564877,
+          174.75114468076768,
+          51.07144886174977,
+          172.27663718739635,
+          44.55262860043584
+        ],
+        "expect_north_cw_deg": 68.98532754765856,
+        "expect_resultant_R": 0.5734944904104495,
+        "legacy_arithmetic_value_north_cw_deg": -21.10137813712798,
+        "tol": 1e-09
+      }
+    ]
+  },
+  "figure9": {
+    "defect": "The superseded pre-release manuscript Figure 9 candidate aggregated event orientation arithmetically (invalid for axial data). The project was never publicly released; the defective figure appeared only in pre-release manuscript candidates.",
+    "defective_producer": "scripts/figures/fig09/make_figure9_unified_ORIGINAL.py",
+    "embedded_png_sha256_DEFECTIVE": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+    "legacy_full_res_sha256": "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
+    "panel_c_display": "kernel density estimate on linspace(-90, 90, 600) - RETAINED; only the values change",
+    "unchanged_panels": [
+      "9(a) event-mean area CDF",
+      "9(b) event-mean axis-ratio CDF"
+    ],
+    "regeneration_required": [
+      "event-level CSV",
+      "panel 9(c)",
+      "assembled Figure 9",
+      "panel extracts",
+      "manuscript artwork (downscaled)",
+      "publication_outputs/figures/Figure_09/*",
+      "PROVENANCE.txt",
+      "SHA256SUMS",
+      "PUBLICATION_OUTPUTS_MANIFEST.csv",
+      "manuscript embed"
+    ],
+    "status": "CORRECTED in the v1.0.0 pre-release correction",
+    "corrected_full_resolution_sha256": "f4dce68d75000fab7bd2682f365f86a2197020d7c9156bddd52ff5313169f205",
+    "corrected_manuscript_embed_sha256": "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431",
+    "legacy_defective_full_resolution_sha256": "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
+    "legacy_defective_embed_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+    "legacy_archive_location": "legacy_defective_figure09/ (shipped in this release tree; excluded from all canonical publication outputs)",
+    "event4_before_deg": -21.10137813712798,
+    "event4_after_deg": 68.98532754765856,
+    "panel_pixel_hashes": {
+      "a": "5869efc01c7e4662 (UNCHANGED from the superseded pre-release candidate)",
+      "b": "1ba869558cafb0e4 (UNCHANGED from the superseded pre-release candidate)",
+      "c": "e67941d918f63ea9 (CHANGED; was b7fc7c3e3260958a)"
+    },
+    "shared_chrome_ink_px": "2779 out-of-panel ink pixels UNCHANGED - the legend is untouched",
+    "independent_cross_check": "The Zenodo processed-data deposit already carried the axially-corrected event CSV. The pre-release correction regeneration agrees with it to 2.1e-14 deg (orientation), 2.2e-16 (resultant R) and EXACTLY 0.0 for area and axis ratio across all 51 events."
+  },
+  "presentation_processing": {
+    "description": "Recovered deterministic replacement for the previously undocumented manual downscale of manuscript artwork.",
+    "recipe": {
+      "step_1": "PIL.Image.open(src).convert('RGBA')",
+      "step_2": "resize((1950, int(h * 1950 / w)), Image.LANCZOS)",
+      "step_3": "save(dst, 'PNG', optimize=False, compress_level=6)"
+    },
+    "target_width_px": 1950,
+    "height_rule": "TRUNCATION int(), not rounding - disambiguated by Appendix A (1781.90 -> 1781), Appendix C (1330.95 -> 1330), Figure 10 (1222.58 -> 1222)",
+    "validation": "9/9 byte-exact: Figures 5, 6, 7, 8, 9, 10, 11, Appendix A, Appendix C",
+    "figures_embedded_unprocessed": [
+      "Fig 1",
+      "Fig 2",
+      "Fig 3",
+      "Fig 4",
+      "Fig 12",
+      "Appendix B",
+      "Appendix D",
+      "Fig S.1"
+    ]
+  },
+  "sigma_sensitivity_figureA": {
+    "producer": "scripts/figures/figA1/make_figA1_sigma_matrices.py (release copy of the recovered original producer, sanitized for portable reproduction and wired into the release workflow)",
+    "recovered_from_research_tree": "scripts/event_global_max/regenerate_pca_sigma_sensitivity_matrix_global_max.py in the research repository (external, not shipped), sha256 dea209f541dd25a5332b34a8f61c64dfdfe0a7b07951c31ee2fe9e5812bb8834",
+    "renderer": "scripts/figures/figA1/make_figA1_sigma_sensitivity.py",
+    "sigma_grid": [
+      0.5,
+      0.75,
+      1.0,
+      1.25,
+      1.5,
+      1.75,
+      2.0,
+      2.25,
+      2.5
+    ],
+    "matrix_shape": [
+      9,
+      9
+    ],
+    "components": 760,
+    "metric": "target_component_purity = |H intersect E| / |E|",
+    "combined_score_formula": "minimum + maximum + average",
+    "selection_rule": "highest COMBINED score on the equal-sigma diagonal (sigma_PC1 == sigma_PC2)",
+    "selected_sigma": 1.25,
+    "combined_at_1p25": 204.5440673062212,
+    "combined_at_1p25_displayed": 205,
+    "diagonal_combined_scores": {
+      "0.5": 177.967,
+      "0.75": 177.402,
+      "1.0": 198.994,
+      "1.25": 204.544,
+      "1.5": 203.791,
+      "1.75": 193.759,
+      "2.0": 180.317,
+      "2.25": 153.397,
+      "2.5": 128.031
+    },
+    "best_off_diagonal_pair": [
+      1.5,
+      0.75
+    ],
+    "best_off_diagonal_combined": 213.6,
+    "off_diagonal_note": "Reported for reference only. The one-scalar algorithm selects on the diagonal by design; the higher off-diagonal value is NOT an inconsistency.",
+    "expected_matrix_sha256": {
+      "pca_sigma_matrix_minimum.csv": "89890a9459ed19e427bc64c45c366e035ab178eec7da1e59c5ddde24de92e61c",
+      "pca_sigma_matrix_maximum.csv": "a7eb107c7d2dbc1de6a515c165b8a31f63f3e9e229c15b776167bbbd0d9c84b7",
+      "pca_sigma_matrix_average.csv": "4d52067b61862e0e796de827ca08bb4e27b9aaed9f0ad2fd09d92e1c4bd233c5",
+      "pca_sigma_matrix_combined.csv": "03cf1cc4b1e53043b0b7c5e0dfb4b627ceeffad352dd1b32db5dc59b9542045d"
+    },
+    "verification_status": "4/4 regenerate BYTE-IDENTICAL from canonical inputs (executed 2026-08-04)"
+  },
+  "trend_analysis": {
+    "approved_analyses": [
+      "annual mean event duration, Type 3, over calendar years containing at least one such event",
+      "annual mean event duration, Type 4, over calendar years containing at least one such event"
+    ],
+    "tests_applied": [
+      "Mann-Kendall (Mann 1945; Kendall 1975)",
+      "Sen's slope (Sen 1968)",
+      "OLS as a check"
+    ],
+    "annual_event_counts": "DESCRIPTIVE ONLY - no Mann-Kendall, no Sen's slope, no p-value, no trend claim",
+    "forbidden_outputs": [
+      "frequency Sen's slope",
+      "frequency Mann-Kendall p-value",
+      "any frequency trend row in the public trend table",
+      "any frequency trend line in console output"
+    ],
+    "code_to_correct": [
+      "scripts/pipeline/make_global_max_tables.py (frequency sen_f / p_f, table rows)",
+      "scripts/figures/fig10/Figure_9_Trend_Analysis_With_Table_statistics.py (frequency sen_freq / mk_p_freq, console output)"
+    ],
+    "invariant": "Type-3 and Type-4 DURATION values must be bit-identical before and after removal.",
+    "type4_permutation_analysis": "NOT RESTORED - deliberately excluded",
+    "status": "CORRECTED in the v1.0.0 pre-release correction - frequency inference removed from all active/public paths",
+    "duration_values_unchanged": {
+      "Type 3": {
+        "sen_slope_per_year": 0.0083,
+        "mann_kendall_p": 0.663
+      },
+      "Type 4": {
+        "sen_slope_per_year": 0.4122,
+        "mann_kendall_p": 0.0086
+      }
+    },
+    "removed_frequency_values_for_the_record": {
+      "Type 3": {
+        "sen_slope": 0.0,
+        "mann_kendall_p": 0.0186
+      },
+      "Type 4": {
+        "sen_slope": 0.0,
+        "mann_kendall_p": 0.0014
+      },
+      "note": "Statistically incoherent as reported in the superseded pre-release candidate: a Sen slope of exactly 0.0000 reported alongside a 'significant' p-value."
+    }
+  },
+  "lgcp": {
+    "variant": "variant3",
+    "model": "kppm mincon, K-function, exponential covariance; LAEA km window",
+    "trend_formula": "~ lon + lat + mean_tmax_z + std_tmax_z",
+    "parameters": {
+      "intercept": -11.352611,
+      "lon": -0.016062,
+      "lat": 0.063142,
+      "mean_tmax_z": 0.464404,
+      "std_tmax_z": -0.007187,
+      "sigma2": 1.647219,
+      "scale_km": 287.70796
+    },
+    "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+    "numeric_tolerance": 1e-09,
+    "string_identity_required_where_currently_achieved": true,
+    "expected_qc": {
+      "captured_fit_warnings": 0,
+      "all_qc_checks_pass": true
+    },
+    "grid_cells": 1800,
+    "rank_convention": "pandas ascending fractional rank with average ties"
+  },
+  "cross_validation": {
+    "design": "occurrence-level five-fold",
+    "seed": 20260704,
+    "folds": 5,
+    "grid_cells": 1800,
+    "cell_area_formula": "A_j = 111.320 * 110.574 * cos(pi * lat_j / 180) km^2",
+    "heldout_mean_fractional_rank_range": [
+      0.59,
+      0.65
+    ],
+    "top20_area_zone_hit_rate_range": [
+      0.28,
+      0.38
+    ],
+    "areal_baseline": 0.2,
+    "heldout_mean_distance_km": 286,
+    "heldout_median_distance_km": 173,
+    "scope_limits": "Evaluates only the covariate-driven first-order trend. Not event-independent (folds can share events and dates). Not external validation. Does not evaluate the latent covariance component."
+  },
+  "station_validation": {
+    "station": "Aswan, Egypt",
+    "ghcnd_id": "GHCND:EG000062414",
+    "window": "2016-05-31/2016-06-12",
+    "event_days": [
+      "2016-06-07",
+      "2016-06-08"
+    ],
+    "r": 0.98,
+    "rmse_c": 1.7,
+    "bias_era5_minus_station_c": -1.6,
+    "figure": "Fig. S.1 panels (c)-(d)",
+    "provenance_status": "FULLY REGENERATED FROM DEPOSITED DATA",
+    "provenance_rule": "Panels (c)-(d) are now produced by scripts/figures/figS1/make_figS1_station_panels.py + make_figS1_station_strip.py from the deposited GHCNd and ERA5 series. The 'hybrid composite' qualifier no longer applies and the frozen donor is retained only as a fallback.",
+    "recovered_producer": "clean/scripts/figures/Validation Script.py (research tree) - sanitized of absolute Downloads/netCDF paths and its blocking interactive backend",
+    "merged_series_check": "BIT-IDENTICAL to deposit validation_station/merged_station_validation.csv (max |diff| 0.0 over 9 overlapping days)",
+    "warm_season_p95_ghcnd_c": 45.0,
+    "warm_season_p95_era5_c": 44.32,
+    "exceedance_days": {
+      "ghcnd": 2,
+      "era5": 2
+    },
+    "canonical_figure_s1_sha256": "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538",
+    "superseded_hybrid_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "artwork_px": "7440x6559"
+  },
+  "power_law": {
+    "scope": "MANUSCRIPT results are the daily-maximum and event-maximum area tails ONLY",
+    "decision_rule": "not rejected at p <= 0.10",
+    "daily_tail_observations": 43,
+    "daily_tail_source_events": 6,
+    "daily_tail_note": "42 of 43 arise from 5 events; observations are not independent, so the goodness-of-fit p-value is descriptive",
+    "event_maximum_count": 51,
+    "event_tail_observations": 19,
+    "separation_rule": "Any exploratory all-760 or by-type power-law analysis is EXPLORATORY and must be reported separately from these manuscript results.",
+    "interpretation_limit": "Non-rejection is not evidence of scale-free behaviour and neither establishes nor excludes a finite upper size limit."
+  },
+  "document_artifacts": {
+    "manuscript_working_docx_sha256": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
+    "supplement_working_docx_figS1_media_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "manuscript_media_count": 16,
+    "supplement_media_count": 1,
+    "embed_resolution": "17/17 embeds resolved to a byte-exact deterministic derivation",
+    "supplement_metadata_fixes_required": [
+      "author spelling must read 'Fawaz Bouhamad'",
+      "add descriptive alt text to Figure S.1 without altering layout"
+    ]
+  },
+  "environment": {
+    "python": {
+      "version": "3.12.10",
+      "interpreter": "C:/Users/fawaw/AppData/Local/Programs/Python/Python312/python.exe",
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "scipy": "1.17.1",
+      "matplotlib": "3.10.9",
+      "pillow": "12.2.0",
+      "note": "matplotlib pinned at 3.10.9 matches the release REPRODUCIBILITY_REPORT. numpy/pandas/scipy in this working environment are NEWER than the release lock; the clean-room run must use environment/requirements-lock-py312.txt."
+    },
+    "r": {
+      "executed_interpreter_version": "4.5.1",
+      "interpreter_path": "C:/Program Files/R/R-4.5.1/bin/Rscript.exe",
+      "spatstat_binaries_built_under": "4.5.3",
+      "discrepancy_resolution": "NOT a conflict. R emitted only build-provenance warnings ('package X was built under R version 4.5.3'). The executing interpreter was 4.5.1, matching environment/renv.lock. Documented as: executed under R 4.5.1 with spatstat binaries built under R 4.5.3.",
+      "packages": {
+        "spatstat": "3.6-1",
+        "spatstat.geom": "3.8-1",
+        "spatstat.model": "3.7-1",
+        "spatstat.explore": "3.8-1",
+        "jsonlite": "2.0.0"
+      },
+      "typography_note": "Documented as '3.7-1' (CRAN DESCRIPTION style). R's packageVersion() renders the same version as '3.7.1'. Both denote spatstat.model 3.7-1; no correction was required.",
+      "executed_confirmation": "R 4.5.1 (2025-06-13 ucrt), x86_64-w64-mingw32, Windows 11 x64 build 26200. sessionInfo() captured in the separate release-evidence bundle as evidence/R_environment.log (external evidence; not shipped in the public release tree)"
+    },
+    "os": "Windows-11-10.0.26200-SP0",
+    "required_capture_in_final_log": [
+      "python version",
+      "R version",
+      "sessionInfo()",
+      "package versions",
+      "environment lock hash",
+      "operating system"
+    ]
+  },
+  "reproduction_boundary": {
+    "mandatory_clean_reproduction_starts_from": "versioned processed-data Zenodo deposit",
+    "raw_provider_chain_executed": false,
+    "raw_provider_chain_note": "Raw provider-level ERA5 reconstruction (CDS/ARCO retrieval + hourly-to-daily Tmax) was NOT executed in this alignment programme. Retrieval scripts and methodology are preserved so it can be reconstructed. No claim of raw-chain execution is made anywhere.",
+    "tier_b_input": "external 1.78 GB master_exceed_heatwaves_long.csv (git-ignored, not redistributable)",
+    "permanently_outside_boundary": [
+      {
+        "item": "Figure 1",
+        "reason": "hand-drawn workflow schematic; no computational producer, by design"
+      },
+      {
+        "item": "Figure 4",
+        "reason": "hand-drawn typology schematic; no computational producer, by design; explicitly not to be redesigned"
+      }
+    ]
+  },
+  "tolerances": {
+    "deterministic_scientific_csv": "byte-identical",
+    "geometry_reconstruction_relative_error": 1e-12,
+    "lgcp_numeric": 1e-09,
+    "lgcp_string_identity": "preserve exact string identity where currently achieved",
+    "figure_png_manuscript_embeds": "byte-identical"
+  },
+  "release_identity": {
+    "public_tag_v1_0_0": "RELEASE INVARIANT: before publication, the public v1.0.0 tag must resolve to the final canonical release commit and tree recorded in the external RELEASE_IDENTITY.json. Pre-existing tags (a local v1.0.0 tag in the release repository and any stale v1.0.0 tag on the public remote pointing at a superseded pre-release commit) are left untouched by the correction pass - no tag is created, moved, or deleted locally - and must be re-pointed to the final commit as an explicit, human-authorized manual release step.",
+    "candidate": "v1.0.0",
+    "comparison_method": "normalized relative path + SHA-256",
+    "structural_note": "The research working tree and the v1.0.0 release tree are different project layouts (scripts/outputs/clean vs src/tests/environment/assets). They are NOT comparable as a single tree and no identity claim between them may be made.",
+    "known_deltas": {
+      "pdf_metadata_only": "36 PDFs differ from frozen by exactly +6 bytes (PDF timestamp/metadata, not science)",
+      "frozen_only_lgcp_outputs": 30,
+      "publication_vs_frozen_differing_files": [
+        "PROVENANCE.txt x7",
+        "SHA256SUMS",
+        "PUBLICATION_OUTPUTS_MANIFEST.csv"
+      ]
+    },
+    "zenodo_claim_correction": "Any statement that the Zenodo software archive is identical to the superseded pre-release candidate must be replaced by a precise, path-normalised, SHA-256-backed statement of exactly what matches.",
+    "archive_rule": "Build ONE deterministic archive from the final commit; the GitHub release asset and the Zenodo software upload must use that exact archive and SHA-256.",
+    "publication_state": "NOT PUBLISHED - no push, no tag, no Zenodo action",
+    "final_archive": {
+      "name": "SCORCH-1.0.0.zip",
+      "root_prefix": "SCORCH-1.0.0/",
+      "built_by": "git archive from the final local v1.0.0 release commit; built twice and required byte-identical",
+      "identity_recorded_in": "external release-evidence sidecar RELEASE_IDENTITY.json (a committed file cannot truthfully contain its own commit or archive hash)",
+      "rule": "The GitHub release asset and the Zenodo software upload MUST both be this exact archive and SHA-256.",
+      "superseded_candidates": "All earlier deterministic zips (including the b8d27642... build of 2026-08-04 and the V1-V12 FAIR staging zips) are superseded pre-release candidates, never published."
+    },
+    "final_documents": {
+      "manuscript": "SCORCH_Manuscript_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
+      "supplement": "SCORCH_Supplementary_Material_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
+      "originals_untouched": {
+        "manuscript": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
+        "supplement_figS1_media": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc"
+      }
+    }
+  },
+  "acceptance": {
+    "test_suite": "244 passed, 2 skipped with the deposit (publication_outputs not materialised in a source-only checkout - by design); 246 collected including the 56 stale-provenance / structural / lifecycle guards and hardened-guard regression fixtures added in the v1.0.0 final remediation (R2), R3 and R4 passes and the 20 final-DOCX display-geometry / content-identity guards added in R5",
+    "reproduction_stages": "33/33 PASS from a fresh extraction of the archive, exit 0",
+    "publication_outputs": "PASS - 17 figures, 45 panels, 1 source component (Figure 8 only), 6 table files; Table 1 reconciled cell by cell with 0 declared presentation differences",
+    "deposit_integrity": "93/93 files verified against the deposit's own SHA256SUMS in the corrected LOCAL STAGING COPY of the Zenodo data deposit, after the authorized table01 correction (manuscript header, canonical labels, manuscript column order, frequency-inference rows removed) and manifest regeneration; nothing else in the deposit was modified. The ONLINE Zenodo data draft still carried the pre-correction table01 files at audit time; uploading the corrected table01/ files and re-verifying the online draft checksums is a REQUIRED MANUAL RELEASE STEP before publication.",
+    "docx_embeds": "17/17 FINAL-DOCX embeds byte-identical to the final publication assets",
+    "determinism": "Figure S.1 regenerated byte-identically in an independent clean-room run; SCORCH-1.0.0.zip built twice byte-identically",
+    "archive_verified": "recorded in the external release-evidence sidecar RELEASE_IDENTITY.json"
+  }
+}

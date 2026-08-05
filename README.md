@@ -19,7 +19,7 @@ Two clearly separated things:
 1. **The installable SCORCH analysis library** (`src/scorch`, distribution
    name `scorch-heatwaves`, import name `scorch`): the canonical scientific
    kernels (verbatim copies of the research code, so results are identical to
-   the published catalog), catalog loading/validation, the CLI, and builtin
+   the canonical catalog), catalog loading/validation, the CLI, and builtin
    end-to-end reconstruction stages.
 2. **Repository-level paper reproduction**: the `scripts/` tree (figure,
    table, LGCP and validation generators) and `run_reproduction.py` +
@@ -27,13 +27,16 @@ Two clearly separated things:
    tables from the processed-data deposit. The 17 manuscript figures fall
    into four honest reproduction classes, not one: **6** are
    `data_generated` (script output byte-identical to the embedded raster:
-   Fig. 2, 3, 12, B, D, S.1); **7** are
+   Fig. 2, 3, 12, B, D, S.1); **8** are
    `deployment_export_of_reproduced_original` (the plotted content is
    reproduced byte-identically at full resolution, but the embedded raster
-   is a frozen downscaled deployment export of it: Fig. 5, 6, 7, 10, 11, A,
-   C); **2** are `manually_postprocessed_approved_artwork` (the approved
+   is a downscaled deployment export of it: Fig. 5, 6, 7, 9, 10, 11, A,
+   C -- Figure 9 joined this class in the v1.0.0 pre-release correction,
+   which replaced the invalid arithmetic mean of event orientations with
+   the doubled-angle axial mean and regenerated the figure end-to-end);
+   **1** is `manually_postprocessed_approved_artwork` (the approved
    original carries a manual post-processing pass the script does not
-   reproduce: Fig. 8, 9); and **2** are `frozen_approved_artwork` (author
+   reproduce: Fig. 8); and **2** are `frozen_approved_artwork` (author
    slide exports with no runnable producer, materialized and hash-verified,
    never regenerated from data: Fig. 1, 4). `docs/FIGURE_PROVENANCE.csv`
    and `docs/MANUSCRIPT_FIGURE_IDENTITY.csv` carry the per-figure class and
@@ -121,7 +124,7 @@ labels = scorch.cluster_structures(lon, lat, eps=2.5, min_samples=2)
 ellipse = scorch.fit_pca_ellipses((lon, lat), sigma=1.25)
 print(ellipse["ellipse_area_km2"], ellipse["orientation_deg"])
 
-# 4. Load and validate the published master catalog, re-derive the typology
+# 4. Load and validate the canonical master catalog, re-derive the typology
 master = scorch.load_master("scorch_data/scorch_processed_data_v1.0.0/"
                             "catalogs/scorch_new_algorithm_master_cluster_"
                             "ellipse_event_global_max.csv")
@@ -211,9 +214,13 @@ station-donor artwork, the auxiliary Method-A analysis data and the
 governing `LICENSE` notice - is in `docs/LICENSES_AND_ATTRIBUTION.md`. If
 you use this package, please cite
 the SCORCH paper (Bouhamad, F. and Najibi, N.) and the data deposit
-referenced in `docs/SOURCE_DATA_PROVENANCE.md`. The exact release used for
-the article is archived on Zenodo: software record https://doi.org/10.5281/zenodo.21717874,
-processed-data record https://doi.org/10.5281/zenodo.21717752, GitHub release
-<https://github.com/fawazbouhamad/SCORCH/releases/tag/v1.0.0>.
+referenced in `docs/SOURCE_DATA_PROVENANCE.md`. The canonical public records
+for the release used in the article are the reserved Zenodo software record
+https://doi.org/10.5281/zenodo.21717874, the reserved Zenodo processed-data
+record https://doi.org/10.5281/zenodo.21717752, and the GitHub release
+<https://github.com/fawazbouhamad/SCORCH/releases/tag/v1.0.0>. RELEASE
+INVARIANT: the exact archive approved for publication must be attached to
+both the GitHub v1.0.0 release and the Zenodo software record; the DOIs
+resolve once the records are published.
 ERA5: Copernicus Climate Change Service; contains modified Copernicus
 Climate Change Service information. GHCN-Daily: NOAA NCEI.

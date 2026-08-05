@@ -17,19 +17,28 @@ images embedded in the deployed manuscript:
 | `fig04/Figure_04.png` | `d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde` | yes (word/media/image4.png) |
 | `fig04/Figure_04.pdf` | `515d45063c860225c9a5bd429088e735c94d7e8150d008b71a3f4436b522df25` | (PDF companion of the same export; author metadata corrected 2026-07-31 - rendered pages and extracted text byte-identical) |
 
-## Frozen station artwork (Figure S.1 panels c, d)
+## Frozen station artwork (Figure S.1 panels c, d) - SUPERSEDED, fallback only
+
+**Since the v1.0.0 pre-release correction, the manuscript Fig. S.1 no longer
+uses this donor.** Panels (c, d) are fully regenerated from the deposited
+GHCNd and ERA5 series by `scripts/figures/figS1/make_figS1_station_panels.py`
+and `make_figS1_station_strip.py`, and the manuscript composite
+(SHA-256 `050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538`)
+is assembled by `scripts/figures/figS1/make_new_figS1_candidate.py` from
+those regenerated panels plus the fully reproducible Type 3 Event 25 figure.
 
 `figS1_station_donor/Figure_S2_station_provisional.png` (SHA-256
 `8620b52a92dc5028b47e1dc16c5679378d8170f3a5a754ee38ad01bd0512deba`) is the
-provisional GHCNd(Aswan)-vs-ERA5 station comparison drawing that forms
-panels (c, d) of the published Supplementary Fig. S.1. It was transcribed
-from approved slide artwork and has **no runnable producer**; its metrics
-are independently recomputed by
+superseded provisional GHCNd(Aswan)-vs-ERA5 station comparison drawing that
+formed panels (c, d) of the pre-correction hybrid composite
+(`a5632323...`, historical only). It was transcribed from approved slide
+artwork and had no runnable producer. It is retained solely as a
+clearly-labelled fallback: if the compositor is ever forced to use it, the
+build prints `HYBRID COMPOSITE` and the provenance says so. The station
+metrics are independently recomputed by
 `scripts/validation/ghcn_era5_validation.py` (r = 0.9802, RMSE = 1.696
 degC, bias = -1.595 degC; comparison window 31 May - 12 June 2016, n = 9
-overlapping days). The published S.1 composite is assembled from this
-frozen donor plus the fully reproducible Type 3 Event 25 figure by
-`scripts/figures/figS1/make_new_figS1_candidate.py`.
+overlapping days).
 
 ### Rights for the station-donor asset
 

@@ -236,7 +236,7 @@ def fetch_deposit(dest_dir="scorch_data", doi=None, url=None, verify=True):
         result.downloaded.append(str(_download(location, dest_dir / name)))
 
     # Safely extract any downloaded ZIP archives (the Zenodo data record is
-    # published as a single scorch_processed_data_v*.zip).
+    # distributed as a single scorch_processed_data_v*.zip).
     for path in list(result.downloaded):
         if path.lower().endswith(".zip"):
             print(f"[fetch] extracting {Path(path).name} ...")

@@ -54,6 +54,7 @@ import pandas as pd  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from scipy.stats import gaussian_kde  # noqa: E402
+import scorch_axial  # noqa: E402  canonical axial-orientation statistics
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
@@ -162,18 +163,55 @@ def prepare_ellipse_dataframe(metrics_csv):
 
 
 def convert_to_event_average_dataframe(df):
+    """Aggregate structures to one row per compound event.
+
+    Area and axis ratio are arithmetic means. Orientation is NOT: it is a
+    180 deg-periodic axial quantity, so it is aggregated with the doubled-angle
+    axial mean (scorch_axial). See docs/ALIGNMENT_DECISIONS.md Correction 1 -- the
+    superseded pre-release chain averaged orientations arithmetically, which put
+    Event 4 at -21.101 deg instead of +68.985 deg.
+
+    ``df["orientation_deg"]`` is already in the manuscript convention
+    (clockwise from north, (-90, 90]) via ``orientation_from_north_deg``, so the
+    axial mean is taken in that same convention.
+    """
+    keys = ["event_id", "event_type_original", "type"]
     event_df = (
-        df.groupby(["event_id", "event_type_original", "type"], as_index=False)
+        df.groupby(keys, as_index=False)
         .agg(
             start_date=("date", "min"),
             end_date=("date", "max"),
             n_ellipse_rows=("date", "size"),
             n_active_dates=("date", "nunique"),
-            orientation_deg=("orientation_deg", "mean"),
             ellipse_area_million_km2=("ellipse_area_million_km2", "mean"),
             ratio_L2_L1=("ratio_L2_L1", "mean"),
         )
     )
+
+    def _axial(group):
+        mu, r, n = scorch_axial.axial_mean_and_resultant(
+            group.to_numpy(dtype=float), convention="same", strict=True)
+        return pd.Series({"orientation_deg": mu,
+                          "axial_resultant_R": r,
+                          "n_orientation_values": n})
+
+    axial_stats = (
+        df.groupby(keys)["orientation_deg"].apply(_axial).unstack().reset_index()
+    )
+    event_df = event_df.merge(axial_stats, on=keys, how="left", validate="1:1")
+    if not np.isfinite(event_df["orientation_deg"]).all():
+        bad = event_df.loc[~np.isfinite(event_df["orientation_deg"]), "event_id"].tolist()
+        raise SystemExit(f"[FIG9 ABORT] axial orientation undefined for events {bad}")
+    event_df["n_orientation_values"] = event_df["n_orientation_values"].astype(int)
+
+    # Preserve the v1.0.0 column order so the CSV schema stays comparable; the
+    # two axial diagnostics are appended, never interleaved.
+    event_df = event_df[
+        ["event_id", "event_type_original", "type", "start_date", "end_date",
+         "n_ellipse_rows", "n_active_dates", "orientation_deg",
+         "ellipse_area_million_km2", "ratio_L2_L1",
+         "axial_resultant_R", "n_orientation_values"]
+    ]
     event_df["event_id"] = event_df["event_id"].astype(int)
     return event_df
 

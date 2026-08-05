@@ -43,8 +43,22 @@ MASTER = os.environ.get("SCORCH_MASTER_FILE", MASTER_CSV)
 OUT = os.environ.get("SCORCH_TABLES_OUT_DIR",
                      os.path.join(GENERATED_DIR, "tables"))
 
-TYPE_LABEL = {1: "Type 1 (Independent)", 2: "Type 2 (Spatially clustered)",
-              3: "Type 3 (Temporally clustered)", 4: "Type 4 (Mixed)"}
+# Canonical public typology vocabulary (v1.0.0 pre-release correction). This is the controlled
+# vocabulary used by the manuscript, the generated tables and all public
+# documentation. The legacy strings "Independent" (Type 1) and "Mixed" (Type 4)
+# survive ONLY as internal aliases in the catalog columns event_type_name /
+# event_type_original; they must never appear in a public label.
+# "Type N: Label" rather than "Type N (Label)" -- two of the canonical labels
+# already contain parentheses, and nesting them reads badly in a table cell.
+TYPE_LABEL = {1: "Type 1: Widespread (Isolated)",
+              2: "Type 2: Spatially Clustered",
+              3: "Type 3: Temporally Clustered",
+              4: "Type 4: Compound Clustering (Multi-Type)"}
+
+#: Documented legacy aliases, retained for traceability against pre-correction
+#: artifacts and against the catalog's own columns. Not for publication.
+TYPE_LABEL_LEGACY_ALIASES = {1: "Independent", 2: "Independent Simultaneous",
+                             3: "Back-to-Back", 4: "Mixed Multi-Day"}
 # Original Figure-10 type colours (for the table row tint).
 FIG10_COLORS = {1: "#d7191c", 2: "#f57c00", 3: "#d9a300", 4: "#6a3d9a"}
 
@@ -113,12 +127,19 @@ def table_a(ev, df):
         sub = ev[ev["v3_type"] == t]
         rows.append({
             "Compound Heatwave Typologies": TYPE_LABEL[t],
-            "Frequency of Occurrence (Number of Events)": int(eday.get(t, 0)),
+            # v1.0.0 pre-release correction: these values (3/4/75/313) are SELECTED EVENT-DAYS -- the
+            # number of distinct (event, calendar day) pairs -- NOT event counts.
+            # Event counts are 3/4/20/24 and live in the next column.
+            "Frequency of Occurrence (Number of Selected Event-Days)":
+                int(eday.get(t, 0)),
             "Number of Compound Events": int(sub.shape[0]),
+            # v1.0.0 pre-release correction: column order now matches the manuscript table and the
+            # deposited source CSV -- "Longest Compound Event" is column 4, not
+            # column 6. Values are unchanged; only the order was wrong.
+            "Longest Compound Event (days)": int(sub["duration_days"].max()),
             "Average Duration (days/event)": round(float(sub["duration_days"].mean()), 2),
             "Average Number of Ellipses per Compound Event":
                 round(float(sub["n_ellipses"].mean()), 2),
-            "Longest Compound Event (days)": int(sub["duration_days"].max()),
             "Min Ellipses per Compound Event": int(sub["n_ellipses"].min()),
             "Max Ellipses per Compound Event": int(sub["n_ellipses"].max()),
         })
@@ -152,17 +173,20 @@ def table_b(ev):
     for t in (3, 4):
         sub = ev[ev["v3_type"] == t]
         # Frequency: events per year over the FULL period (zeros filled).
+        # the v1.0.0 pre-release correction -- DESCRIPTIVE ONLY. Annual event counts are NOT trend-tested:
+        # no Mann-Kendall, no Sen's slope, no p-value. The counts are retained
+        # for the descriptive annual-count plot via `series_rows` below, but no
+        # inferential statistic is computed from them anywhere in this workflow.
+        # See docs/ALIGNMENT_DECISIONS.md Correction 2; the manuscript already states
+        # "Annual event counts are reported descriptively and are not subjected
+        # to a trend test."
         counts = (sub.groupby("year").size()
                      .reindex(full_years, fill_value=0))
-        sen_f = sens_slope(full_years, counts.to_numpy(float))
-        _, _, p_f = mann_kendall_test(counts.to_numpy(float))
         # Duration: mean event duration per OBSERVED year (years with events).
+        # These are the two approved duration-trend analyses and are unchanged.
         dur = sub.groupby("year")["duration_days"].mean().sort_index()
         sen_d = sens_slope(dur.index.to_numpy(float), dur.to_numpy(float))
         _, _, p_d = mann_kendall_test(dur.to_numpy(float))
-        rows.append({"Heatwave Type": TYPE_LABEL[t], "Metric": "Frequency",
-                     "Sen's Slope": round(sen_f, 4),
-                     "Mann-Kendall p-value": round(float(p_f), 4)})
         rows.append({"Heatwave Type": TYPE_LABEL[t], "Metric": "Duration",
                      "Sen's Slope": round(sen_d, 4),
                      "Mann-Kendall p-value": round(float(p_d), 4)})
@@ -251,7 +275,8 @@ def main():
                  os.path.join(OUT, "Table_Compound_Heatwave_Typologies_global_max"),
                  type_col="Compound Heatwave Typologies",
                  figsize=(15.5, 3.4))
-    render_table(B, "Trend Analysis - Sen's Slope & Mann-Kendall (event-global-max)",
+    render_table(B, "Duration Trend Analysis - Sen's Slope & Mann-Kendall "
+                    "(event-global-max)",
                  os.path.join(OUT, "Table_Trend_Analysis_global_max"),
                  type_col="Heatwave Type", figsize=(9.5, 3.4))
 

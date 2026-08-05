@@ -2,7 +2,7 @@
 
 All geometry is computed by ``scorch._kernel.ellipse_pca`` -- a byte-for-byte
 copy of the canonical ``scripts/common/ellipse_pca.py`` -- so results are
-identical to the published catalog:
+identical to the canonical catalog:
 
   * sigma default 1.25 (canonical ellipse scale),
   * eigenvalue variance floor 1.0 km^2 retained (applied to axis lengths

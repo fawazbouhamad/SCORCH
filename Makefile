@@ -32,7 +32,7 @@ help:
 	@echo "                (canonical NBOOT=$(NBOOT) power-law bootstrap), then assembles"
 	@echo "                the clean publication tree into $(PUB_DIR)"
 	@echo "  quick       - fast with a REDUCED, NONCANONICAL bootstrap (NBOOT=200); smoke"
-	@echo "                testing only -- its power-law numbers are NOT the published values"
+	@echo "                testing only -- its power-law numbers are NOT the manuscript-reported values"
 	@echo "  guide       - print the provider-level ERA5 reconstruction guide (executes nothing)"
 	@echo "  test        - run the scorch package unit/regression tests"
 

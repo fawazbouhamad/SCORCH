@@ -146,7 +146,7 @@ def enforce_source_date_epoch(env=None) -> int:
     present and equal     -> accepted unchanged;
     present and different -> refuse loudly. Silently honouring a foreign
                              epoch would emit PDFs that differ from the
-                             published ones while every other check passed;
+                             canonical ones while every other check passed;
     present and malformed -> refuse loudly for the same reason. int() would
                              otherwise raise deep inside matplotlib, and a
                              value like " 12 " or "0012" would be accepted
@@ -173,7 +173,7 @@ def enforce_source_date_epoch(env=None) -> int:
             "SOURCE_DATE_EPOCH is set to {}, but this release declares {} "
             "(2026-07-30T01:26:05Z). Refusing to build: honouring a "
             "different epoch would produce PDFs that do not match the "
-            "published artifacts. Unset the variable to use the declared "
+            "canonical publication-output artifacts. Unset the variable to use the declared "
             "value.".format(raw, declared))
     env["SOURCE_DATE_EPOCH"] = str(declared)
     return declared

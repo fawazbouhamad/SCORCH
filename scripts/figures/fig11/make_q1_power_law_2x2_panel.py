@@ -18,7 +18,7 @@ Bottom row = largest ellipse per event,     n = 51
 Left col   = empirical CCDF + fitted power-law tail + A_min line
 Right col  = pooled bootstrap-alpha distribution (5000 refits)
 
-Note: the "bootstrap alpha" boxplots are the published Clauset power-law
+Note: the "bootstrap alpha" boxplots are the manuscript-reported Clauset power-law
 bootstrap (5000 semi-parametric refits of the area power law), NOT the
 withdrawn event-level bootstrap validation.
 
@@ -28,7 +28,7 @@ Source data (single source of truth)
     Columns used: new_event_id, date (str), v3_type (int 1-4),
                   ellipse_area_km2 (float, km^2).
 
-Reused logic (so the panels match the published standalone figures exactly):
+Reused logic (so the panels match the canonical standalone figures exactly):
     scripts/figures/common/power_law_largest_daily_ellipse.py   -> build_largest()           (n=395)
     scripts/figures/common/power_law_largest_event_ellipse.py   -> build_largest_per_event() (n=51)
     scripts/figures/common/task6_powerlaw.py                    -> analyze_group()  (Clauset MLE + bootstrap)

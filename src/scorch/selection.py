@@ -11,7 +11,7 @@ this module and the ``scorch reproduce`` builtin stages):
     to numpy's "higher" method),
   * a day is selected when its count ``>= Theta``.
 
-For the published SCORCH catalog this yields Theta = 371 and 395 selected
+For the canonical SCORCH catalog this yields Theta = 371 and 395 selected
 days, which group into 51 events as maximal runs of consecutive calendar days.
 """
 from __future__ import annotations

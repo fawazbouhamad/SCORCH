@@ -39,7 +39,7 @@ HONEST REPRODUCTION CLASSES
 The four classes are carried through to every PROVENANCE.txt and manifest
 row unchanged. In particular this builder never claims that frozen artwork
 (Figs. 1, 4) was regenerated from data, and never presents the data-derived
-pre-post-processing render of Figs. 8 and 9 as the publication figure -- it
+pre-post-processing render of Fig. 8 as the publication figure -- it
 ships only under ``source_components/`` under a name that says so.
 
 SAFETY
@@ -150,14 +150,18 @@ LETTERED_FIGURES = 12
 
 # Figures whose approved original is a manual post-processing pass: their
 # data-derived script render ships as a source component, nothing else does.
-SOURCE_COMPONENT_FOLDERS = ("Figure_08", "Figure_09")
+# Figure 9 left this set in the v1.0.0 pre-release correction: its approved
+# original is now BYTE-IDENTICAL to the script render (the axial-mean fix
+# regenerated it end-to-end), so no manual pass remains and no source
+# component is shipped for it.
+SOURCE_COMPONENT_FOLDERS = ("Figure_08",)
 
 # --- tables ---------------------------------------------------------------
 #
-# Table 1 as PUBLISHED in the manuscript. Held here as a declared constant so
+# Table 1 as presented in the FINAL MANUSCRIPT CANDIDATE. Held here as a declared constant so
 # the reconciliation runs offline: reading the manuscript at reproduction
 # time is not permitted and not necessary.
-TABLE1_PUBLISHED_HEADER = (
+TABLE1_MANUSCRIPT_HEADER = (
     "Compound Heatwave Typologies",
     "Frequency of Occurrence (Number of Selected Event-Days)",
     "Number of Compound Events",
@@ -167,37 +171,37 @@ TABLE1_PUBLISHED_HEADER = (
     "Min Ellipses per Compound Event",
     "Max Ellipses per Compound Event",
 )
-TABLE1_PUBLISHED_ROWS = (
-    ("Type 1 (Widespread)", "3", "3", "1", "1.0", "1.0", "1", "1"),
-    ("Type 2 (Spatially clustered)", "4", "4", "1", "1.0", "3.25", "2", "4"),
-    ("Type 3 (Temporally clustered)", "75", "20", "10", "3.75", "9.25",
+TABLE1_MANUSCRIPT_ROWS = (
+    ("Type 1: Widespread (Isolated)", "3", "3", "1", "1.0", "1.0", "1", "1"),
+    ("Type 2: Spatially Clustered", "4", "4", "1", "1.0", "3.25", "2", "4"),
+    ("Type 3: Temporally Clustered", "75", "20", "10", "3.75", "9.25",
      "2", "26"),
-    ("Type 4 (Mixed)", "313", "24", "40", "13.04", "23.29", "5", "80"),
+    ("Type 4: Compound Clustering (Multi-Type)", "313", "24", "40", "13.04",
+     "23.29", "5", "80"),
 )
-# Published column index -> column index in the reproduced CSV. The producing
-# script emits the same eight columns in a different order.
-TABLE1_COLUMN_MAP = (0, 1, 2, 5, 3, 4, 6, 7)
-# Header wording and row label that differ between the published table and
-# the producing script's internal vocabulary. Declared, not silently ignored.
-TABLE1_HEADER_RENAMES = {
-    "Frequency of Occurrence (Number of Selected Event-Days)":
-        "Frequency of Occurrence (Number of Events)",
-}
-TABLE1_ROW_LABEL_RENAMES = {
-    "Type 1 (Widespread)": "Type 1 (Independent)",
-}
+# v1.0.0 pre-release correction: the producing script now emits the manuscript column order, so the
+# map is the identity. It was (0, 1, 2, 5, 3, 4, 6, 7) while the reproduced CSV
+# placed "Longest Compound Event" at column 6 instead of column 4.
+TABLE1_COLUMN_MAP = (0, 1, 2, 3, 4, 5, 6, 7)
+# v1.0.0 pre-release correction: no renames remain. The producing script now emits the manuscript
+# header wording ("Number of Selected Event-Days" -- these values are event-DAYS,
+# not events) and the canonical public typology vocabulary, so manuscript and
+# reproduced agree literally. Any future divergence must be declared here rather
+# than tolerated silently.
+TABLE1_HEADER_RENAMES = {}
+TABLE1_ROW_LABEL_RENAMES = {}
 
 # The trend-analysis table is UNNUMBERED in the manuscript and is NEVER
-# "Table 2". Its values are reported in the running text; those published
+# "Table 2". Its values are reported in the running text; those manuscript-reported
 # per-decade figures are asserted against the reproduced per-year CSV.
-TREND_PUBLISHED = (
-    # (type, metric, published Sen slope per DECADE, published MK p)
-    ("Type 4 (Mixed)", "Duration", 4.12, 0.0086),
-    ("Type 3 (Temporally clustered)", "Duration", 0.08, 0.66),
+TREND_MANUSCRIPT_REPORTED = (
+    # (type, metric, manuscript-reported Sen slope per DECADE, manuscript-reported MK p)
+    ("Type 4: Compound Clustering (Multi-Type)", "Duration", 4.12, 0.0086),
+    ("Type 3: Temporally Clustered", "Duration", 0.08, 0.66),
 )
 
 TABLE_SOURCES = (
-    # (source file under reproduced/tables/, published output name)
+    # (source file under reproduced/tables/, publication-output name)
     ("Table_Compound_Heatwave_Typologies_global_max.csv",
      "Table_01_Compound_Heatwave_Typologies.csv"),
     ("Table_Compound_Heatwave_Typologies_global_max.pdf",
@@ -641,66 +645,67 @@ def _num(value: str) -> float:
 
 
 def validate_table1(path: Path):
-    """Reconcile the reproduced Table 1 value-by-value with the published one.
+    """Reconcile the reproduced Table 1 value-by-value with the manuscript table.
 
-    The producing script emits the same eight columns in a different order
-    and uses its own internal vocabulary for one header and one row label.
-    Both differences are declared above and are checked, not assumed: any
-    other difference, and any value difference at all, is a hard error.
+    Since the v1.0.0 pre-release correction the producing script emits the
+    exact manuscript column order and the identical canonical public
+    labels (identity column map; no renames). Any divergence must be
+    declared in the constants above; any undeclared difference, and any
+    value difference at all, is a hard error.
     """
     with open(path, encoding="utf-8", newline="") as fh:
         rows = [r for r in csv.reader(fh) if r]
-    if len(rows) != 1 + len(TABLE1_PUBLISHED_ROWS):
+    if len(rows) != 1 + len(TABLE1_MANUSCRIPT_ROWS):
         raise BuildError(f"Table 1: {path.name} has {len(rows)} non-empty "
-                         f"lines, expected {1 + len(TABLE1_PUBLISHED_ROWS)}")
+                         f"lines, expected {1 + len(TABLE1_MANUSCRIPT_ROWS)}")
     header, body = rows[0], rows[1:]
-    if len(header) != len(TABLE1_PUBLISHED_HEADER):
+    if len(header) != len(TABLE1_MANUSCRIPT_HEADER):
         raise BuildError(f"Table 1: {len(header)} columns, expected "
-                         f"{len(TABLE1_PUBLISHED_HEADER)}")
+                         f"{len(TABLE1_MANUSCRIPT_HEADER)}")
 
     notes = []
-    for pub_idx, published in enumerate(TABLE1_PUBLISHED_HEADER):
+    for pub_idx, manuscript_col in enumerate(TABLE1_MANUSCRIPT_HEADER):
         src_idx = TABLE1_COLUMN_MAP[pub_idx]
-        want = TABLE1_HEADER_RENAMES.get(published, published)
+        want = TABLE1_HEADER_RENAMES.get(manuscript_col, manuscript_col)
         if header[src_idx] != want:
             raise BuildError(
-                f"Table 1: published column {pub_idx + 1} ({published!r}) "
+                f"Table 1: manuscript column {pub_idx + 1} ({manuscript_col!r}) "
                 f"maps to reproduced column {src_idx + 1}, which is "
                 f"{header[src_idx]!r}, expected {want!r}")
-        if want != published:
-            notes.append(f"header column {pub_idx + 1}: published "
-                         f"{published!r} = reproduced {want!r}")
+        if want != manuscript_col:
+            notes.append(f"header column {pub_idx + 1}: manuscript "
+                         f"{manuscript_col!r} = reproduced {want!r}")
         if src_idx != pub_idx:
-            notes.append(f"column order: published column {pub_idx + 1} "
-                         f"({published!r}) is reproduced column "
+            notes.append(f"column order: manuscript column {pub_idx + 1} "
+                         f"({manuscript_col!r}) is reproduced column "
                          f"{src_idx + 1}")
 
-    for pub_row, src_row in zip(TABLE1_PUBLISHED_ROWS, body):
-        if len(src_row) != len(TABLE1_PUBLISHED_HEADER):
+    for pub_row, src_row in zip(TABLE1_MANUSCRIPT_ROWS, body):
+        if len(src_row) != len(TABLE1_MANUSCRIPT_HEADER):
             raise BuildError(f"Table 1: row {src_row[:1]} has "
                              f"{len(src_row)} fields, expected "
-                             f"{len(TABLE1_PUBLISHED_HEADER)}")
+                             f"{len(TABLE1_MANUSCRIPT_HEADER)}")
         want_label = TABLE1_ROW_LABEL_RENAMES.get(pub_row[0], pub_row[0])
         if src_row[0] != want_label:
-            raise BuildError(f"Table 1: published row {pub_row[0]!r} maps to "
+            raise BuildError(f"Table 1: manuscript row {pub_row[0]!r} maps to "
                              f"{want_label!r}, found {src_row[0]!r}")
         if want_label != pub_row[0]:
-            notes.append(f"row label: published {pub_row[0]!r} = reproduced "
+            notes.append(f"row label: manuscript {pub_row[0]!r} = reproduced "
                          f"{want_label!r}")
-        for pub_idx in range(1, len(TABLE1_PUBLISHED_HEADER)):
+        for pub_idx in range(1, len(TABLE1_MANUSCRIPT_HEADER)):
             src_idx = TABLE1_COLUMN_MAP[pub_idx]
             got, want = _num(src_row[src_idx]), _num(pub_row[pub_idx])
             if abs(got - want) > 1e-9:
                 raise BuildError(
                     f"Table 1: {pub_row[0]} / "
-                    f"{TABLE1_PUBLISHED_HEADER[pub_idx]} is {got}, the "
-                    f"manuscript publishes {want}")
+                    f"{TABLE1_MANUSCRIPT_HEADER[pub_idx]} is {got}, the "
+                    f"manuscript reports {want}")
     # de-duplicate while keeping order
     return list(dict.fromkeys(notes))
 
 
 def validate_trend_table(path: Path):
-    """Check the reproduced trend table against the published prose values.
+    """Check the reproduced trend table against the manuscript-reported prose values.
 
     The manuscript reports these in the running text, per DECADE. The
     reproduced CSV carries Sen slopes per YEAR. The table is UNNUMBERED and
@@ -714,7 +719,7 @@ def validate_trend_table(path: Path):
         raise BuildError(f"trend table: columns are {got_cols}, expected "
                          f"{wanted}")
     checked = []
-    for htype, metric, slope_decade, pvalue in TREND_PUBLISHED:
+    for htype, metric, slope_decade, pvalue in TREND_MANUSCRIPT_REPORTED:
         match = [r for r in rows
                  if r["Heatwave Type"] == htype and r["Metric"] == metric]
         if len(match) != 1:
@@ -869,27 +874,38 @@ def tables_provenance_text(table1_notes, trend_checks):
         "Source: reproduced/tables/"
         "Table_Compound_Heatwave_Typologies_global_max.*",
         "",
-        "Every value was reconciled against the table as PUBLISHED in the",
-        "manuscript, cell by cell: all 8 columns x 4 type rows agree.",
-        "",
-        "The producing script uses its own column order and its own internal",
-        "vocabulary, so the shipped CSV/PDF/PNG are NOT a facsimile of the",
-        "published table's layout. The differences are exactly these, and",
-        "they are checked at build time rather than assumed:",
+        "Every value was reconciled against the table as presented in the",
+        "final manuscript candidate, cell by cell: all 8 columns x 4 type",
+        "rows agree.",
         "",
     ]
-    lines += [f"  * {n}" for n in table1_notes]
-    lines += ["", "The published header row is:", ""]
+    if table1_notes:
+        lines += [
+            "Declared presentation differences (checked at build time, not",
+            "assumed):",
+            "",
+        ]
+        lines += [f"  * {n}" for n in table1_notes]
+    else:
+        lines += [
+            "Since the v1.0.0 pre-release correction the producing script",
+            "emits the exact manuscript column order and the identical",
+            "canonical public type labels: no rename or column-permutation",
+            "exception remains, and the shipped CSV is a value- and",
+            "layout-faithful rendering of the manuscript table.",
+            "Table 1 presentation differences = 0.",
+        ]
+    lines += ["", "The manuscript header row is:", ""]
     lines += [f"  {i + 1}. {h}"
-              for i, h in enumerate(TABLE1_PUBLISHED_HEADER)]
+              for i, h in enumerate(TABLE1_MANUSCRIPT_HEADER)]
     lines += [
         "",
-        "and the published type labels are "
-        + ", ".join(r[0] for r in TABLE1_PUBLISHED_ROWS) + ".",
+        "and the manuscript type labels are "
+        + ", ".join(r[0] for r in TABLE1_MANUSCRIPT_ROWS) + ".",
         "",
-        "The PDF and PNG are renderings of the reproduced CSV and therefore",
-        "carry the reproduced column order and label. Use the manuscript for",
-        "the published layout; use these files for the values.",
+        "The PDF and PNG are renderings of the reproduced CSV, which since",
+        "the v1.0.0 pre-release correction matches the manuscript column",
+        "order and labels exactly.",
         "",
         "Trend-analysis table -- UNNUMBERED",
         "-" * 68,
@@ -901,15 +917,16 @@ def tables_provenance_text(table1_notes, trend_checks):
         "the running text of the trend results, not as a numbered table.",
         "",
         "The CSV carries Sen slopes per YEAR; the manuscript reports them per",
-        "DECADE. The published values were reconciled against it:",
+        "DECADE. The manuscript-reported values were reconciled against it:",
         "",
     ]
     lines += [f"  * {c}" for c in trend_checks]
     lines += [
         "",
         "Annual event counts are reported descriptively in the manuscript,",
-        "without a trend test; the Frequency rows of the CSV are carried for",
-        "completeness and are not cited as trend evidence.",
+        "without a trend test. Since the v1.0.0 pre-release correction the",
+        "trend CSV carries ONLY the two approved duration analyses; no",
+        "frequency trend row exists in any current output.",
         "",
     ]
     return "\n".join(lines) + "\n"
@@ -946,7 +963,7 @@ def readme_text(identity, geom):
         "figures/<Folder>/<Folder>.png          the manuscript-final raster",
         "                /PROVENANCE.txt        class, source, panel geometry",
         "                /panels/               declared panels only",
-        "                /source_components/    Figs. 8 and 9 only",
+        "                /source_components/    Fig. 8 only",
         "tables/                                Table 1 + trend analysis",
         "PUBLICATION_OUTPUTS_MANIFEST.csv       every file, with hashes",
         "SHA256SUMS                             verify with sha256sum -c",
@@ -982,10 +999,12 @@ def readme_text(identity, geom):
         "* Figures 1 and 4 are frozen author-created artwork with no runnable",
         "  producer. They are **not** regenerated from data and no such claim",
         "  is made anywhere in this tree.",
-        "* Figures 8 and 9 carry a manual post-processing pass that the",
+        "* Figure 8 carries a manual post-processing pass that the",
         "  producing script does not reproduce. The script's data-derived",
         "  render ships under `source_components/`, named so it cannot be",
-        "  mistaken for the publication figure.",
+        "  mistaken for the publication figure. Figure 9 no longer does:",
+        "  since the v1.0.0 pre-release correction its approved original is",
+        "  byte-identical to the script render.",
         "",
         "## Verifying this tree",
         "",
@@ -1010,9 +1029,10 @@ def readme_text(identity, geom):
         "## Tables",
         "",
         "See `tables/PROVENANCE.txt`. Table 1's values were reconciled cell",
-        "by cell against the published table; the producing script's column",
-        "order and internal type label differ from the published ones and the",
-        "differences are enumerated there. The trend-analysis table is",
+        "by cell against the manuscript table; since the v1.0.0 pre-release",
+        "correction the shipped CSV/PDF/PNG match the manuscript column",
+        "order and canonical public labels exactly (0 presentation",
+        "differences). The trend-analysis table is",
         "UNNUMBERED -- it is not 'Table 2' and must not be cited as one.",
         "",
         "## Licensing",
@@ -1447,7 +1467,7 @@ def run(root: Path, reproduced: Path, out_dir: Path, args, echo) -> int:
             component = {
                 # Kept deliberately short: the fully spelled-out name put
                 # this file 24 characters past the Windows MAX_PATH limit in
-                # a deep staging tree, and would leave a published archive
+                # a deep staging tree, and would leave a distributed release archive
                 # that cannot be extracted on a default Windows install.
                 # The unabbreviated, honest statement of what this render is
                 # lives in the figure's PROVENANCE.txt and in the manifest
@@ -1483,7 +1503,7 @@ def run(root: Path, reproduced: Path, out_dir: Path, args, echo) -> int:
         tables_dir / "Table_Trend_Analysis_global_max.csv")
     echo(f"  [6] tables          {len(tables)} files; Table 1 reconciled "
          f"cell by cell ({len(table1_notes)} declared presentation "
-         f"difference(s)); {len(trend_checks)} published trend value(s) "
+         f"difference(s)); {len(trend_checks)} manuscript-reported trend value(s) "
          "matched")
 
     state, offenders = classify_destination(out_dir)

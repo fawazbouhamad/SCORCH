@@ -490,35 +490,22 @@ print(f"[SAVED] {fig_pdf}")
 # ============================================================
 # MANN-KENDALL + SEN SLOPE SUMMARY
 # TYPE 3 & TYPE 4
-# FREQUENCY + DURATION
+# DURATION ONLY
+#
+# the v1.0.0 pre-release correction (docs/ALIGNMENT_DECISIONS.md Correction 2): the frequency Mann-Kendall and
+# Sen's-slope block was REMOVED. Annual event counts are descriptive only and
+# are not trend-tested anywhere in this workflow, matching the manuscript:
+# "Annual event counts are reported descriptively and are not subjected to a
+# trend test." The annual-count PANEL of this figure is unaffected -- only the
+# inferential statistic was removed.
 # ============================================================
 
 print("\n" + "="*80)
-print("MANN-KENDALL TREND RESULTS")
+print("MANN-KENDALL DURATION TREND RESULTS")
+print("(annual event counts are descriptive only and are not trend-tested)")
 print("="*80)
 
 for typ in ["Type 3", "Type 4"]:
-
-    # --------------------------------------------------------
-    # FREQUENCY
-    # --------------------------------------------------------
-    freq_df = (
-        df[df["type"] == typ]
-        .groupby("year")
-        .size()
-        .reset_index(name="frequency")
-        .sort_values("year")
-    )
-
-    x_freq = freq_df["year"].values
-    y_freq = freq_df["frequency"].values
-
-    sen_freq = sens_slope(x_freq, y_freq)
-    _, _, mk_p_freq, _ = mann_kendall_test(y_freq)
-
-    print(f"\n{typ} FREQUENCY")
-    print(f"Sen slope : {sen_freq:.4f} events/year")
-    print(f"MK p-value: {mk_p_freq:.6f}")
 
     # --------------------------------------------------------
     # DURATION

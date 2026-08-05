@@ -50,7 +50,7 @@ Legacy names you will encounter, and what they mean now:
 surface, delimited by quantile rank; "risk quantile" means concentration
 quantile. Wherever a legacy name appears, read "risk" as "concentration".
 
-## What the figures actually display (current release, V12)
+## What the figures actually display (current release, SCORCH v1.0.0; wording finalized in the historical internal pre-release pass "V12")
 
 No displayed label in this release uses risk wording. Docstrings,
 generated Markdown reports, plot titles, axis labels, legends and other
@@ -76,7 +76,7 @@ documented in the table above.
 | Fig. D (Appendix D of the main manuscript) | Colorbar: "Relative centroid-concentration rank, R(s)". Marker legend: "Daily-largest structure centroid", "Event-largest structure centroid". Panel (a) y-axis: "Distance to nearest top-concentration zone (km)". |
 | Fig. D internal component producers (legacy internal names figS3, figS4) | Same concentration wording; these are components, not manuscript figures. |
 
-Figure 12 and the composite now published as Fig. D were regenerated
+Figure 12 and the composite now designated Fig. D were regenerated
 with the marker-legend wording above. Both corrected assets were DEPLOYED
 into the WORKING manuscript on 2026-07-30 in the advisor-directed G2 pass,
 and the shipped producers now reproduce the deployed embeds

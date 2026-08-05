@@ -9,7 +9,7 @@ scientific kernel used to produce every number in the SCORCH paper:
 * ``clustering.py``   -- spatial-clustering abstraction (DBSCAN and friends on
   precomputed distance matrices; grid-cell distance helper).
 
-Do NOT edit these files: scientific identity with the published catalog
+Do NOT edit these files: scientific identity with the canonical catalog
 depends on them remaining unchanged. Public, documented wrappers live in
 ``scorch.ellipses``, ``scorch.clustering``, and ``scorch.dbscan_params``.
 """

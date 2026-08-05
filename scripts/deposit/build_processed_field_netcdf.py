@@ -14,7 +14,7 @@ The output contains:
 The canonical producer applies ``val >= thr_p95``; the source-precision
 consistency check below uses that same ``>=`` rule.
 
-After writing, the script re-opens the file and verifies the published
+After writing, the script re-opens the file and verifies the declared
 invariants: 1,800 valid cells, 15,738 days, the daily coverage counts
 (n_hw / n_exceed / n_hw_exceed) against the deposited
 ``fig02_daily_extent.csv``, and the regional-selection invariants
@@ -275,7 +275,7 @@ def build(master_csv: Path, out_nc: Path) -> dict:
 
 
 def verify(out_nc: Path, extent_csv: Path) -> dict:
-    """Re-open the file and verify every published invariant. Raises on failure."""
+    """Re-open the file and verify every declared invariant. Raises on failure."""
     print("[4/4] verifying invariants ...", flush=True)
     ds = Dataset(out_nc, "r")
     try:

@@ -4,7 +4,7 @@
 # LEGACY NAMING NOTICE: this file, its directory (figS2/) and its output
 # filename keep the historical "S2" token for provenance. They are INTERNAL
 # names, NOT current publication labels. Since the advisor-directed pass of
-# 2026-07-30 the figure this script produces is published as **Fig. D in
+# 2026-07-30 the figure this script produces is designated **Fig. D in
 # Appendix D of the main manuscript**; the supplementary document now
 # contains Fig. S.1 only.
 #
@@ -17,8 +17,8 @@
 # are asserted at run time.
 # HISTORICAL NOTE (pre-2026-07-30 wording retained for provenance; the
 # "Figure S.3"/"Figure_S3.png"/"figS03" tokens below are LEGACY INTERNAL
-# names for this composite, NOT current publication labels - it is published
-# as Fig. D in Appendix D):
+# names for this composite, NOT current publication labels - it is designated
+# Fig. D in Appendix D):
 # LAYOUT-ONLY reflow of the then-deployed Figure S.3 from 3x2 to 2x3
 # (rows: (a)(b) / (c)(d) / (e)(f)).  This file is a copy of the verified
 # canonical generator figS03/scripts/make_figS3_combined.py, whose UNMODIFIED

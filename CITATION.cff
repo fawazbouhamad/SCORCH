@@ -12,8 +12,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.21717874"
     description: >-
-      Zenodo archive of this software release (version DOI of the release
-      tag v1.0.0).
+      Reserved Zenodo version DOI for this software release (release tag
+      v1.0.0); the record is intended to archive the identical release
+      tree upon publication, when the DOI becomes resolvable.
 references:
   - type: data
     title: >-

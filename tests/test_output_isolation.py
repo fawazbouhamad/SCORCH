@@ -193,7 +193,7 @@ def test_stage_writes_land_only_in_requested_out_dir(tmp_path):
 # ---------------------------------------------------------------------------
 # matplotlib stamps PDF /CreationDate from the wall clock unless
 # SOURCE_DATE_EPOCH is set, so two builds of the same table on different days
-# differed in exactly those bytes and the published PDFs were not
+# differed in exactly those bytes and the publication-output PDFs were not
 # byte-reproducible. The release declares one canonical epoch in the central
 # helper and pins it before any stage runs. These guards fail if that
 # declaration is removed, changed, duplicated inconsistently, or silently
@@ -295,7 +295,7 @@ def _pub_tables():
 
 
 def test_shipped_table_pdfs_carry_the_canonical_date():
-    """The published PDFs must carry the declared stamp, not a build date."""
+    """The publication-output PDFs must carry the declared stamp, not a build date."""
     d = _pub_tables()
     for name in _TABLE_PDFS:
         raw = (d / name).read_bytes()

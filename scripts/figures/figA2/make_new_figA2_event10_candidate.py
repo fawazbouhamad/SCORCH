@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # RECOVERY TASK 3 — New Figure B candidate: DBSCAN parameter-selection
-# (published as Fig. B in the appendices since 2026-07-30; the directory name
+# (designated Fig. B in the appendices since 2026-07-30; the directory name
 # "figA2" and the output filename are LEGACY INTERNAL names, not the current
 # publication label.)
 # matrices for the SIX consecutive days of Event 10 (Type 4), the exact

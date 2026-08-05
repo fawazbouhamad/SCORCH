@@ -1,4 +1,10 @@
-# SCORCH release reproducibility report (V12, 2026-07-30)
+# SCORCH v1.0.0 release reproducibility report (2026-08-04)
+
+> Lineage note: this report was first compiled for the internal pre-release
+> source snapshot historically labelled "V12" (2026-07-30) and was carried
+> forward into the v1.0.0 pre-release correction. "V12" and the other
+> "VN" labels below are HISTORICAL internal pre-release pass names, never
+> public releases; the only public identity is SCORCH v1.0.0.
 
 Verified status of every manuscript-facing result in this release, measured
 on the build machine (Windows 11, Python 3.12.10, numpy 2.4.6, pandas 3.0.3,
@@ -23,12 +29,18 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a clean checkout WITHOUT the deposit | **124 passed, 4 skipped** (the canonical-data regression tests and the functional output-isolation stage test skip with a clear message) |
-| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`) | **128 passed, 0 skipped** |
+| `pytest tests -q` in a clean checkout WITHOUT the deposit | **212 passed, 34 skipped** (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
+| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`; FINAL DOCX dir via `SCORCH_FINAL_DOCX_DIR`) | **244 passed, 2 skipped** |
 
-The four skips are the three canonical catalog regression tests and the
-functional output-isolation stage test, which require either
-`SCORCH_CANONICAL_DATA_DIR` or a downloaded deposit. These counts must
+The two remaining skips with the deposit are the publication-outputs
+isolation cases, which require a materialized `publication_outputs/` tree
+that a source-only checkout deliberately does not ship; the assembly stage
+itself is executed and verified by the reproduction workflow. The
+without-deposit skips are the deposit-dependent regression tests, which
+require either `SCORCH_CANONICAL_DATA_DIR` or a downloaded deposit, plus
+the FINAL-DOCX identity guards, which require the frozen release documents
+(`SCORCH_FINAL_DOCX_DIR`). These
+counts must
 be measured in a checkout that is NOT nested inside the research repository,
 because the discovery helper also finds the research repo's frozen catalog.
 
@@ -54,7 +66,31 @@ YAML expected-count enforcement in the final validation stage, canonical
 fixed-rule enforcement, rejection of unsupported configuration overrides
 -- and the derived-Theta placement test); V6 added thirty-one
 schema-completeness guardrail tests (124 total); V7 adds four
-repository-level output-isolation guards (128 total).
+repository-level output-isolation guards (128 total); the v1.0.0 final
+remediation (2026-08-04) adds sixteen stale-provenance release-alignment
+guards (`tests/test_stale_provenance.py`: false Figure A account, stale
+Table 1 checksums, defective-Figure-9-as-published wording, retired
+staging paths, V12-as-current wording, version fields, contract-path
+existence, frequency-inference reappearance, pinned Figure 9 / S.1 /
+FINAL-DOCX hashes); the R3 remediation adds six structural/lifecycle
+guards (shipped-CSV rectangularity, JSON and CITATION.cff parsing,
+Table 1 provenance-prose consistency, S.1 producer-contradiction guard,
+extended false-lifecycle-phrase guard), bringing the suite to 192
+collected tests; the R4 remediation hardens the false-lifecycle-phrase
+guard (whole-file normalization of Unicode hyphens, whitespace, line
+breaks and case, regex detection with space/hyphen-interchangeable
+separators, negation handling, and explicit provider/bibliographic/
+historical/future-conditional allowances) and adds 34 parameterized
+regression fixtures proving the evasive variants fail and the
+legitimate wordings pass, bringing the suite to 226 collected tests;
+the R5 remediation adds 20 final-DOCX display-geometry and
+content-identity guards (`tests/test_final_docx_geometry.py`: exact
+corrected Fig. A / Fig. B extents with matching `wp:extent` and
+`a:xfrm/a:ext`, native-aspect preservation below 0.001% error, the 17
+embedded publication images pinned byte-for-byte, the supplement
+`docProps/app.xml` page count of 2, and unchanged Table 1 OOXML, alt
+text, captions/prose, comments/tracking state and media relationships),
+bringing the suite to 246 collected tests.
 
 ## 2. Connected reconstruction: processed field to catalog
 
@@ -87,8 +123,8 @@ cells in the canonical longitude-major order. That order is load-bearing.
 DBSCAN assigns a border point reachable from two clusters to whichever core
 point reaches it first, so a different input order yields a different (but
 equally valid) partition of border cells. Emitting the canonical order
-reproduces the published partition exactly and deterministically from the
-field alone.
+reproduces the canonical catalog partition exactly and deterministically from
+the field alone.
 
 Configuration wiring in the current release: every operative value of
 these stages -- including
@@ -108,17 +144,20 @@ fails instead of being silently ignored.
 **17 publication figures in total**: main Figures 1 to 12 (12), Appendix
 Figures A, B, C and D (4), and Supplementary Figure S.1 (1). **S.1 is the
 ONLY supplementary figure.** Since the advisor-directed deployment of
-2026-07-30 the former Appendix Figs. A.1, A.2 and A.3 are published as
-**Figs. A, B and C**, and the former Supplementary Fig. S.2 is published as
-**Fig. D in Appendix D of the main manuscript**. The labels A.1, A.2, A.3
+2026-07-30 the former Appendix Figs. A.1, A.2 and A.3 are designated
+**Figs. A, B and C** in the manuscript, and the former Supplementary Fig. S.2
+is designated **Fig. D in Appendix D of the main manuscript**. The labels A.1, A.2, A.3
 and S.2 are RETIRED and appear below only in explicitly historical
 statements. S.3 and S.4 are not current manuscript figures; their scripts
 are retained as internal component producers of Fig. D.
 
 Of those 17, by reproduction class: **6 `data_generated`** (Fig. 2, 3, 12,
-B, D, S.1), **7 `deployment_export_of_reproduced_original`** (Fig. 5, 6, 7,
-10, 11, A, C), **2 `manually_postprocessed_approved_artwork`** (Fig. 8, 9)
-and **2 `frozen_approved_artwork`** (Fig. 1, 4). Only the first six are
+B, D, S.1), **8 `deployment_export_of_reproduced_original`** (Fig. 5, 6, 7,
+9, 10, 11, A, C), **1 `manually_postprocessed_approved_artwork`** (Fig. 8)
+and **2 `frozen_approved_artwork`** (Fig. 1, 4). Figure 9 joined the
+deployment-export class in the v1.0.0 pre-release correction: the
+axial-orientation fix regenerated its approved original end-to-end from the
+deposit, so no manual post-processing pass remains. Only the first six are
 byte-identical to the embedded raster when regenerated from data; section 3
 below describes each situation. Per-figure hashes, including the separate
 approved-original, deployed-embed and reproduced-output fields, are in
@@ -130,25 +169,32 @@ Figures 2, 3, 12, B, D and S.1.
 
 **EXECUTED, byte-identical to the approved canonical full-resolution asset**
 (the deployed DOCX embed is a downscaled deployment export of that asset):
-Figures 5, 6, 7, 10, 11, A and C.
+Figures 5, 6, 7, 9, 10, 11, A and C. For Figure 9 this holds since the
+v1.0.0 pre-release correction: event orientation is now the doubled-angle
+axial mean (`scripts/figures/common/scorch_axial.py`), the reproduced
+9000x2940 render `f4dce68d...` IS the approved original, and the manuscript
+embed `7859acbd...` is its deterministic width-1950 LANCZOS downscale
+(`make_manuscript_artwork.py`). The superseded arithmetic-mean artifacts
+(full-resolution `4cb3b38a...`, embed `b023c6e5...`) are HISTORICAL ONLY,
+archived under `legacy_defective_figure09/` and excluded from publication
+outputs.
 
-**EXECUTED, three distinct artifacts (Figures 8 and 9).** For these two
-figures the approved original, the deployed embed and the reproduced output
-are three different files, and `FIGURE_PROVENANCE.csv` now records all three
-hashes in separate fields:
+**EXECUTED, three distinct artifacts (Figure 8).** For this figure the
+approved original, the deployed embed and the reproduced output are three
+different files, and `FIGURE_PROVENANCE.csv` records all three hashes in
+separate fields:
 
-| | Figure 8 | Figure 9 |
-|---|---|---|
-| Approved full-resolution original (post-processed "B2B-1" pass) | 6221x4751, `9b2bd0f1...` | 9000x2940, `9c5f5e39...` |
-| Deployed DOCX embed (downscaled export of the approved original) | 1950x1489, `c64f1a16...` | 1950x637, `b023c6e5...` |
-| Reproduced output (this release) | 6221x4751, `bf153356...` | 9000x2940, `4cb3b38a...` |
+| | Figure 8 |
+|---|---|
+| Approved full-resolution original (post-processed "B2B-1" pass) | 6221x4751, `9b2bd0f1...` |
+| Deployed DOCX embed (downscaled export of the approved original) | 1950x1489, `c64f1a16...` |
+| Reproduced output (this release) | 6221x4751, `bf153356...` |
 
 The reproduced output is byte-identical to the PRE-B2B-1 script output
 archived in the research repository. Against the approved original it has
-identical dimensions with **5.10%** (Fig. 8) and **3.10%** (Fig. 9) of
-pixels differing: that difference is the authors' manual post-processing
-pass, which the script does not and cannot reproduce. The plotted content is
-reproduced exactly.
+identical dimensions with **5.10%** of pixels differing: that difference is
+the authors' manual post-processing pass, which the script does not and
+cannot reproduce. The plotted content is reproduced exactly.
 
 **FROZEN (Figures 1 and 4).** Author-created slide exports. No runnable
 producer exists and none is claimed. The frozen PNGs ship in
@@ -156,7 +202,7 @@ producer exists and none is claimed. The frozen PNGs ship in
 deployed manuscript embeds. These are the only two publication figures
 without a shipped producing command.
 
-**V3 label corrections (Figure 12 and the composite now published as
+**V3 label corrections (Figure 12 and the composite now designated
 Fig. D).** Both figures were regenerated with corrected marker-legend
 wording: "Largest centroid per day" and "Largest centroid per event" become
 **"Daily-largest structure centroid"** and **"Event-largest structure
@@ -172,7 +218,8 @@ V3 pass these corrected outputs were intentionally not byte-identical to the
 then-deployed embeds; they were supplied for manual review, and at that time
 nothing had been deployed into either WORKING document.
 
-**CURRENT V12 RESOLUTION.** Both were DEPLOYED on 2026-07-30 in the
+**CURRENT RESOLUTION (deployed in the historical V12 pre-release pass).**
+Both were DEPLOYED on 2026-07-30 in the
 advisor-directed G2 pass. Figure 12's deployed embed is `6a1a5a76...` and
 Fig. D's is `b7c48232...`, and the shipped producers reproduce both
 byte-identically. Neither figure is pending, provisional or awaiting any
@@ -204,16 +251,17 @@ producer's colorbar label previously claimed physical units ("Predicted
 centroid concentration (x10^6 km^-2)") although the mapped values are
 per-fold PERCENTILE RANKS (0-1). V4 corrects the label to "Relative
 centroid-concentration rank, R(s)" (the same wording as Figure 12 and the
-composite now published as Fig. D, which were already correct). Regenerated
+composite now designated Fig. D, which were already correct). Regenerated
 component hash: `1f0742fa...`. *HISTORICAL:* at the V4 pass the composite
 output was unchanged at `54ca830c...`, which confirmed the fix affected only
-the internal component. **CURRENT V12:** that composite was subsequently
-rearranged and deployed in the 2026-07-30 G2 pass, so the current published
+the internal component. **CURRENT (v1.0.0; resolved in the historical V12 pre-release pass):** that
+composite was subsequently
+rearranged and deployed in the 2026-07-30 G2 pass, so the current manuscript
 Fig. D is `b7c48232...`; `54ca830c...` is a superseded pre-G2 identity and is
 not shipped anywhere in this release.
 
 **Internal component producers (NOT manuscript figures).** The `figS3` and
-`figS4` scripts regenerate the two internal components of the published
+`figS4` scripts regenerate the two internal components of the manuscript
 Fig. D: `figS3` supplies **panel (a)**, the concentration-zone distance
 boxplot, and `figS4` supplies **panels (b) to (f)**, the held-out Folds 1-5.
 They are components, were never deployed, and therefore have no
@@ -231,7 +279,7 @@ row, which claimed an executed byte-identical output that is absent from
 
 When internal outputs are discussed anywhere in this release, the correct
 phrasing is: **17 publication figures in four reproduction classes (6
-`data_generated`, 7 `deployment_export_of_reproduced_original`, 2
+`data_generated`, 8 `deployment_export_of_reproduced_original`, 1
 `manually_postprocessed_approved_artwork`, 2 `frozen_approved_artwork`),
 plus three internal or superseded diagnostic products.** The phrase "15
 regenerated publication figures" must not be used: it counts the nine
@@ -242,20 +290,20 @@ reproduced the embedded rasters, which they do not.
 
 | Item | Result |
 |---|---|
-| Table 1 (Compound Typologies) | Value-identical to the deposited source CSV, which already carries the manuscript's published column order; it is the REPRODUCED output that reorders one column, moving Longest Compound Event from column 4 to column 6. The two files are the same 456 bytes and first differ at byte 98; the difference is a pure permutation `[0,1,2,5,3,4,6,7]` with identical header wording and identical row labels, and 7 shared columns x 4 rows show 0 value mismatches. Byte-identical to the canonical script's frozen research-repo output |
-| Trend tables (Sen slope + Mann-Kendall) | Byte-identical to the deposit copies |
+| Table 1 (Compound Typologies) | BYTE-IDENTICAL to the corrected LOCAL STAGING COPY of the Zenodo data deposit (sha256 `f12ee1ab...`). Since the v1.0.0 pre-release correction the producing script emits the manuscript column order (Longest Compound Event at column 4), the manuscript header "Frequency of Occurrence (Number of Selected Event-Days)" and the canonical public type labels (Type 1: Widespread (Isolated) / Type 2: Spatially Clustered / Type 3: Temporally Clustered / Type 4: Compound Clustering (Multi-Type)); the local staging copy of `figure_table_source_data/table01/` was corrected to match and its `SHA256SUMS` regenerated. No column-permutation or rename exception remains. The ONLINE Zenodo data draft still carried the pre-correction table01 files at audit time; synchronizing it is a required manual release step |
+| Trend tables (Sen slope + Mann-Kendall) | Byte-identical to the corrected local staging copies of the Zenodo data deposit (`figure_table_source_data/table01/`), pending the same online-draft synchronization |
 | Power-law statistics (canonical `--nboot 5000`) | The entire `power_law/statistics/` directory is byte-identical to the deposit, bootstrap CSVs included |
 | variant3 surface extraction | Exact: max absolute difference **0.0** over 1,800 rows against the frozen variant3 CSV |
-| 5-fold CV (seed 20260704) | Mean held-out distance **84.934649 km** (published 84.935); all five CV CSVs byte-identical to the deposit |
-| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **437.854964 / 285.656041 / 180.807535 / 81.475518 km** (published 437.85 / 285.66 / 180.81 / 81.48) |
-| GHCN-ERA5 Aswan validation | r = 0.9802, RMSE = 1.696 C, bias = -1.5952 C, n = 9 (published 0.98 / 1.70 / -1.60) |
+| 5-fold CV (seed 20260704) | Mean held-out distance **84.934649 km** (manuscript 84.935); all five CV CSVs byte-identical to the deposit |
+| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **437.854964 / 285.656041 / 180.807535 / 81.475518 km** (manuscript 437.85 / 285.66 / 180.81 / 81.48) |
+| GHCN-ERA5 Aswan validation | r = 0.9802, RMSE = 1.696 C, bias = -1.5952 C, n = 9 (manuscript 0.98 / 1.70 / -1.60) |
 | Canonical counts | 1,800 cells; 15,738 days; Theta = 371; fraction 0.2061; 395 days; 51 events; 760 ellipses; types 3/4/20/24; event-day split 3/4/75/313; event 14 = Type 3 |
 
 The canonical bootstrap replicate count is **5000**, and it is the default of
 both `run_reproduction.py` and the `Makefile`. Any smaller value is a QUICK,
 NONCANONICAL run: the driver prints an explicit warning, and the `make quick`
-target is named accordingly. Its power-law numbers are not the published
-values and must not be reported as reproductions of them.
+target is named accordingly. Its power-law numbers are not the canonical
+manuscript values and must not be reported as reproductions of them.
 
 ## 5. Centroid-concentration (LGCP) model: EXECUTED and matched
 

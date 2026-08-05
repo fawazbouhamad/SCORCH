@@ -3,7 +3,7 @@
 ``ensure_datetime_index`` and ``label_heatwaves`` are VERBATIM copies of the
 functions in the research repository's canonical ``2_Heatwave_Algorithm.py``
 (released here as ``scripts/pipeline/build_master_dataset.py``)
-(the algorithm that produced the published catalog). Do not modify them.
+(the algorithm that produced the canonical catalog). Do not modify them.
 
 Canonical rules (min_len=3, min_ones=3, allow_unlimited_single_zeros=True):
   * split candidate segments at any two consecutive zeros ("00"),

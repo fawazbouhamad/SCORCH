@@ -1,6 +1,6 @@
 """Connected end-to-end reconstruction: processed daily field -> catalog.
 
-Every published pipeline stage is implemented here as a builtin stage that
+Every canonical pipeline stage is implemented here as a builtin stage that
 ``scorch reproduce`` runs directly against the extracted processed-data
 deposit. The chain is GENUINELY CONNECTED: starting from the deposited CF
 NetCDF field and the algorithm configuration, every stage writes its newly
@@ -278,11 +278,11 @@ def _day_cells(labels, dates, lat, lon, day: str):
     """Heatwave-labelled grid cells (heatwave_id > 0) of one day.
 
     Returned in the CANONICAL longitude-major order (ascending lon, then
-    ascending lat), which is the cell order of the published pipeline. The
+    ascending lat), which is the cell order of the canonical pipeline. The
     order is load-bearing: DBSCAN assigns a border point reachable from two
     clusters to whichever core point reaches it first, so a different input
     order can yield a different (equally valid) partition of border cells.
-    Emitting the canonical order here reproduces the published partition
+    Emitting the canonical order here reproduces the canonical catalog partition
     exactly, deterministically, from the field alone.
     """
     i = int(np.where(dates == day)[0][0])

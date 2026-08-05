@@ -3,7 +3,7 @@
 """Phase 2E — Figure A candidate: PCA sigma sensitivity matrices
 (slide 17 rebuilt from the validated derived matrices).
 
-Published as Fig. A in the appendices since 2026-07-30. The directory name
+Designated Fig. A in the appendices since 2026-07-30. The directory name
 "figA1" and the output filename are LEGACY INTERNAL names, not the current
 publication label.
 

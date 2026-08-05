@@ -5,7 +5,7 @@ out-of-sample centroid distance to the high-concentration zone (rebuilt from
 the validated CV output table).
 
 This is NOT a manuscript figure and "S.3" is NOT a publication label. Its
-output is panel (a) of the published **Fig. D** (Appendix D). The file name,
+output is panel (a) of the manuscript **Fig. D** (Appendix D). The file name,
 directory name ("figS3") and output name are retained for provenance
 continuity only.
 

@@ -4,7 +4,7 @@
 Method-A selection rule (originating in
 the research repository's Method-A selection (``select_modal``)
 and re-exported unchanged by ``scripts/six_task_review/common.py``, the single
-source of truth used by the published pipeline).
+source of truth used by the canonical pipeline).
 
 Canonical parameter grid (63 combinations):
     eps          : 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0   (grid-cell units)

@@ -3,10 +3,10 @@
 Schema mirrors the frozen canonical files:
 
   * ``scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv``
-    (760 ellipse rows for the published catalog), and
+    (760 ellipse rows for the canonical catalog), and
   * ``event_global_max_parameters.csv`` (51 events).
 
-Expected canonical totals (published catalog): 1800 valid 1-degree cells,
+Expected canonical totals (canonical catalog): 1800 valid 1-degree cells,
 15,738 warm-season days, Theta = 371, 395 selected days, 51 events,
 760 ellipses; event type counts T1=3, T2=4, T3=20, T4=24.
 """
@@ -61,7 +61,7 @@ PARAMETERS_COLUMNS = [
     "event_global_minpts_used", "event_global_minpts_ceil_raw",
 ]
 
-# Published-catalog expectations.
+# Canonical catalog expectations.
 EXPECTED_ROWS = 760
 EXPECTED_EVENTS = 51
 EXPECTED_DATES = 395
@@ -97,7 +97,7 @@ def validate_master(df, expect_canonical_counts=False, expected_counts=None):
     expected_counts : optional mapping overriding the module-constant
         totals -- the loaded YAML ``expected_counts:`` of the configured
         route (keys ``ellipses``, ``events``, ``selected_days``,
-        ``type_counts``). Without it the published-catalog constants
+        ``type_counts``). Without it the canonical-catalog constants
         (760 rows, 51 events, 395 unique dates, 3/4/20/24) apply.
 
     Returns

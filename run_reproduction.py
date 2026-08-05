@@ -28,7 +28,7 @@ fast  : everything reproducible from the deposit alone: statistics +
         CV validation chain and the GHCN station check. Figures 1 and 4 are
         frozen author-created assets with no producer and are NOT generated.
         The figS2-component-* stages regenerate the two INTERNAL component
-        figures whose content is merged into the published Fig. D (Appendix
+        figures whose content is merged into the manuscript Fig. D (Appendix
         D); they are not manuscript figures themselves. The "figS2"/"figS3"/
         "figS4" stage and directory names are LEGACY INTERNAL names kept for
         provenance, not current publication labels. Figure 11 (canonical
@@ -67,7 +67,7 @@ import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# Canonical power-law bootstrap replicate count (the published runs).
+# Canonical power-law bootstrap replicate count (the manuscript-reported runs).
 CANONICAL_NBOOT = 5000
 
 
@@ -127,6 +127,12 @@ def _stages(nboot: int, out_dir: str = "", pub_dir: str = ""):
                                      "make_figs_5_6_7.py")]),
         ("fig06-r2", [py, _script("figures", "fig05_06_07",
                                   "make_fig6.py")]),
+        # v1.0.0 pre-release correction: regenerate the four 9x9 sigma-sensitivity matrices from the
+        # deposit BEFORE rendering Figure A. Until the v1.0.0 pre-release correction the renderer only
+        # re-rendered frozen derived matrices shipped in figA1_inputs/, which
+        # is not end-to-end reproduction.
+        ("figA1-matrices", [py, _script("figures", "figA1",
+                                        "make_figA1_sigma_matrices.py")]),
         ("figA1", [py, _script("figures", "figA1",
                                "make_figA1_sigma_sensitivity.py")]),
         ("figA2", [py, _script("figures", "figA2",
@@ -135,7 +141,7 @@ def _stages(nboot: int, out_dir: str = "", pub_dir: str = ""):
                                "make_figA3_dbscan_params.py")]),
         ("figS1", [py, _script("figures", "figS1",
                                "make_figS1_type3_event25.py")]),
-        # INTERNAL COMPONENT of the published Fig. D (superseded standalone
+        # INTERNAL COMPONENT of the manuscript Fig. D (superseded standalone
         # figure; content = panel (a) of Fig. D). Not a manuscript figure.
         # "figS2"/"figS3" here are legacy internal names, not publication labels.
         ("figS2-component-distance",
@@ -148,16 +154,23 @@ def _stages(nboot: int, out_dir: str = "", pub_dir: str = ""):
                                     "plot_kfold_cv_validation_figure.py")]),
         ("kfold-foldmaps", [py, _script("validation",
                                         "make_kfold_fold_maps.py")]),
-        # INTERNAL COMPONENT of the published Fig. D (superseded standalone
+        # INTERNAL COMPONENT of the manuscript Fig. D (superseded standalone
         # figure; content = panels (b)-(f) of Fig. D). Not a manuscript figure.
         # "figS2"/"figS4" here are legacy internal names, not publication labels.
         ("figS2-component-foldmaps",
          [py, _script("figures", "figS4", "make_figS4_kfold_maps.py")]),
         ("figS2", [py, _script("figures", "figS2",
                                "make_new_figS2_candidate.py")]),
-        # Published S.1 composite: merges the regenerated Type 3 Event 25
-        # figure (figS1 stage output) with the frozen station artwork;
-        # byte-identical to the deployed supplement embed.
+        # v1.0.0 pre-release correction: regenerate the station panels (c)/(d) from the DEPOSITED
+        # GHCNd and ERA5 series, then compose them into the station row. Until
+        # the v1.0.0 pre-release correction these panels came from frozen donor artwork with no runnable
+        # producer, which made Figure S.1 a hybrid composite.
+        ("figS1-station", [py, _script("figures", "figS1",
+                                       "make_figS1_station_panels.py")]),
+        ("figS1-strip", [py, _script("figures", "figS1",
+                                     "make_figS1_station_strip.py")]),
+        # Manuscript S.1 composite: merges the regenerated Type 3 Event 25
+        # figure (figS1 stage output) with the regenerated station row.
         ("figS1-composite", [py, _script("figures", "figS1",
                                          "make_new_figS1_candidate.py")]),
         ("ghcn-validation", [py, _script("validation",
@@ -260,7 +273,7 @@ def main(argv=None) -> int:
                     help=f"power-law bootstrap replicates (default and "
                          f"CANONICAL: {CANONICAL_NBOOT}). Any smaller value "
                          "produces a QUICK, NONCANONICAL run whose power-law "
-                         "numbers do not reproduce the published values.")
+                         "numbers do not reproduce the manuscript-reported values.")
     ap.add_argument("--only", nargs="*", default=None,
                     help="run only these stage names")
     ap.add_argument("--skip", nargs="*", default=(),
@@ -282,7 +295,7 @@ def main(argv=None) -> int:
     if args.nboot != CANONICAL_NBOOT:
         print(f"[WARNING] QUICK / NONCANONICAL MODE: --nboot {args.nboot} "
               f"instead of the canonical {CANONICAL_NBOOT}. The power-law "
-              "outputs of this run are NOT the published canonical values "
+              "outputs of this run are NOT the canonical manuscript-reported values "
               "and must not be reported as reproductions of them.")
 
     if not os.path.isdir(args.data_dir):
@@ -306,7 +319,7 @@ def main(argv=None) -> int:
 
     # Pin the reproducible-build epoch BEFORE any stage runs, and do it on
     # os.environ so the child env built below inherits it. Without this the
-    # PDF writers stamp wall-clock /CreationDate and the published tables
+    # PDF writers stamp wall-clock /CreationDate and the generated publication tables
     # stop being byte-reproducible. A conflicting or malformed pre-set value
     # is refused rather than silently honoured.
     sys.path.insert(0, os.path.join(ROOT, "scripts", "figures", "common"))

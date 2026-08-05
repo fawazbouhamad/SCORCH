@@ -5,7 +5,7 @@
 rebuilt as ONE coherent multi-panel figure).
 
 This is NOT a manuscript figure and "S.4" is NOT a publication label. Its
-output supplies panels (b)-(f) of the published **Fig. D** (Appendix D).
+output supplies panels (b)-(f) of the manuscript **Fig. D** (Appendix D).
 The file name, directory name ("figS4") and output name are retained for
 provenance continuity only.
 

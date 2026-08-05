@@ -1,6 +1,6 @@
 """Daily heat-structure clustering (public wrapper).
 
-Wraps the canonical kernel in ``scorch._kernel.clustering``. The published
+Wraps the canonical kernel in ``scorch._kernel.clustering``. The canonical
 SCORCH pipeline clusters each selected day's HEATWAVE-LABELLED grid cells
 (``heatwave_id > 0``: the cells that passed the >=3-day / >=3-exceedance-day
 episode rule, a subset of the threshold-exceedance cells) with DBSCAN on the
