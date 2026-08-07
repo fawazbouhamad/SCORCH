@@ -1,0 +1,160 @@
+{
+ "verdict": "REMEDIATION PASSED AND READY FOR MANUSCRIPT REVISION",
+ "created_utc": "2026-08-07T07:13:55Z",
+ "base_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5",
+ "branch": "fix/tmax-weighted-centroids",
+ "equation": "lon_w = sum(lon_i*Tmax_i)/sum(Tmax_i); lat_w = sum(lat_i*Tmax_i)/sum(Tmax_i); Tmax in raw degC",
+ "units_confirmed": "degC (NetCDF units attribute checked at load)",
+ "prohibited_transforms_used": [],
+ "weighted_stage_calls": 760,
+ "weights_audit": {
+  "member_rows": 188720,
+  "min_c": 19.234,
+  "max_c": 52.505,
+  "mean_c": 37.441,
+  "sd_c": 6.409,
+  "missing": 0,
+  "duplicated": 0,
+  "nonfinite": 0,
+  "zero_or_negative": 0
+ },
+ "frozen_verification": {
+  "deposit_sha_ok": "93/93",
+  "frozen_catalog_columns": 53,
+  "worst_rel_float_diff": 2.6e-16,
+  "unweighted_origin_max_abs_diff_deg": 3.6e-15,
+  "labels_csv_byte_identical": true,
+  "params_csv_byte_identical": true,
+  "lgcp_covariate_grid_byte_identical": true
+ },
+ "counts": {
+  "valid_cells": 1800,
+  "days": 15738,
+  "selected_days": 395,
+  "events": 51,
+  "structures": 760,
+  "event_types": {
+   "1": 3,
+   "2": 4,
+   "3": 20,
+   "4": 24
+  },
+  "event_days_by_type": {
+   "1": 3,
+   "2": 4,
+   "3": 75,
+   "4": 313
+  },
+  "structures_by_type": {
+   "1": 3,
+   "2": 13,
+   "3": 185,
+   "4": 559
+  }
+ },
+ "sigma": {
+  "value": 1.25,
+  "unchanged": true
+ },
+ "displacement_km": {
+  "min": 0.0249576,
+  "q1": 6.9276,
+  "median": 31.2582,
+  "mean": 54.2598,
+  "q3": 101.5159,
+  "p90": 133.2086,
+  "p95": 149.8521,
+  "p99": 174.599,
+  "max": 200.3831,
+  "zero": 0,
+  "nearest_cell_reassigned": 360,
+  "sector_reassigned": 29,
+  "outside_hull": 0,
+  "exceeds_diameter": 0
+ },
+ "fig3_footprint": {
+  "old_max": 280,
+  "old_argmax": [
+   41.5,
+   31.5
+  ],
+  "new_max": 279,
+  "new_argmax": [
+   43.5,
+   30.5
+  ]
+ },
+ "lgcp_variant3": {
+  "old": {
+   "intercept": -11.352611,
+   "lon": -0.016062,
+   "lat": 0.063142,
+   "mean_tmax_z": 0.464404,
+   "std_tmax_z": -0.007187,
+   "sigma2": 1.647219,
+   "scale_km": 287.70796,
+   "intensity_ratio": 15.8624
+  },
+  "new": {
+   "intercept": -11.457776,
+   "lon": -0.016147,
+   "lat": 0.066264,
+   "mean_tmax_z": 0.546415,
+   "std_tmax_z": -0.010951,
+   "sigma2": 1.642911,
+   "scale_km": 272.455153,
+   "intensity_ratio": 21.8254,
+   "hotspot": [
+    45.5,
+    32.5
+   ]
+  },
+  "uncertainty": "not produced by minimum-contrast kppm; not invented"
+ },
+ "cross_validation": {
+  "seed": 20260704,
+  "folds": "5x152",
+  "fold_assignment_identical": true,
+  "old": {
+   "hit_top20": 0.332895,
+   "mean_dist_top20_km": 285.656,
+   "median_dist_top20_km": 173.234,
+   "rank_mean": 0.6349,
+   "rank_median": 0.655
+  },
+  "new": {
+   "hit_top10": 0.188158,
+   "hit_top20": 0.344737,
+   "hit_top30": 0.476316,
+   "hit_top50": 0.688158,
+   "mean_dist_top20_km": 231.808,
+   "median_dist_top20_km": 134.919,
+   "rank_mean": 0.6438,
+   "rank_median": 0.6801
+  }
+ },
+ "sector_counts": {
+  "old": {
+   "structures": "145/760",
+   "daily_largest": "144/395",
+   "event_largest": "18/51"
+  },
+  "new": {
+   "structures": "154/760",
+   "daily_largest": "153/395",
+   "event_largest": "19/51"
+  }
+ },
+ "tests": {
+  "new_suite": "26 passed",
+  "full_suite": "248 passed, 4 skipped",
+  "deterministic_rebuild_sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d"
+ },
+ "daily_event_largest_identities_unchanged": true,
+ "external_actions": {
+  "pushed": false,
+  "github_release": false,
+  "zenodo": false,
+  "v100_commit_tag_deposit_untouched": true
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "old": {
+  "max": 280,
+  "argmax_lonlat": [
+   41.5,
+   31.5
+  ],
+  "nonzero_cells": 1683,
+  "mean": 71.66444444444444
+ },
+ "new": {
+  "max": 279,
+  "argmax_lonlat": [
+   43.5,
+   30.5
+  ],
+  "nonzero_cells": 1674,
+  "mean": 71.29388888888889
+ }
+}

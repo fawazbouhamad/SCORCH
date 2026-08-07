@@ -1,0 +1,55 @@
+{
+  "method": "event_global_maximum_dbscan_hyperparameters",
+  "tmax_weighted_centroids": {
+    "weights": "raw processed daily Tmax values (absolute observed level, not anomaly/exceedance; no abs())",
+    "units": "degrees_Celsius",
+    "weighting_scope": "structure-specific (member cells only; DBSCAN noise and other structures excluded)",
+    "clustering_unweighted": true,
+    "pca_unweighted": true,
+    "appendix_a_and_sigma_unchanged": true,
+    "sigma_ellipse_scale": 1.25,
+    "weighting_applied_only_after_complete_pca_ellipse": true,
+    "translation_rigid_geometry_unchanged": true,
+    "authoritative_location_fields": [
+      "centroid_lon_tmax_weighted",
+      "centroid_lat_tmax_weighted"
+    ],
+    "generic_aliases_map_to": "tmax_weighted",
+    "unweighted_fields_preserved": [
+      "pca_origin_lon_unweighted",
+      "pca_origin_lat_unweighted",
+      "centroid_lon_unweighted",
+      "centroid_lat_unweighted"
+    ],
+    "tmax_source": "C:/Users/fawaw/AppData/Local/Temp/scorch_dep_v100/scorch_processed_data_v1.0.0\\gridded\\scorch_processed_daily_tmax_field_v1.0.0.nc",
+    "tmax_source_sha256": "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c",
+    "weighted_stage_calls": 760
+  },
+  "minpts_integer_rule": "max(per-day dbscan_rounded_minpts) per event (true per-day integer; one-day events match canonical exactly). ceil(max_raw) recorded for audit.",
+  "eps_rule": "max(daily_avg_eps) per event (kept continuous)",
+  "sigma": 1.25,
+  "grid_step": 1.0,
+  "source_workbook": "..\\AppData\\Local\\Temp\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
+  "source_workbook_sha256": "ed91dab5a1f05b2331c78e5ea801f5484b5730cb813230cda4d26e92ba3531e1",
+  "source_labels": "..\\AppData\\Local\\Temp\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\final_labels_event_global_max.csv",
+  "n_events": 51,
+  "n_event_days": 395,
+  "n_ellipse_rows": 760,
+  "selfcheck_match_event_days": 395,
+  "selfcheck_total_event_days": 395,
+  "master_csv": "remediation\\corrected\\event_global_max_algorithm\\scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
+  "master_xlsx": "remediation\\corrected\\event_global_max_algorithm\\scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx",
+  "dependency_versions": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.3",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0",
+    "matplotlib": "3.10.9",
+    "openpyxl": "3.1.5",
+    "imageio": "2.37.3",
+    "PIL": "12.2.0",
+    "python": "3.12.10"
+  },
+  "git_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5",
+  "timestamp_utc": "2026-08-07T06:55:53Z"
+}
