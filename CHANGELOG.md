@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.1-rc (local release candidate; unpublished)
+
+### Scientific correction: raw-Celsius Tmax-weighted structure centroids
+
+The v1.0.0 catalog reported the ordinary (unweighted) PCA origin as each
+daily heat structure's location; the advisor-approved raw-Celsius
+Tmax-weighted centroid was never applied (the builder called
+`evaluate_cluster_ellipse` without structure-specific Tmax weights, and the
+legacy optional helper additionally used a prohibited `max(Tmax, 0)` clip
+with a silent unweighted fallback).
+
+* New post-PCA stages (`tmax_weighted_centroid.py`, byte-identical in
+  `src/scorch/_kernel/` and `scripts/figures/common/`): strict raw-Celsius
+  Tmax-weighted centroid (`w_i = Tmax_i` in degC; no Kelvin, abs, clipping,
+  threshold subtraction, shifting, or standardization; explicit
+  `WeightedCentroidError` stop on invalid weights) and rigid translation of
+  the completed sigma=1.25 ellipse (no refit/resize/rotation).
+* Catalog: generic centroid aliases now report the Tmax-weighted location;
+  unweighted PCA origins preserved in `*_unweighted` columns; 20 new
+  explicit columns (see DATA_DICTIONARY).
+* Upstream science unchanged and verified: thresholds, 395 selected days,
+  51 events, clustering/membership/noise, Appendix A, sigma=1.25, PCA
+  covariance/eigenstructure/axes/areas/ratios/orientations, event types,
+  Table 1, area tails (frozen-column comparison at rel <= 1e-12).
+* Regenerated: Figures 3, 5, 6, 7, 12; LGCP variant3 refit; k-fold CV
+  (seed 20260704, identical folds); Appendix D products; sector counts.
+* Evidence packet: `remediation/` (freeze manifest, 760-row displacement
+  audit, before/after results, manuscript impact inventory).
+
 ## 1.0.0 (unreleased; date set at public release)
 
 Initial public release accompanying the SCORCH paper
