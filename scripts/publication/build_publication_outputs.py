@@ -120,6 +120,13 @@ REPRODUCTION_CLASSES = {
         "downscaled deployment export of that original, so the embed bytes "
         "themselves are not a script output and are shipped as a "
         "hash-verified asset.",
+    "deterministic_producer":
+        "Schematic figure with a deterministic runnable producer (2026-08 "
+        "correction round). The producing script regenerates the shipped "
+        "asset BYTE-IDENTICALLY without reading deposited data (Figure 1: "
+        "code-native vector schematic; Figure 4: localized deterministic "
+        "correction of the archived approved slide export). The shipped PNG "
+        "is hash-verified against the manuscript embed.",
     "manually_postprocessed_approved_artwork":
         "The approved full-resolution original carries a MANUAL "
         "post-processing pass that the producing script does not reproduce, "
