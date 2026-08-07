@@ -78,9 +78,10 @@ documented in the table above.
 
 Figure 12 and the composite now designated Fig. D were regenerated
 with the marker-legend wording above. Both corrected assets were DEPLOYED
-into the WORKING manuscript on 2026-07-30 in the advisor-directed G2 pass,
-and the shipped producers now reproduce the deployed embeds
-byte-identically (Fig. 12 `6a1a5a76...`, Fig. D `b7c48232...`). Neither is
+into the WORKING manuscript on 2026-07-30 in the advisor-directed G2 pass
+(historical G2 embeds `6a1a5a76...` and `b7c48232...`, superseded), and the
+shipped producers now reproduce the current corrected-manuscript embeds
+byte-identically (Fig. 12 `ce09ab2f...`, Fig. D `88f9e177...`). Neither is
 pending, provisional or awaiting a further pass.
 
 ## Legacy "box" names: grid-cell terminology

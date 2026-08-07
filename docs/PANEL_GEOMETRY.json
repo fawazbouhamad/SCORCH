@@ -77,7 +77,7 @@
   {
    "label": "Fig. 3.",
    "folder": "Figure_03",
-   "manuscript_final_sha256": "cc3ea5e16261601023a3fa2f83ea4885c567de6eb761fee98210942f5bac93f6",
+   "manuscript_final_sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
    "composite_width": 7325,
    "composite_height": 8005,
    "panels": [
@@ -89,7 +89,7 @@
    ],
    "panel_count": 5,
    "shared_chrome_excluded": false,
-   "ink_px": 33186119,
+   "ink_px": 33186007,
    "ink_outside_panels_px": 0,
    "ink_outside_panels_pct": 0.0,
    "blocks": [
@@ -127,7 +127,7 @@
      ],
      "width": 3229,
      "height": 2626,
-     "pixels_sha256": "4b0cc2ec7b2f05a071302351fa627768803ed7043b393cd57c3a5a6d45989d85"
+     "pixels_sha256": "45b3bfc0c7bda132e76beb48f1d56791b305bf7ea6056fb741be6073fb2e5cf6"
     },
     {
      "panel": "b",
@@ -140,12 +140,12 @@
      "box": [
       3651,
       70,
-      7241,
+      7242,
       2516
      ],
-     "width": 3590,
+     "width": 3591,
      "height": 2446,
-     "pixels_sha256": "67812839fd95ccbabbc6b297906d72cbf992339922517f75362c699e5941a10f"
+     "pixels_sha256": "205350121629d12f443968f7389dba038ff9cc455ded9d263b3b50ebb3e25d6a"
     },
     {
      "panel": "c",
@@ -163,7 +163,7 @@
      ],
      "width": 3578,
      "height": 2444,
-     "pixels_sha256": "0e07cc252080a9a87a6f870ac679bf87f1ffb765107ca5413d736a11eef0a331"
+     "pixels_sha256": "14efdbc2e7cfc56927b8037da6656bbe61c3e2cc9804909dd82ae9ecad75e2eb"
     },
     {
      "panel": "d",
@@ -181,7 +181,7 @@
      ],
      "width": 3521,
      "height": 2444,
-     "pixels_sha256": "1a5755c254230c4ccc01993b6e5ecdeb17607b957ec9e5031ecd16b34171695c"
+     "pixels_sha256": "32e867bb27545a5171f807f50574feba6221b55532afaec8606d73aad3ed5cf3"
     },
     {
      "panel": "e",
@@ -199,35 +199,35 @@
      ],
      "width": 3618,
      "height": 2446,
-     "pixels_sha256": "cd73c98d0a6c8811029cb2f2c9de9addd9d96ffe729bbe360a379df38ff0a878"
+     "pixels_sha256": "6f5488df9620e76479e6a25c8a1e075c9e5f1bd14af21b7d473fe485c1bafb75"
     }
    ]
   },
   {
    "label": "Fig. 6.",
    "folder": "Figure_06",
-   "manuscript_final_sha256": "f45272bc0030022fda3d5bdfdbe51e33b4d96d749e5f120d07cbabef8fb01cfe",
-   "composite_width": 1950,
-   "composite_height": 1580,
+   "manuscript_final_sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+   "composite_width": 6960,
+   "composite_height": 5640,
    "panels": [
     "a",
     "b"
    ],
    "panel_count": 2,
    "shared_chrome_excluded": true,
-   "ink_px": 624072,
-   "ink_outside_panels_px": 11804,
-   "ink_outside_panels_pct": 1.8914,
+   "ink_px": 6736788,
+   "ink_outside_panels_px": 118302,
+   "ink_outside_panels_pct": 1.7561,
    "blocks": [
     {
      "region": [
       0,
-      200,
-      1950,
-      1471
+      714,
+      6960,
+      5251
      ],
      "rows": [
-      833
+      2973
      ],
      "cols": []
     }
@@ -237,37 +237,37 @@
      "panel": "a",
      "split_box": [
       0,
-      200,
-      1950,
-      833
+      714,
+      6960,
+      2973
      ],
      "box": [
-      10,
-      204,
-      1897,
-      826
+      42,
+      735,
+      6764,
+      2940
      ],
-     "width": 1887,
-     "height": 622,
-     "pixels_sha256": "1ede8325a7b68a78ffdb95b3dbd5fa7d0e72ab68ae67a98c53fa67e35640b7e0"
+     "width": 6722,
+     "height": 2205,
+     "pixels_sha256": "32186ce65648a65e9f62365cce9fe7490ec9bb680a31bbf413c040ad2a3823e6"
     },
     {
      "panel": "b",
      "split_box": [
       0,
-      833,
-      1950,
-      1471
+      2973,
+      6960,
+      5251
      ],
      "box": [
-      7,
-      841,
-      1897,
-      1463
+      34,
+      3010,
+      6764,
+      5215
      ],
-     "width": 1890,
-     "height": 622,
-     "pixels_sha256": "a9cb6bc5d221c5cc7e7a7b773fb125c1047cb0d2d17294a1eefa46365b6bdd28"
+     "width": 6730,
+     "height": 2205,
+     "pixels_sha256": "57b110271bab87a61720c7c747a8610939b34b14346ecea1edab6beac2c62c0e"
     }
    ]
   },
@@ -969,7 +969,7 @@
   {
    "label": "Fig. D.",
    "folder": "Appendix_D",
-   "manuscript_final_sha256": "b7c48232d9f48c9dbf29291470562699590f7ed4f5be50ecb7087f37684574ae",
+   "manuscript_final_sha256": "88f9e177cf396d0d20325dbcea07c31b5838b49306b7847425d5231a2f993e72",
    "composite_width": 6050,
    "composite_height": 6019,
    "panels": [
@@ -982,9 +982,9 @@
    ],
    "panel_count": 6,
    "shared_chrome_excluded": true,
-   "ink_px": 17816734,
+   "ink_px": 17785972,
    "ink_outside_panels_px": 568354,
-   "ink_outside_panels_pct": 3.19,
+   "ink_outside_panels_pct": 3.1955,
    "blocks": [
     {
      "region": [
@@ -1019,7 +1019,7 @@
      ],
      "width": 2560,
      "height": 1840,
-     "pixels_sha256": "760c587c06f81e3fccdc0418f1c1afe5689ea85d501f039dcd108c1a1602c50f"
+     "pixels_sha256": "761368c5623830988e375d77b3d933046f6c5e64ce24efffc09b3c72a4a6f4d5"
     },
     {
      "panel": "b",
@@ -1037,7 +1037,7 @@
      ],
      "width": 2349,
      "height": 1815,
-     "pixels_sha256": "93459edc5a04be1a6d755eb76987233c684d0934870db07088ffee4a7871a054"
+     "pixels_sha256": "9eaed0fa93127434ea02bc916d555b3d80018cdf9b6f86fd09c11e4a9e179b6c"
     },
     {
      "panel": "c",
@@ -1055,7 +1055,7 @@
      ],
      "width": 2349,
      "height": 1815,
-     "pixels_sha256": "3d8871e343a8cae344c2eb71169dcf7fa4fece1719245200c9ba2ce6e21e3720"
+     "pixels_sha256": "cc0fbd8fe42122d86fb0138872a4ae957c15b314a02828e5b1d260dc28e5b222"
     },
     {
      "panel": "d",
@@ -1073,7 +1073,7 @@
      ],
      "width": 2349,
      "height": 1815,
-     "pixels_sha256": "f421c9c80f36a71faed686dcc890c3633b267dc613f5f9ac60d710165b1f4fd9"
+     "pixels_sha256": "cde16eb4b18273079cf007c81788522dd847573a332d54cfb74c0aa888084ceb"
     },
     {
      "panel": "e",
@@ -1091,7 +1091,7 @@
      ],
      "width": 2349,
      "height": 1815,
-     "pixels_sha256": "48ffdb9c4cd4a6e0d711f53015e0f762afc00ec6bd322a88f4c5f5be29b96a11"
+     "pixels_sha256": "df52e22dedfc9a2fc5dc5731cc5138e653374b82c3f1e2c0385019b6da731b3a"
     },
     {
      "panel": "f",
@@ -1109,14 +1109,14 @@
      ],
      "width": 2349,
      "height": 1816,
-     "pixels_sha256": "b07e2cc686033fdc96646eb3a527003cd8a6242566f258cc67202e92c4ee37ba"
+     "pixels_sha256": "0a88f95932d32ace68f4f2fe8c684701359587e38dae882afa4a7f646bb807b3"
     }
    ]
   },
   {
    "label": "Fig. S.1.",
    "folder": "Figure_S1",
-   "manuscript_final_sha256": "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538",
+   "manuscript_final_sha256": "d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634",
    "composite_width": 7440,
    "composite_height": 6559,
    "panels": [
@@ -1127,9 +1127,9 @@
    ],
    "panel_count": 4,
    "shared_chrome_excluded": true,
-   "ink_px": 5449486,
+   "ink_px": 5436976,
    "ink_outside_panels_px": 102029,
-   "ink_outside_panels_pct": 1.8723,
+   "ink_outside_panels_pct": 1.8766,
    "blocks": [
     {
      "region": [
@@ -1173,7 +1173,7 @@
      ],
      "width": 3225,
      "height": 2680,
-     "pixels_sha256": "769754a4206f41c9f0c49451cc8aadaaea95a669cb86d66d78ef18d34282491b"
+     "pixels_sha256": "437092c36ccf603bd13b1af4758d84586e34c08b8efa9429a6671e6b1699fefc"
     },
     {
      "panel": "b",
@@ -1191,7 +1191,7 @@
      ],
      "width": 3225,
      "height": 2680,
-     "pixels_sha256": "d419ec61202a63f58e80ab7dd91f3baf509d1aa93e9119109e35c11f9fa9fca7"
+     "pixels_sha256": "6400c1e6615d05b782caae90e2bd3dc71e1328a1bb9ac8665f09ee85e42de69a"
     },
     {
      "panel": "c",

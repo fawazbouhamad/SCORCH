@@ -218,12 +218,14 @@ V3 pass these corrected outputs were intentionally not byte-identical to the
 then-deployed embeds; they were supplied for manual review, and at that time
 nothing had been deployed into either WORKING document.
 
-**CURRENT RESOLUTION (deployed in the historical V12 pre-release pass).**
+**CURRENT RESOLUTION.**
 Both were DEPLOYED on 2026-07-30 in the
-advisor-directed G2 pass. Figure 12's deployed embed is `6a1a5a76...` and
-Fig. D's is `b7c48232...`, and the shipped producers reproduce both
-byte-identically. Neither figure is pending, provisional or awaiting any
-further pass.
+advisor-directed G2 pass (historical G2 embeds: Figure 12 `6a1a5a76...`,
+Fig. D `b7c48232...`, superseded). After the 2026-08 Tmax-weighted-centroid
+correction rounds the current manuscript embeds are Figure 12
+`ce09ab2f...` and Fig. D `88f9e177...`, and the shipped producers
+reproduce both byte-identically. Neither figure is pending, provisional
+or awaiting any further pass.
 
 **Final Fig. D check.** The regenerated composite reproduces the deployed
 figure's content and numbers. Before the V3 label correction its output was
@@ -237,8 +239,9 @@ composite was rearranged to 2 columns x 3 rows - panel (a) the
 concentration-zone distance boxplot, panels (b)-(f) held-out Folds 1-5,
 shared vertical colorbar spanning all three rows, centred marker legend -
 and RELOCATED from the supplementary document into the main manuscript as
-**Fig. D in Appendix D**. Artwork 6050x6019 px, deployed embed
-`b7c48232...`, reproduced byte-identically by the shipped producer
+**Fig. D in Appendix D**. Artwork 6050x6019 px, G2-pass embed
+`b7c48232...` (superseded by the current Tmax-weighted-centroid embed
+`88f9e177...`), reproduced byte-identically by the shipped producer
 `scripts/figures/figS2/make_new_figS2_candidate.py` (legacy internal name).
 Layout and labelling only: dataset, seed 20260704, fold membership
 (152 held-out centroids per fold), refit surfaces, ranks, colours, ticks,
@@ -256,8 +259,9 @@ component hash: `1f0742fa...`. *HISTORICAL:* at the V4 pass the composite
 output was unchanged at `54ca830c...`, which confirmed the fix affected only
 the internal component. **CURRENT (v1.0.0; resolved in the historical V12 pre-release pass):** that
 composite was subsequently
-rearranged and deployed in the 2026-07-30 G2 pass, so the current manuscript
-Fig. D is `b7c48232...`; `54ca830c...` is a superseded pre-G2 identity and is
+rearranged and deployed in the 2026-07-30 G2 pass as `b7c48232...`
+(itself superseded by the current Tmax-weighted-centroid embed
+`88f9e177...`); `54ca830c...` is a superseded pre-G2 identity and is
 not shipped anywhere in this release.
 
 **Internal component producers (NOT manuscript figures).** The `figS3` and
