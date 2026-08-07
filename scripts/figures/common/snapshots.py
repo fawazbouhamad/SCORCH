@@ -93,6 +93,101 @@ def component_geometry(lon, lat, sigma=SIGMA) -> dict:
                 area_km2=float(np.pi * a * b), n_cells=int(lon.size))
 
 
+def load_tmax_day(date):
+    """Strict {(lon, lat): Tmax degC} lookup for one day (deposit NetCDF)."""
+    import os
+    import xarray as xr
+    import _clean_paths as _cp
+    nc = os.environ.get(
+        "SCORCH_TMAX_NC",
+        _cp.data_file("scorch_processed_daily_tmax_field_v1.0.0.nc",
+                      "gridded"))
+    ds = xr.open_dataset(nc)
+    units = str(ds["tmax"].attrs.get("units", "")).lower()
+    if units not in ("degc", "celsius", "degrees_celsius", "deg_c"):
+        raise ValueError(f"Tmax units '{units}' are not degrees Celsius: {nc}")
+    arr = ds["tmax"].sel(time=np.datetime64(str(date))).load()
+    out = {}
+    for la in [float(v) for v in arr["lat"].values]:
+        row = arr.sel(lat=la).values
+        for lo, v in zip([float(v) for v in arr["lon"].values], row):
+            v = float(v)
+            if np.isfinite(v):
+                out[(lo, la)] = v
+    ds.close()
+    return out
+
+
+def render_day_tmax_weighted(ax, lon, lat, labels, extent, tmax_day, *,
+                             draw_ellipses=True, show_centroid_numbers=False,
+                             title=None) -> dict:
+    """Event-day map with the CANONICAL Tmax-weighted centroid convention.
+
+    Unweighted PCA geometry is computed exactly as in :func:`render_day`
+    (sigma=1.25, unchanged); afterwards the raw-Celsius Tmax-weighted
+    centroid is computed for each component's member cells and the finished
+    ellipse, principal axes and centre marker are rigidly translated to it.
+    ``tmax_day`` is REQUIRED (no silent unweighted fallback).
+    """
+    import tmax_weighted_centroid as twc
+    setup_ax(ax, extent)
+    tr = _tr(ax)
+    lon = np.asarray(lon, float)
+    lat = np.asarray(lat, float)
+    labels = np.asarray(labels, int)
+    clustered = [(round(float(lon[i]), 6), round(float(lat[i]), 6))
+                 for i in range(lon.size) if labels[i] >= 0]
+    noise = [(round(float(lon[i]), 6), round(float(lat[i]), 6))
+             for i in range(lon.size) if labels[i] < 0]
+    if noise:
+        _draw_cells(ax, noise, COL_OTHER_HW, 0.70, 0.20, 3)
+    if clustered:
+        _draw_cells(ax, clustered, COL_ACCEPTED, 0.92, 0.24, 5)
+
+    comps = []
+    for lab in sorted(set(labels.tolist()) - {-1}):
+        m = labels == lab
+        g = component_geometry(lon[m], lat[m])        # unweighted PCA (frozen)
+        w = []
+        for lo, la in zip(lon[m].tolist(), lat[m].tolist()):
+            key = (float(lo), float(la))
+            if key not in tmax_day:
+                raise twc.WeightedCentroidError(
+                    f"member cell {key} has no Tmax value")
+            w.append(tmax_day[key])
+        wc = twc.tmax_weighted_centroid(lon[m], lat[m], w,
+                                        context=f"component {lab}")
+        comps.append(dict(label=int(lab), clon=wc["lon_w"], clat=wc["lat_w"],
+                          clon_unweighted=g["clon"],
+                          clat_unweighted=g["clat"],
+                          area_km2=g["area_km2"], n_cells=g["n_cells"]))
+        if draw_ellipses:
+            elon, ela = twc.translated_ellipse_lonlat(
+                wc["lon_w"], wc["lat_w"], g["eigvecs"], g["eigvals"],
+                g["sigma"])
+            ax.plot(elon, ela, lw=2.0, color=COL_ELLIPSE, zorder=7,
+                    transform=tr)
+            p1a, p1b, p2a, p2b = twc.translated_axes_lonlat(
+                wc["lon_w"], wc["lat_w"], g["eigvecs"], g["eigvals"],
+                g["sigma"])
+            ax.plot([p1a[0], p1b[0]], [p1a[1], p1b[1]], lw=2.4,
+                    color=COL_MAJOR, zorder=7, transform=tr)
+            ax.plot([p2a[0], p2b[0]], [p2a[1], p2b[1]], lw=1.5,
+                    color=COL_MINOR, zorder=7, transform=tr)
+        ax.scatter([wc["lon_w"]], [wc["lat_w"]], s=60, marker="o",
+                   c=COL_CENTROID, edgecolors="k", linewidths=0.7, zorder=8,
+                   transform=tr)
+        if show_centroid_numbers:
+            ax.text(wc["lon_w"], wc["lat_w"], str(int(lab) + 1), fontsize=7,
+                    fontweight="bold", ha="center", va="center", zorder=9,
+                    color="black", transform=tr,
+                    bbox=dict(boxstyle="circle", fc="white", ec="black",
+                              alpha=0.85))
+    if title:
+        ax.set_title(title, fontsize=10)
+    return dict(n_components=len(comps), components=comps)
+
+
 def _draw_cells(ax, cells, facecolor, alpha, lw, zorder) -> None:
     tr = _tr(ax)
     for lon, lat in cells:

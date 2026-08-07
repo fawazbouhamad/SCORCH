@@ -692,8 +692,17 @@ def stage_rebuild_catalog(stage, base_dir, out_dir=None, config=None):
             raise PipelineError(
                 f"{len(got)} components vs {len(cat)} catalog rows on {d}")
         n_structures += len(got)
-        # match by centroid nearest neighbour, then compare geometry
-        cat_pts = cat[["centroid_lon", "centroid_lat"]].to_numpy(dtype=float)
+        # match by centroid nearest neighbour, then compare geometry.
+        # The recomputed values are UNWEIGHTED PCA origins, so match against
+        # the catalog's preserved unweighted origin columns when present
+        # (post-remediation catalogs report the Tmax-weighted location in the
+        # generic centroid_lon/centroid_lat aliases).
+        if "centroid_lon_unweighted" in cat.columns:
+            cat_pts = cat[["centroid_lon_unweighted",
+                           "centroid_lat_unweighted"]].to_numpy(dtype=float)
+        else:
+            cat_pts = cat[["centroid_lon",
+                           "centroid_lat"]].to_numpy(dtype=float)
         used = set()
         for k, e in enumerate(got):
             dists = np.hypot(cat_pts[:, 0] - e["centroid_lon"],
