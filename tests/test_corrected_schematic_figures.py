@@ -1,11 +1,14 @@
 """Determinism guards for the corrected schematic Figures 1 and 4.
 
-The 2026-08 correction round gave both schematic figures runnable
-producers. These tests regenerate each figure into a temporary directory
-and require byte-identity with the shipped canonical asset in
+The 2026-08 author-directed figure correction round restored both
+schematic figures to Dr. Najibi's original slide exports with the
+smallest authorized deterministic edits (Figure 1: threshold wording
+"greater than or equal to"; Figure 4: horizontal Type 4 two -> one ->
+two progression). These tests regenerate each figure into a temporary
+directory and require byte-identity with the shipped canonical asset in
 ``assets/frozen_figures/``, which is itself byte-identical to the
-manuscript embed. They also re-verify the Figure 4 locality guarantee
-(pixel changes confined to the two lower Type 4 arrow boxes).
+manuscript embed. They also re-verify each producer's locality
+guarantee (pixel changes confined to the authorized regions).
 """
 from __future__ import annotations
 
@@ -19,20 +22,38 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 FROZEN = REPO / "assets" / "frozen_figures"
-FIG01_SCRIPT = REPO / "scripts" / "figures" / "fig01" / "make_fig01_workflow.py"
-FIG04_SCRIPT = REPO / "scripts" / "figures" / "fig04" / "correct_fig04_type4_arrows.py"
-FIG04_ORIGINAL = REPO / "scripts" / "figures" / "fig04" / "original" / "Figure_04_original.png"
+FIG01_SCRIPT = (REPO / "scripts" / "figures" / "fig01" /
+                "restore_fig01_original_threshold.py")
+FIG01_ORIGINAL = (REPO / "scripts" / "figures" / "fig01" / "original" /
+                  "Figure_01_original.png")
+FIG01_FONT = Path(
+    "C:/Users/fawaw/AppData/Local/Microsoft/FontCache/4/CloudFonts/Aptos/"
+    "30153066857.ttf")
+FIG04_SCRIPT = (REPO / "scripts" / "figures" / "fig04" /
+                "correct_fig04_type4_horizontal.py")
+FIG04_ORIGINAL = (REPO / "scripts" / "figures" / "fig04" / "original" /
+                  "Figure_04_original.png")
 
 
 def _sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
-@pytest.mark.skipif(not FIG01_SCRIPT.exists(), reason="fig01 producer missing")
-def test_fig01_reproduces_byte_identical(tmp_path):
+@pytest.mark.skipif(not FIG01_SCRIPT.exists() or not FIG01_ORIGINAL.exists(),
+                    reason="fig01 restorer or archived original missing")
+def test_fig01_reproduces_byte_identical_and_local(tmp_path):
+    if not FIG01_FONT.exists():
+        pytest.skip("pinned Aptos Regular font file not present on this "
+                    "machine (Microsoft 365 cloud font, not redistributable)")
     subprocess.run([sys.executable, str(FIG01_SCRIPT), "--out", str(tmp_path)],
                    check=True, cwd=REPO)
-    assert _sha(tmp_path / "Figure_01.png") == _sha(FROZEN / "fig01" / "Figure_01.png")
+    assert _sha(tmp_path / "Figure_01.png") == _sha(
+        FROZEN / "fig01" / "Figure_01.png")
+    report = json.loads((tmp_path / "fig01_diff_report.json").read_text())
+    assert report["locality_ok"] is True
+    assert report["changed_pixels_outside_band"] == 0
+    assert report["new_line"] == (
+        "than or equal to a regional P97.5th threshold")
 
 
 @pytest.mark.skipif(not FIG04_SCRIPT.exists() or not FIG04_ORIGINAL.exists(),
@@ -41,9 +62,10 @@ def test_fig04_reproduces_byte_identical_and_local(tmp_path):
     subprocess.run([sys.executable, str(FIG04_SCRIPT),
                     "--src", str(FIG04_ORIGINAL), "--out", str(tmp_path)],
                    check=True, cwd=REPO)
-    assert _sha(tmp_path / "Figure_04.png") == _sha(FROZEN / "fig04" / "Figure_04.png")
+    assert _sha(tmp_path / "Figure_04.png") == _sha(
+        FROZEN / "fig04" / "Figure_04.png")
     report = json.loads((tmp_path / "fig04_diff_report.json").read_text())
     assert report["locality_ok"] is True
     assert report["changed_pixels_outside_boxes"] == 0
-    assert len(report["lower_arrow_boxes_rotated_180"]) == 2
-    assert len(report["upper_arrow_boxes_untouched"]) == 2
+    assert len(report["right_arrow_boxes_rotated_180"]) == 2
+    assert len(report["left_arrow_boxes_untouched"]) == 2
