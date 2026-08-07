@@ -1,6 +1,8 @@
 {
- "verdict": "REMEDIATION PASSED AND READY FOR MANUSCRIPT REVISION",
+ "verdict": "REMEDIATION PASSED; CORRECTED OVERLAY AND EVIDENCE PACKAGING VALIDATED (v1.0.1)",
  "created_utc": "2026-08-07T07:13:55Z",
+ "packaging_updated_utc": "2026-08-07T12:00:00Z",
+ "code_head_packaging": "8c6cc2b9ee04461f8294bc5f7cece7fed387c7cd",
  "base_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5",
  "branch": "fix/tmax-weighted-centroids",
  "equation": "lon_w = sum(lon_i*Tmax_i)/sum(Tmax_i); lat_w = sum(lat_i*Tmax_i)/sum(Tmax_i); Tmax in raw degC",
@@ -19,13 +21,48 @@
   "zero_or_negative": 0
  },
  "frozen_verification": {
-  "deposit_sha_ok": "93/93",
+  "protected_baseline_v1_0_0_deposit_sha_ok": "93/93 (this result is the PROTECTED BASELINE v1.0.0 deposit verification, not the corrected overlay)",
   "frozen_catalog_columns": 53,
   "worst_rel_float_diff": 2.6e-16,
   "unweighted_origin_max_abs_diff_deg": 3.6e-15,
   "labels_csv_byte_identical": true,
-  "params_csv_byte_identical": true,
+  "params_csv_event14_v3_type": "NOT byte-identical: metadata-only correction adopted in the v1.0.1 overlay; frozen v1.0.0 copy carried stale v3_type=4 for event 14, corrected regenerated value is 3 (consistent with the mechanical typology and the master catalog); eps/minPts unchanged; regression test test_params_v3_type_matches_master enforces agreement",
   "lgcp_covariate_grid_byte_identical": true
+ },
+ "corrected_overlay_v1_0_1": {
+  "path": "release_staging/scorch_corrected_overlay_v1.0.1 (worktree-local, gitignored)",
+  "files": 94,
+  "sha256sums_entries": "93/93 match (0 mismatches)",
+  "file_manifest_rows": "92/92 match (coverage + sha256 + bytes + csv data-row counts; 0 mismatches)",
+  "validate_deposit": "PASS (extended validator: structure, SHA256SUMS, FILE_MANIFEST, row counts, NetCDF invariants, type counts)",
+  "rebuild_tool": "scripts/deposit/rebuild_processed_deposit_manifests.py --verify: PASS 0 mismatches",
+  "root_hash_sha256_of_SHA256SUMS": "f7114c04c944090bda7cb7390b76d77f06d9f6a93ab00323ec7d72c710d25182",
+  "archive": "release_staging/scorch_corrected_overlay_v1.0.1.zip",
+  "archive_sha256": "319a3a2b9ca296afd1dd21f0d23b38a54f5f138010a8e77e882fa3fcd118349a",
+  "data_dictionary": "649 data rows, 99,622 bytes (weighted-centroid descriptions + 68 observed ranges refreshed for the corrected payloads)",
+  "docs_updated": "DATA_README.md (v1.0.1 + remediation section), PROVENANCE.md (corrected LGCP/CV values, release identifier, event-14 note), clean_data_README.md (816,814-byte catalog + weighted fields)",
+  "live_machine_paths": "0 (lgcp/validation_summary.json re-pathed: in-deposit files release-relative, external Tmax record as <LOCAL-PATH-REDACTED>/master_exceed_heatwaves_long.csv)"
+ },
+ "figure_s1_v1_0_1": {
+  "renderer": "render_day_tmax_weighted (canonical weighted path shared with Figs 5-7)",
+  "centroids_verified": "4/4 match the corrected catalog (<1e-9 deg)",
+  "displacements_km": [33.459, 118.254, 24.271, 125.601],
+  "outputs": "reproduced/supplement/Figure_S1_type3_event25.{png,pdf} + _source_data.csv + New_Figure_S1_candidate.{png,pdf}"
+ },
+ "appendix_d_v1_0_1": {
+  "distance_means_km": {"top10": 389.670138931229, "top20": 231.807728434158, "top30": 151.672109636537, "top50": 69.064508207406},
+  "stale_means_removed": [438, 286, 181, 81],
+  "fold_mean_ranks_equal_grid_cell": [0.6187, 0.6255, 0.6663, 0.6314, 0.5989],
+  "fold_top20_hit_rates": [0.3092, 0.3224, 0.4079, 0.3816, 0.3026],
+  "composite": "reproduced/supplement/New_Figure_S2_candidate.{png,pdf} (2 cols x 3 rows, shared rank colorbar)"
+ },
+ "fig3_display_lattice": {
+  "displayed_panel_b": "0.25-deg display lattice, 145 x 201 nodes over 20-70E/10-46N",
+  "displayed_max": 282,
+  "displayed_argmax_nodes": [[41.75, 31.0], [42.0, 31.0], [43.0, 31.0], [42.0, 31.25]],
+  "audit_1deg_max": 279,
+  "audit_1deg_argmax_cells": [[43.5, 30.5], [41.5, 31.5], [43.5, 31.5], [41.5, 32.5]],
+  "note": "the fig3_footprint block above is the SEPARATE 1-deg 1,800-cell audit; it is NOT the displayed panel (b) maximum and must not be reported as such"
  },
  "counts": {
   "valid_cells": 1800,
@@ -146,9 +183,11 @@
   }
  },
  "tests": {
-  "new_suite": "26 passed",
-  "full_suite": "248 passed, 4 skipped",
-  "deterministic_rebuild_sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d"
+  "new_suite": "26 passed (original remediation matrix)",
+  "full_suite_v1_0_1": "274 passed, 2 skipped (skips: publication_outputs/ not materialized); the count INCLUDES the 26 original remediation tests plus the 4 new v1.0.1 guards (event-14 params regression, weighted-stage-in-path, production-locations-weighted, invariant-feedback) and the DOCX geometry tests enabled via SCORCH_FINAL_DOCX_DIR",
+  "reproduction_fast_route": "9/9 stages ok against the corrected overlay, including the new weighted-centroids stage: 760/760 weighted executions, all remediation columns match the corrected catalog (worst rel diff 2.5e-15)",
+  "deterministic_rebuild_sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d",
+  "double_build_reverified_v1_0_1": "two fresh builds byte-identical to each other and to the overlay catalog (same sha256)"
  },
  "daily_event_largest_identities_unchanged": true,
  "external_actions": {

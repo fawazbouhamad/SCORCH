@@ -325,11 +325,9 @@ pytest full suite 33 s. Seeds preserved: CV 20260704; power-law bootstraps
 
 ## 26. Warnings and unresolved items (disclosed)
 
-1. **Supplement Figure S1** (`make_figS1_type3_event25.py`) still renders
-   unweighted snapshot centroids: §16 of the instruction freezes
-   supplement/station material and does not list S1 among changed
-   products, so it was deliberately not modified — flagged for the author
-   at manuscript revision.
+1. **RESOLVED 2026-08-07 (v1.0.1 packaging pass):** Supplement Figure S1
+   now renders via the canonical `render_day_tmax_weighted` path (see
+   §27.1); the stale-unweighted warning no longer applies.
 2. Manuscript-embedded assets (`assets/manuscript_final/`,
    `publication-outputs` stage) remain v1.0.0-frozen pending the
    manuscript revision the impact inventory feeds.
@@ -338,9 +336,121 @@ pytest full suite 33 s. Seeds preserved: CV 20260704; power-law bootstraps
 4. `canonical_daily_*` audit columns are carried verbatim from the source
    workbook during deposit rebuilds (Tier-B daily-adaptive workbook not
    shipped); values byte-identical to v1.0.0.
-5. The corrected overlay lives outside the repo (Temp); the authoritative
-   corrected catalog + evidence are committed under `remediation/`.
+5. **RESOLVED 2026-08-07:** the corrected overlay now lives in the
+   worktree at `release_staging/scorch_corrected_overlay_v1.0.1`
+   (gitignored staging; archived — §27.7).
 
 ---
 
-**Verdict: REMEDIATION PASSED AND READY FOR MANUSCRIPT REVISION**
+## 27. v1.0.1 supplemental-asset and release-packaging pass (2026-08-07)
+
+Code commit: `8c6cc2b9ee04461f8294bc5f7cece7fed387c7cd` on
+`fix/tmax-weighted-centroids` (final branch head incl. this evidence
+packet: see `release_staging/evidence/GIT_STATE.txt`).
+
+### 27.1 Figure S.1 regenerated with weighted centroids
+
+`make_figS1_type3_event25.py` switched from `render_day` to the canonical
+`render_day_tmax_weighted`; all four displayed structure centroids
+verified against the corrected catalog (<1e-9 deg) with displacements
+33.459 / 118.254 / 24.271 / 125.601 km (nonzero displacement asserted —
+a visually unchanged layer fails the build). Source data exported
+(`Figure_S1_type3_event25_source_data.csv`). Station panels (c)/(d)
+regenerated from the deposit (r = 0.98, RMSE = 1.70 °C, bias = −1.60 °C,
+n = 9). Outputs (sha256 first 16): donor PNG `ae43520722eabbca`, donor
+PDF `5b3804589e3bfa12`, composite `New_Figure_S1_candidate.png`
+`d125a87d0f3a875a`, `.pdf` `b02015e3c44765ac`.
+
+### 27.2 Appendix D (Fig. D) rebuilt from corrected data
+
+Stale hard-coded means 438/286/181/81 km removed from
+`make_figS3_risk_zone_distance.py` and the Fig. D compositor; replaced by
+corrected regression pins 389.670138931229 / 231.807728434158 /
+151.672109636537 / 69.064508207406 km (1e-6 km tolerance; derived from
+the corrected validation table; n = 760, 5×152 folds, seed 20260704).
+Fold maps re-derived (equal-grid-cell mean ranks 0.599–0.666; per-fold
+top-20% hit rates 0.303–0.408 — a DISTINCT convention from the
+area-weighted held-out quantiles 0.6438/0.6801, kept separate).
+Composite `New_Figure_S2_candidate.png` `88f9e177cf396d0d`, `.pdf`
+`be02a4f1e1427b1a`; overlay copies of
+`figS03/Figure_S3_risk_zone_distance_stats.csv` and
+`figS04/Figure_S4_fold_metrics.csv` refreshed from the regenerated
+outputs.
+
+### 27.3 Figure 3 lattice provenance
+
+The DISPLAYED panel (b) uses the 0.25° display lattice (145 × 201 nodes,
+20–70°E / 10–46°N): independently recomputed maximum **282** at four
+nodes near 42°E, 31°N — (41.75, 31.00), (42.00, 31.00), (43.00, 31.00),
+(42.00, 31.25). The earlier-reported 279 @ (43.5°E, 30.5°N) is the
+SEPARATE 1° 1,800-cell audit (maximum attained at four cells) and is not
+the displayed maximum; §18's footprint block is that audit. Neither
+number goes into the manuscript without naming its lattice. The
+regenerated `fig03_ab_panel_bboxes.json` replaced the stale overlay copy.
+
+### 27.4 Corrected-overlay repairs (docs, dictionary, metadata)
+
+DATA_README.md re-titled v1.0.1 with a weighted-centroid remediation
+section; PROVENANCE.md carries the release identifier, corrected variant3
+LGCP fit, corrected CV/risk-zone values, and the event-14 note;
+clean_data_README.md documents the 816,814-byte corrected catalog and the
+weighted/unweighted field families; DATA_DICTIONARY.csv (649 rows,
+99,622 bytes) — weighted-convention descriptions on all generic centroid
+aliases + 68 observed ranges refreshed from the corrected payloads;
+`lgcp/validation_summary.json` re-pathed (release-relative in-deposit,
+`<LOCAL-PATH-REDACTED>/…` external; agrees with PROVENANCE). Zero live
+machine paths remain in the overlay.
+
+**Event 14:** the corrected regenerated
+`event_global_max_parameters.csv` (event 14 `v3_type` = 3, matching the
+mechanical typology and master catalog) was adopted into the overlay;
+the prior "params CSV byte-identical" claim was removed from
+`evidence.json` (the file differs from the frozen v1.0.0 copy in exactly
+that metadata cell; eps/minPts unchanged). Regression test
+`test_params_v3_type_matches_master` enforces agreement for all 51
+events. The rebuilt-from-scratch parameters file is byte-identical to
+the adopted overlay copy.
+
+### 27.5 Manifests and validator
+
+`validate_deposit.py` extended (FILE_MANIFEST coverage + SHA-256 + bytes
++ true CSV data-row counts); new
+`scripts/deposit/rebuild_processed_deposit_manifests.py` (preserves path
+order/descriptions, strict missing/duplicate/extra failure, rebuilds
+SHA256SUMS incl. the final FILE_MANIFEST hash). Final overlay:
+**SHA256SUMS 93/93 and FILE_MANIFEST 92/92 — zero mismatches from both
+systems; extended validator PASS.**
+
+### 27.6 One-command reproducibility
+
+New builtin stage `weighted-centroids` in the fast route (after
+rebuild-catalog): reads member Tmax from the deposited NetCDF (units
+checked), recomputes all weighted/translation fields with the strict
+kernel, and compares every remediation column against the corrected
+catalog. Full run against the overlay: **9/9 stages ok; weighted stage
+760/760; worst rel diff 2.5e-15**. Appendix A isolation and legacy-helper
+freeze unchanged (tests). Full suite: **274 passed, 2 skipped** (skips:
+`publication_outputs/` not materialized) — this count INCLUDES the 26
+original remediation tests and the 4 new guards. Double-build re-verified:
+two fresh catalog builds byte-identical to each other and to the overlay
+catalog (`dffb5e8f…`).
+
+### 27.7 Archives and portable Git evidence
+
+Corrected-overlay archive
+`release_staging/scorch_corrected_overlay_v1.0.1.zip` (94 files,
+deterministic, SOURCE_DATE_EPOCH=1785374765):
+sha256 `319a3a2b9ca296afd1dd21f0d23b38a54f5f138010a8e77e882fa3fcd118349a`;
+overlay root hash (sha256 of SHA256SUMS)
+`f7114c04c944090bda7cb7390b76d77f06d9f6a93ab00323ec7d72c710d25182`.
+`GIT_STATE.txt`, the verified Git bundle
+(`v1.0.0` + `fix/tmax-weighted-centroids`), the source/evidence archive
+and the outer release manifest live under `release_staging/evidence/`
+(hashes recorded in `RELEASE_MANIFEST.sha256` there). v1.0.0 commit, tag,
+deposit, and archives untouched; nothing pushed or published.
+
+---
+
+**Verdict: REMEDIATION PASSED; CORRECTED OVERLAY AND EVIDENCE PACKAGING
+VALIDATED (v1.0.1). External release remains withheld pending author
+approval.**
