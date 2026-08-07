@@ -352,3 +352,91 @@ def test_kernel_copies_are_byte_identical():
          ).read_bytes()
     b = (COMMON / "tmax_weighted_centroid.py").read_bytes()
     assert a == b
+
+
+# ---------------------------------------------------------------------------
+# v1.0.1 one-command reproduction path + production-output guards
+# ---------------------------------------------------------------------------
+def test_reproduction_path_includes_weighted_stage():
+    """The one-command reproduction path must explicitly invoke the strict
+    weighted-centroid stage AFTER unweighted PCA (rebuild-catalog) and the
+    packaged config copy must be byte-identical to the repo config."""
+    from scorch.pipeline import PIPELINE_STAGES
+    assert "weighted_centroids" in PIPELINE_STAGES
+    repo_cfg = REPO / "configs" / "reproduction_fast.yaml"
+    pkg_cfg = REPO / "src" / "scorch" / "configs" / "reproduction_fast.yaml"
+    assert repo_cfg.read_bytes() == pkg_cfg.read_bytes(), (
+        "packaged reproduction config differs from configs/")
+    import yaml
+    cfg = yaml.safe_load(repo_cfg.read_text(encoding="utf-8"))
+    names = [s["name"] for s in cfg["stages"]]
+    assert "weighted-centroids" in names
+    assert names.index("weighted-centroids") > names.index("rebuild-catalog"), (
+        "weighted stage must run after the unweighted PCA catalog rebuild")
+    st = next(s for s in cfg["stages"] if s["name"] == "weighted-centroids")
+    assert st["builtin"] == "weighted_centroids"
+    assert st["route"] == "fast"
+
+
+def _find_deposit_master():
+    import os
+    env = os.environ.get("SCORCH_DATA_DIR")
+    name = ("scorch_new_algorithm_master_cluster_ellipse_"
+            "event_global_max.csv")
+    roots = [Path(env)] if env else []
+    for parent in Path(__file__).resolve().parents:
+        roots.append(parent / "scorch_data")
+    for root in roots:
+        if root and (root / "catalogs" / name).exists():
+            return root / "catalogs" / name
+    return None
+
+
+@pytest.mark.skipif(_find_deposit_master() is None,
+                    reason="processed-data deposit not available "
+                           "(set SCORCH_DATA_DIR)")
+def test_production_catalog_locations_are_weighted_not_unweighted():
+    """FAILS if any production location-dependent output (the deposited
+    master catalog's generic centroid aliases) reports an unweighted PCA
+    origin instead of the Tmax-weighted centroid."""
+    import pandas as pd
+    df = pd.read_csv(_find_deposit_master())
+    assert len(df) == 760
+    for a in ("centroid_lon", "centroid_x", "x", "lon"):
+        assert (df[a] == df["centroid_lon_tmax_weighted"]).all(), (
+            f"alias {a} is not the Tmax-weighted longitude")
+    for a in ("centroid_lat", "centroid_y", "y", "lat"):
+        assert (df[a] == df["centroid_lat_tmax_weighted"]).all(), (
+            f"alias {a} is not the Tmax-weighted latitude")
+    # every structure has a strictly positive weighted-vs-unweighted
+    # displacement, so a generic alias equal to the unweighted origin
+    # anywhere is the original defect
+    assert (df["centroid_displacement_km"] > 0).all()
+    same_lon = df["centroid_lon"] == df["pca_origin_lon_unweighted"]
+    same_lat = df["centroid_lat"] == df["pca_origin_lat_unweighted"]
+    assert not (same_lon & same_lat).any(), (
+        "generic centroid equals the unweighted PCA origin")
+
+
+@pytest.mark.skipif(_find_deposit_master() is None,
+                    reason="processed-data deposit not available "
+                           "(set SCORCH_DATA_DIR)")
+def test_weighting_does_not_feed_back_into_invariant_outputs():
+    """FAILS if Tmax weighting altered any invariant output stored in the
+    deposited catalog: PCA shape (axes, area, ratio, orientation,
+    eigenvalues), sigma, or typology. Shape aliases must agree exactly and
+    sigma must be 1.25 in all 760 rows; typology counts must be the frozen
+    canonical values."""
+    import pandas as pd
+    df = pd.read_csv(_find_deposit_master())
+    assert (df["sigma"] == 1.25).all()
+    # shape must be a pure function of the unweighted PCA (aliases agree)
+    assert (df["major_axis_km"] == df["axis1_len_km"]).all()
+    assert (df["minor_axis_km"] == df["axis2_len_km"]).all()
+    assert (df["ellipse_area_km2"] == df["area"]).all()
+    assert (df["orientation_deg"] == df["orientation"]).all()
+    # typology counts are the frozen canonical values
+    counts = (df.drop_duplicates("new_event_id")["v3_type"]
+              .value_counts().to_dict())
+    assert {int(k): int(v) for k, v in counts.items()} == \
+        {1: 3, 2: 4, 3: 20, 4: 24}

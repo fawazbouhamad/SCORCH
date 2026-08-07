@@ -23,10 +23,10 @@ def test_bundled_config_declares_the_connected_fast_route():
     config = yaml.safe_load(cli.bundled_config_path().read_text(
         encoding="utf-8"))
     names = [s["name"] for s in config["stages"]]
-    assert names[:7] == [
+    assert names[:8] == [
         "field-products", "relabel-heatwaves", "select-days-events",
         "daily-dbscan-params", "event-global-params", "rebuild-catalog",
-        "classify-reconstructed",
+        "weighted-centroids", "classify-reconstructed",
     ]
     assert all(s.get("route") == "fast" for s in config["stages"])
     # Each stage that reads an intermediate must read one produced upstream.

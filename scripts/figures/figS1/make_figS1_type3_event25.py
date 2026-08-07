@@ -17,7 +17,17 @@ column headings, dates inside the bottom-right of each snapshot, ONE
 unified L1/L2/Centroid legend below, no per-snapshot legends, no slide
 heading (the event/region description moves to the caption).
 
+Centroid convention (v1.0.1 remediation): each ellipse and its axes keep
+the unweighted sigma=1.25 PCA geometry and are rigidly translated to the
+raw-Celsius Tmax-weighted centroid of the structure (the canonical
+``render_day_tmax_weighted`` path shared with Figures 5-7). Every rendered
+weighted centroid is verified against the canonical corrected master
+catalog, and a nonzero weighted-vs-unweighted displacement is enforced for
+all four displayed structures (a visually unchanged centroid layer is a
+failure signal).
+
 Outputs: outputs/supplementary/Figure_S1_type3_event25.{png,pdf}
+         + Figure_S1_type3_event25_source_data.csv (figure source data)
 """
 from __future__ import annotations
 
@@ -63,12 +73,56 @@ def verify_event() -> None:
           f"(legacy label 'Back-to-Back' NOT retained)")
 
 
-def _render(ax, labels_df, date: str) -> None:
+def _render(ax, labels_df, date: str) -> dict:
     lo, la = C.day_cells(labels_df, date)
     lab = labels_df[labels_df["date"] == date]["label"].to_numpy(int)
-    SN.render_day(ax, lo, la, lab, SN.STUDY_EXTENT, draw_ellipses=True,
-                  show_centroid_numbers=False, title=None)
+    info = SN.render_day_tmax_weighted(
+        ax, lo, la, lab, SN.STUDY_EXTENT, SN.load_tmax_day(date),
+        draw_ellipses=True, show_centroid_numbers=False, title=None)
     Q.date_label(ax, date)
+    return info
+
+
+def _verify_and_export(render_info: dict) -> None:
+    """Check every rendered weighted centroid against the canonical corrected
+    catalog and export the figure source data. A (near-)zero displacement from
+    the unweighted PCA origin is a failure signal (stale unweighted layer)."""
+    cat = pd.read_csv(MASTER_CSV)
+    cat = cat[cat["date"].isin(DAYS)]
+    rows = []
+    for date, info in render_info.items():
+        for comp in info["components"]:
+            m = cat[(cat["date"] == date)
+                    & (cat["cluster_id"] == comp["label"])]
+            assert len(m) == 1, (date, comp["label"], len(m))
+            r = m.iloc[0]
+            dlon = abs(comp["clon"] - float(r["centroid_lon"]))
+            dlat = abs(comp["clat"] - float(r["centroid_lat"]))
+            assert max(dlon, dlat) < 1e-9, (
+                f"{date} c{comp['label']}: rendered weighted centroid "
+                f"({comp['clon']}, {comp['clat']}) != catalog "
+                f"({r['centroid_lon']}, {r['centroid_lat']})")
+            disp_km = float(r["centroid_displacement_km"])
+            assert disp_km > 1.0, (
+                f"{date} c{comp['label']}: displacement {disp_km} km -- "
+                "centroid layer appears unweighted (stale)")
+            rows.append(dict(
+                date=date, cluster_id=comp["label"],
+                n_member_cells=comp["n_cells"],
+                pca_origin_lon_unweighted=comp["clon_unweighted"],
+                pca_origin_lat_unweighted=comp["clat_unweighted"],
+                centroid_lon_tmax_weighted=comp["clon"],
+                centroid_lat_tmax_weighted=comp["clat"],
+                centroid_displacement_km=disp_km,
+                ellipse_area_km2=comp["area_km2"]))
+    assert len(rows) == 4, len(rows)
+    src = pd.DataFrame(rows)
+    p = os.path.join(OUT_DIR, "Figure_S1_type3_event25_source_data.csv")
+    src.to_csv(p, index=False)
+    disp = ", ".join(f"{r['centroid_displacement_km']:.1f}" for r in rows)
+    print(f"[FIGS1] 4/4 weighted centroids match the canonical catalog; "
+          f"displacements {disp} km")
+    print(f"[SAVED] {p}")
 
 
 def _time_label(fig, ax, text: str) -> None:
@@ -87,8 +141,10 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(12.4, 5.4), squeeze=False, **kw)
     fig.subplots_adjust(top=0.80, bottom=0.14, left=0.055, right=0.985,
                         wspace=0.05)
+    render_info = {}
     for j, d in enumerate(DAYS):
-        _render(axes[0, j], labels_df, d)
+        render_info[d] = _render(axes[0, j], labels_df, d)
+    _verify_and_export(render_info)
     Q.type_heading(fig, 0.5, 0.93, 3, fontsize=24)
     _time_label(fig, axes[0, 0], "t")
     _time_label(fig, axes[0, 1], "t+1")

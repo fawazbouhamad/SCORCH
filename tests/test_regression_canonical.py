@@ -80,6 +80,24 @@ def test_canonical_counts(master):
     assert summary["type_counts"] == EXPECTED_TYPE_COUNTS
 
 
+def test_params_v3_type_matches_master(master, params):
+    """v1.0.1 metadata-only correction: the per-event parameter table's
+    v3_type must equal the master catalog's per-event typology for all 51
+    events. The frozen v1.0.0 parameter CSV carried a stale v3_type = 4 for
+    event 14; the corrected value (and the mechanical typology) is 3.
+    DBSCAN eps/minPts are unaffected."""
+    m = (master.drop_duplicates("new_event_id")
+               .set_index("new_event_id")["v3_type"].astype(int).sort_index())
+    p = (params.set_index("new_event_id")["v3_type"].astype(int).sort_index())
+    assert len(p) == 51
+    mismatches = {int(e): (int(p[e]), int(m[e])) for e in p.index
+                  if int(p[e]) != int(m[e])}
+    assert not mismatches, (
+        f"parameter-table v3_type disagrees with the master catalog: "
+        f"{mismatches} (params, master)")
+    assert int(p.loc[14]) == 3, "event 14 must carry the corrected v3_type=3"
+
+
 def test_typology_recomputation_matches(master):
     from scorch.typology import classify_events
     derived = classify_events(master).set_index("new_event_id")

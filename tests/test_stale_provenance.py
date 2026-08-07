@@ -551,6 +551,13 @@ def test_no_false_lifecycle_phrases_in_release_tree():
             continue
         if "__pycache__" in path.parts or ".pytest_cache" in path.parts:
             continue
+        # release_staging/ is the gitignored LOCAL deposit-staging area (the
+        # v1.0.1 corrected data overlay + archives). Deposit payload docs
+        # carry their own approved wording and were always outside the
+        # release source tree this guard scopes (the v1.0.0 deposit lived in
+        # an external directory); they are validated by validate_deposit.py.
+        if "release_staging" in path.parts:
+            continue
         if path.resolve() == this_file:
             continue
         if path.suffix.lower() not in exts and path.name != "Makefile":

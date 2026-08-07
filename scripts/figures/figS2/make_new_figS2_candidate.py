@@ -75,8 +75,12 @@ import cartopy.crs as ccrs
 OUT_DIR = os.path.join(_SCORCH_REPRO, "supplement"); os.makedirs(OUT_DIR, exist_ok=True)
 RISK_BOUNDS = np.round(np.arange(0.0, 1.0001, 0.1), 1)
 CBAR_LABEL = "Relative centroid-concentration rank, R(s)"
-ZONES = [("Top 10%", "dist_to_top10_km", 438), ("Top 20%", "dist_to_top20_km", 286),
-         ("Top 30%", "dist_to_top30_km", 181), ("Top 50%", "dist_to_top50_km", 81)]
+# Corrected v1.0.1 regression pins (Tmax-weighted centroids, seed 20260704,
+# unchanged fold assignment); derived from the corrected validation table.
+ZONES = [("Top 10%", "dist_to_top10_km", 389.670138931229),
+         ("Top 20%", "dist_to_top20_km", 231.807728434158),
+         ("Top 30%", "dist_to_top30_km", 151.672109636537),
+         ("Top 50%", "dist_to_top50_km", 69.064508207406)]
 
 AX_W = 4.30
 AX_H = AX_W * 36.0 / 50.0
@@ -184,9 +188,9 @@ def main():
     x, y = positions[0]
     axf = fig.add_axes([x / FIG_W, y / FIG_H, AX_W / FIG_W, AX_H / FIG_H])
     stats, rows = [], []
-    for label, col, slide_mean in ZONES:
+    for label, col, pinned_mean in ZONES:
         v = d[col].to_numpy(float); m = v.mean()
-        assert abs(m - slide_mean) < 1.0, (label, m, slide_mean)
+        assert abs(m - pinned_mean) < 1e-6, (label, m, pinned_mean)
         stats.append(dict(label=label, med=np.median(v), mean=m,
                           q1=np.percentile(v, 25), q3=np.percentile(v, 75),
                           whislo=v.min(), whishi=v.max(), fliers=[]))

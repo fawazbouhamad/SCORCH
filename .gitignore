@@ -36,3 +36,7 @@ desktop.ini
 
 # Regenerated verification outputs (kept locally, not in the public repo)
 reproduced/
+
+# Local release staging (corrected data overlay + archives; large payloads,
+# published via deposit archives, never committed to the source tree)
+release_staging/
