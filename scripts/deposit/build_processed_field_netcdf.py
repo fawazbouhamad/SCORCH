@@ -254,16 +254,18 @@ def build(master_csv: Path, out_nc: Path) -> dict:
                          "SCORCH Framework (in review). SCORCH: Spatiotemporal "
                          "Classification of Regional Compound Heatwaves.")
         ds.license = ("CC BY 4.0 for the value added by the authors "
-                      "(https://creativecommons.org/licenses/by/4.0/); the "
-                      "underlying ERA5 information is provided under the "
-                      "current Copernicus Climate Data Store licence terms "
-                      "for ERA5, available from the dataset's Licence tab at "
-                      "https://cds.climate.copernicus.eu/datasets/"
-                      "reanalysis-era5-single-levels. Required attribution: "
-                      "Contains modified Copernicus Climate Change Service "
-                      "information 1940-2025; neither the European "
-                      "Commission nor ECMWF is responsible for any use of "
-                      "the Copernicus information or data it contains.")
+                      "(https://creativecommons.org/licenses/by/4.0/), which "
+                      "covers only the authors' contribution; the underlying "
+                      "ERA5 information is provided under the licence to use "
+                      "Copernicus products, https://ecds.ecmwf.int/licences/"
+                      "licence-to-use-copernicus-products, and is not CC "
+                      "BY licensed by this deposit. ERA5 coverage used: "
+                      "1940-2025 (warm seasons, April-September). Required "
+                      "attribution: Contains modified Copernicus Climate "
+                      "Change Service information 2026. Neither the European "
+                      "Commission nor ECMWF is responsible for any use that "
+                      "may be made of the Copernicus information or data it "
+                      "contains.")
         ds.comment = ("Dense field: 15,738 warm-season days x 1,800 one-degree cells "
                       "(lat 10.5..45.5N, lon 20.5..69.5E, cell centers). No missing "
                       "data; _FillValue conventions declared for completeness.")

@@ -32,6 +32,7 @@ Guarded invariants (docs/CANONICAL_SCIENCE.json is the contract):
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -85,6 +86,11 @@ def _active_docs():
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _csv_rows(path: Path) -> list[dict]:
+    with open(path, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
 
 
 def _sha256(path: Path) -> str:
@@ -290,11 +296,13 @@ def test_science_contract_paths_exist():
 
 
 def test_key_active_paths_exist():
+    # The two legacy Figure 9 rasters are deliberately absent: they were
+    # relocated to the processed-data deposit. Their identities are verified
+    # against the relocation manifest and the archive crosswalk by
+    # test_relocated_legacy_figure9_rasters_are_accounted_for below, not by an
+    # existence assertion here.
     for rel in (
         "legacy_defective_figure09/README.md",
-        "legacy_defective_figure09/"
-        "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
-        "legacy_defective_figure09/Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png",
         "scripts/figures/common/scorch_axial.py",
         "scripts/figures/common/ellipse_pca.py",
         "scripts/figures/figA1/make_figA1_sigma_matrices.py",
@@ -305,6 +313,54 @@ def test_key_active_paths_exist():
         "docs/ALIGNMENT_DECISIONS.md",
     ):
         assert (ROOT / rel).exists(), f"active release path missing: {rel}"
+
+
+LEGACY_FIG9_RASTERS = {
+    "legacy_defective_figure09/"
+    "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png": (
+        "provenance_evidence/legacy_defective_figure09/"
+        "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
+        "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
+        944684),
+    "legacy_defective_figure09/Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png": (
+        "provenance_evidence/legacy_defective_figure09/"
+        "Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png",
+        "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+        274118),
+}
+
+
+def test_relocated_legacy_figure9_rasters_are_accounted_for():
+    """The defective rasters left the tree; they must still be pinned.
+
+    Replaces the former existence assertions. Absence is only legal when the
+    relocation crosswalk names the exact archive member and pins its hash and
+    byte count, and the surviving pointer README carries both the reserved DOI
+    and the exact member paths.
+    """
+    rows = {r["old_repository_path"]: r
+            for r in _csv_rows(ROOT / "docs" / "RELOCATED_ARTIFACTS.csv")}
+    readme = _read(ROOT / "legacy_defective_figure09" / "README.md")
+    assert "10.5281/zenodo.21717752" in readme, (
+        "the pointer README must carry the reserved data DOI")
+    assert "scorch_processed_data_v1.0.0.zip" in readme
+
+    for rel, (member, sha, nbytes) in LEGACY_FIG9_RASTERS.items():
+        assert not (ROOT / rel).exists(), (
+            f"{rel} is relocated; it must not be back in the tree")
+        row = rows.get(rel)
+        assert row is not None, f"{rel} missing from the relocation crosswalk"
+        assert row["state"] == "relocated"
+        assert row["archive_member_path"] == member, (
+            f"{rel}: crosswalk names member {row['archive_member_path']!r}")
+        assert row["member_sha256"] == sha, f"{rel}: member hash changed"
+        assert int(row["member_bytes"]) == nbytes, f"{rel}: member size changed"
+        # binary PNG: both byte identities are the same bytes
+        assert row["repository_sha256"] == sha
+        assert row["historical_byte_identity_sha256"] == sha
+        assert len(row["archive_sha256"]) == 64
+        assert sha in readme, f"{rel}: hash absent from the pointer README"
+        assert member in readme, f"{rel}: member path absent from the README"
 
 
 # --- frequency inference must stay removed -----------------------------------

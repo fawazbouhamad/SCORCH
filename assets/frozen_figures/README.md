@@ -111,12 +111,24 @@ authors' artwork is CC BY 4.0, but the drawing DEPICTS third-party
 source material: the plotted station observations remain subject to the
 GHCN-Daily source/use terms and NOAA/NCEI attribution (Menne et al.,
 2012; DOI 10.7289/V5D21VHZ; applicable source-provider rights retained),
-and the plotted reanalysis values remain subject to the current
-Copernicus ERA5 terms and the required notice "Contains modified
-Copernicus Climate Change Service information [1940-2025]; neither the
-European Commission nor ECMWF is responsible for any use of the
-Copernicus information." Figures 1 and 4 carry no such third-party
-material and are CC BY 4.0 without qualification.
+and the plotted reanalysis values remain subject to the Copernicus
+terms (https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products)
+and the required notice, verbatim and without brackets:
+
+> Contains modified Copernicus Climate Change Service information 2026.
+> Neither the European Commission nor ECMWF is responsible for any use
+> that may be made of the Copernicus information or data it contains.
+
+ERA5 coverage used in this work: 1940-2025 (warm seasons, April-September);
+that span is stated separately and is not the notice's year token. CC BY 4.0
+covers only the authors' plotting contribution, never the underlying
+GHCN-Daily or ERA5 observations.
+
+Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0
+licensing is PENDING and not yet in force:** licensing author-created slide
+artwork under CC BY 4.0 requires separate written authorization from coauthor
+Dr. Nasser Najibi, which has not been recorded. The GPL-3.0 approval covering
+the SCORCH software is not artwork permission.
 
 `SHA256SUMS` in this directory carries the same digests in checkable form
 (`sha256sum -c SHA256SUMS`).

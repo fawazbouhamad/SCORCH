@@ -376,9 +376,23 @@
     "validation_rules": {
       "repository": "the original path MUST exist and match repository_normalized_bytes metadata",
       "relocated": "absence is allowed ONLY with a complete, verified package entry and archive_member_path",
-      "approved_removal": "absence requires a recorded approval and reason; BOTH byte identities remain preserved"
+      "approved_removal": "absence requires a recorded approval, a reason, and a resolvable equivalence_evidence path; BOTH byte identities remain preserved; package and archive_member_path MUST be null because a removal is not a relocation"
     },
-    "packages": {},
+    "packages": {
+      "PKG-DATA-V1": {
+        "doi": "10.5281/zenodo.21717752",
+        "doi_state": "reserved on an unpublished Zenodo draft; not yet resolvable",
+        "archive_filename": "scorch_processed_data_v1.0.0.zip",
+        "archive_sha256": "8d6ca0c5cd77d672a7c73924a1d243dab01d1a592c1730389aa0f1a864871383",
+        "archive_bytes": 116845724,
+        "member_count": 109,
+        "content_root_hash": "f5fe80d1fe843016af19904f60a0a2e1935f6a31c322f50ee0f4d56becd54205",
+        "content_root_hash_definition": "sha256 over the concatenation of '<member_sha256>  <member_path>\n' for all members sorted by member_path; independent of ZIP container metadata",
+        "verification_status": "VERIFIED - built locally, extracted fresh, validate_deposit.py PASS, every member hash and byte count checked",
+        "publication_state": "built locally; NOT uploaded, deposited or published",
+        "public_crosswalk": "docs/RELOCATED_ARTIFACTS.csv"
+      }
+    },
     "files": {
       "remediation/audit/audit_map_old_vs_new_centroids.png": {
         "state": "repository",
@@ -458,11 +472,15 @@
         "removal_reason": null
       },
       "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "catalogs/final_labels_event_global_max.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "e1c9c6cc883addc8aea856db919c0ccb4d9840a88872dfb19154d25154c50c39",
+        "member_bytes": 4588750,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
         "state": "repository",
@@ -472,117 +490,186 @@
         "removal_reason": null
       },
       "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d",
+        "member_bytes": 816814,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
-        "state": "repository",
+        "state": "approved_removal",
         "package": null,
         "archive_member_path": null,
-        "removal_approval": null,
-        "removal_reason": null
+        "removal_approval": "Author decision D7, Fawaz Bouhamad, 2026-08-08: approved removal of the tracked informational workbook conditional on the equivalence proof passing.",
+        "removal_reason": "Informational duplicate of the canonical CSV beside it. Semantic equivalence verified at 760x81 with identical column names and order, identical row keys and row order, 0 differing string cells, 0 differing integer-valued cells, identical NaN/Inf masks, an inert workbook (1 visible sheet, 0 formulas, 0 external links, 0 charts, 0 comments, 0 named ranges, no VBA), and worst relative float64 difference 3.571463468018517e-14 against a declared 1e-12 rule (decimal serialization round-trip; worst 255 ULP on near-zero PCA direction-cosine components). This is a REMOVAL, not a relocation: no relocation record places this path in an archive, so package and archive_member_path are null. Both byte identities are retained above.",
+        "equivalence_evidence": "remediation/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
+        "equivalence_reproducer": "remediation/xlsx_equivalence/compare_master_csv_xlsx.py"
       },
       "remediation/corrected_outputs/figures/Figure3_assembled.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/Figure3_assembled.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
+        "member_bytes": 10881223,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/Figure5_type1_type2.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
+        "member_bytes": 1602678,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/Figure6_type3_two_events.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+        "member_bytes": 2765403,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/Figure7_type4_six_days.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
+        "member_bytes": 3472492,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/Figure_S4_kfold_heldout_maps.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "d3afb429f369b834da224d464f51306aee76bc87abfaba20225a03c27a3c8ff8",
+        "member_bytes": 2902437,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "provenance_evidence/remediation_corrected_figures/q1_four_variable_centroid_risk_map.png",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
+        "member_bytes": 2108309,
+        "archive_member_byte_form": "repository_normalized_bytes",
+        "eol_relationship": "none (binary; both byte identities are the same bytes)"
       },
       "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "lgcp/centroid_points_all_ellipses_validated.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "663ed3152decd443bddfc631ff75601b9566fb755433ad6e41124fa1f732d6fa",
+        "member_bytes": 81922,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "lgcp/centroid_points_with_nearest_grid_covariates.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "f5c6d18e7dfc8a758d00739a8f074302e80a50c00519c89738817e1dd1806f30",
+        "member_bytes": 179561,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "lgcp/grid_predicted_intensity_all_variants.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "8bd848d96f9155191119d7cc6876b8df54300669e5bd1d01e6db370aa67cb820",
+        "member_bytes": 414428,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "lgcp/lgcp_model_parameters.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "5408d77457082fafc88a9873cbf49c10ced7005588d19fed13cfe4efae2db24f",
+        "member_bytes": 2653,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "validation_kfold/cv_summary.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "9f21d82021a9ab1d24b32fde597550b901f681feeca96b15d4ffcda023b9030e",
+        "member_bytes": 692,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "validation_kfold/fold_metrics.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "e3740f343e544f2691a3b66034843034f26e0ecaee673a59dabddd2c06ae48ee",
+        "member_bytes": 1912,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "validation_kfold/per_centroid_risk_zone_validation.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "ded12540f3014dc56292923f0e17fe4a068b329eb50f4ef5e311141ccdba7b41",
+        "member_bytes": 139250,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       },
       "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
-        "state": "repository",
-        "package": null,
-        "archive_member_path": null,
+        "state": "relocated",
+        "package": "PKG-DATA-V1",
+        "archive_member_path": "validation_kfold/risk_zone_summary_by_centroid_type.csv",
         "removal_approval": null,
-        "removal_reason": null
+        "removal_reason": null,
+        "member_sha256": "569ebbdc83b393820369f1f8163ed2301f13a657290c3a9b3b879bfd39f099de",
+        "member_bytes": 1129,
+        "archive_member_byte_form": "historical_windows_worktree_bytes",
+        "eol_relationship": "historical worktree is CRLF; repository-normalized is LF (proven EOL transform, not byte identity)"
       }
+    },
+    "relocation_crosswalk": {
+      "public_sidecar": "docs/RELOCATED_ARTIFACTS.csv",
+      "total_relocations": 21,
+      "recorded_here": 16,
+      "recorded_only_in_sidecar": 5,
+      "note": "The 5 sidecar-only relocations are outside this manifest's frozen 29-path scope and are NOT added to it. The union of this manifest's relocated records and the sidecar covers all 21 relocations, once each."
     }
   },
   "expected_paths": [

@@ -310,9 +310,14 @@ Earlier public revisions of this repository were released under the MIT
 License and remain under the licence included with those revisions; see
 [docs/LICENSING_HISTORY.md](docs/LICENSING_HISTORY.md).
 
-Contains modified Copernicus Climate Change Service information [1940–2025];
-neither the European Commission nor ECMWF is responsible for any use of the
-Copernicus information.
+Contains modified Copernicus Climate Change Service information 2026.
+Neither the European Commission nor ECMWF is responsible for any use that may
+be made of the Copernicus information or data it contains.
+
+ERA5 coverage used in this work: 1940–2025 (warm seasons, April–September).
+Copernicus licence: https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products
+CC BY 4.0 covers only the authors' contributions; it is not asserted over the
+underlying ERA5 or GHCN-Daily observations.
 
 ## Issues and contact
 

@@ -1056,10 +1056,15 @@ def readme_text(identity, geom):
         "",
         "| Materialized from | Rights it inherits |",
         "|---|---|",
-        "| `assets/manuscript_final/**` (Fig. 5, 6, 7, 8, 9, 10, 11, A, C) |"
-        " CC BY 4.0 authors' artwork + current Copernicus ERA5 terms and"
-        " required attribution |",
-        "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 |",
+        "| `assets/manuscript_final/**` (Fig. 8, 9, 10, 11, A, C) |"
+        " CC BY 4.0 for the authors' contribution only + Copernicus ERA5"
+        " terms and required attribution |",
+        "| `reproduced/**` (Fig. 5, 6, 7) | CC BY 4.0 for the authors'"
+        " contribution only + Copernicus ERA5 terms and required"
+        " attribution |",
+        "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 PENDING --"
+        " not yet in force; requires written authorization from coauthor"
+        " Dr. Nasser Najibi |",
         "| `reproduced/**` (Fig. 2, 3, 12, B, D, S.1 and both table sets) |"
         " CC BY 4.0 for the authors' contributions + current Copernicus ERA5"
         " terms and required attribution for the depicted ERA5-derived"

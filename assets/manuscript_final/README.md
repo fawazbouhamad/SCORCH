@@ -8,7 +8,20 @@ and in `docs/MANUSCRIPT_FIGURE_IDENTITY.csv`.
 
 Two distinct situations are represented, and they are NOT the same claim.
 
-## `deployment_export_of_reproduced_original` - Fig. 5, 6, 7, 9, 10, 11, A, C
+## Figs. 5, 6 and 7 are no longer shipped here
+
+`docs/MANUSCRIPT_FIGURE_IDENTITY.csv` records Figs. 5, 6 and 7 as
+`materialization = reproduced_output` with no shipped asset: since the
+weighted-centroid correction the manuscript embeds their **full-resolution
+reproduced renders** directly, so no downscaled deployment export is needed.
+The pre-correction exports that used to sit here are superseded. They were
+relocated to the processed-data deposit under
+`provenance_evidence/superseded_manuscript_assets/` in
+`scorch_processed_data_v1.0.0.zip` (reserved data DOI 10.5281/zenodo.21717752,
+reserved on an unpublished draft); `docs/RELOCATED_ARTIFACTS.csv` gives their
+exact archive member paths, byte counts and hashes.
+
+## `deployment_export_of_reproduced_original` - Fig. 9, 10, 11, A, C
 
 The **plotted content is fully reproducible from the deposited data**: running
 the producing script yields a full-resolution original that is byte-identical

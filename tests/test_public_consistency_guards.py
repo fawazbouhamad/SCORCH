@@ -537,52 +537,144 @@ def test_manifest_declares_both_scopes_with_equal_path_sets(manifest):
 
 
 def test_manifest_repository_scope_matches_every_file(manifest):
-    """Verify ALL entries - git blob bytes in a checkout, on-disk bytes in a
-    source extraction. Never silently continue past a failure."""
+    """Verify ALL 29 entries, each according to its declared relocation state.
+
+    A path that has left the repository must NOT be read from Git or from
+    disk - that would be a vacuous pass once the file is gone. Each state is
+    verified against what actually still exists for it:
+
+    * ``repository``       - the Git blob (or on-disk bytes in a source
+                             extraction) must match the repository scope.
+    * ``relocated``        - the pinned package identity, the exact archive
+                             member path, the member hash/bytes and the
+                             declared EOL relationship must all be present and
+                             mutually consistent.
+    * ``approved_removal`` - both byte identities must survive, and an
+                             approval, a reason and a resolvable equivalence
+                             evidence path must be recorded.
+    """
     repo = manifest["scopes"]["repository_normalized_bytes"]["files"]
+    hist = manifest["scopes"]["historical_windows_worktree_bytes"]["files"]
+    rel = manifest["relocation"]
+    states = rel["files"]
     have_git = (REPO / ".git").exists()
-    checked = 0
+    seen = {"repository": 0, "relocated": 0, "approved_removal": 0}
+
     for path, meta in repo.items():
-        if have_git:
-            out = subprocess.run(["git", "show", f"HEAD:{path}"],
-                                 capture_output=True, cwd=REPO)
-            assert out.returncode == 0, f"git show failed for {path}"
-            data = out.stdout
-        else:
-            fp = REPO / path
-            assert fp.exists(), f"{path} missing from source extraction"
-            data = fp.read_bytes()
-        assert hashlib.sha256(data).hexdigest() == meta["sha256"], \
-            f"repository-scope sha mismatch: {path}"
-        assert len(data) == meta["bytes"], f"repository-scope size mismatch: {path}"
-        checked += 1
+        ent = states[path]
+        state = ent["state"]
+        assert state in seen, f"{path}: unknown state {state!r}"
+        seen[state] += 1
+
+        if state == "repository":
+            if have_git:
+                out = subprocess.run(["git", "show", f"HEAD:{path}"],
+                                     capture_output=True, cwd=REPO)
+                assert out.returncode == 0, f"git show failed for {path}"
+                data = out.stdout
+            else:
+                fp = REPO / path
+                assert fp.exists(), f"{path} missing from source extraction"
+                data = fp.read_bytes()
+            assert hashlib.sha256(data).hexdigest() == meta["sha256"], \
+                f"repository-scope sha mismatch: {path}"
+            assert len(data) == meta["bytes"], \
+                f"repository-scope size mismatch: {path}"
+
+        elif state == "relocated":
+            assert not (REPO / path).exists(), (
+                f"{path} is declared relocated but is still in the tree")
+            pkg = rel["packages"][ent["package"]]
+            member = ent["archive_member_path"]
+            assert member and not member.startswith("/"), \
+                f"{path}: bad archive_member_path {member!r}"
+            assert len(pkg["archive_sha256"]) == 64, \
+                f"{path}: package archive_sha256 is not a SHA-256"
+            form = ent["archive_member_byte_form"]
+            assert form in ("repository_normalized_bytes",
+                            "historical_windows_worktree_bytes"), \
+                f"{path}: bad archive_member_byte_form {form!r}"
+            declared = (meta if form == "repository_normalized_bytes"
+                        else hist[path])
+            assert ent["member_sha256"] == declared["sha256"], (
+                f"{path}: member sha256 does not equal the declared "
+                f"{form} identity")
+            assert ent["member_bytes"] == declared["bytes"], (
+                f"{path}: member bytes do not equal the declared {form} size")
+            binary = hist[path]["sha256"] == meta["sha256"]
+            assert ("binary" in ent["eol_relationship"]) == binary, (
+                f"{path}: declared eol_relationship contradicts the two scopes")
+
+        else:  # approved_removal
+            assert not (REPO / path).exists(), (
+                f"{path} is declared approved_removal but is still in the tree")
+            assert ent["package"] is None and ent["archive_member_path"] is None, (
+                f"{path}: a removal is not a relocation; package and "
+                f"archive_member_path must be null")
+            assert ent["removal_approval"], f"{path}: no removal approval"
+            assert ent["removal_reason"], f"{path}: no removal reason"
+            ev = ent.get("equivalence_evidence")
+            assert ev and (REPO / ev).is_file(), (
+                f"{path}: equivalence evidence {ev!r} does not resolve")
+            assert len(meta["sha256"]) == 64 and meta["bytes"] > 0
+            assert len(hist[path]["sha256"]) == 64 and hist[path]["bytes"] > 0
+
+    checked = sum(seen.values())
     assert checked == EXPECTED_MANIFEST_ENTRIES, (
         f"verified {checked} entries, expected {EXPECTED_MANIFEST_ENTRIES}")
+    assert seen["repository"] and seen["relocated"] and seen["approved_removal"], (
+        f"a state went entirely unexercised: {seen}")
 
 
 def test_manifest_scope_difference_is_exactly_the_eol_transform(manifest):
     """Exactly 21 text entries differ, each solely by LF<->CRLF; the 8 binary
-    entries are identical in both scopes."""
+    entries are identical in both scopes.
+
+    State-aware: the transform is RECOMPUTED from the bytes for every path
+    still in the repository. For a path that has been relocated or removed the
+    bytes are gone, so the declared relationship is verified instead - the two
+    scope hashes must still disagree, the declared ``eol_relationship`` must say
+    so, and the archive member must carry the CRLF (historical) byte form. A
+    missing file is never allowed to turn this guard into a silent pass.
+    """
     hist = manifest["scopes"]["historical_windows_worktree_bytes"]["files"]
     repo = manifest["scopes"]["repository_normalized_bytes"]["files"]
+    states = manifest["relocation"]["files"]
     have_git = (REPO / ".git").exists()
     differing, identical, unexplained = [], [], []
+    recomputed = declared_only = 0
+
     for path in hist:
         if hist[path]["sha256"] == repo[path]["sha256"]:
             identical.append(path)
             continue
         differing.append(path)
-        if have_git:
-            out = subprocess.run(["git", "show", f"HEAD:{path}"],
-                                 capture_output=True, cwd=REPO)
-            assert out.returncode == 0, f"git show failed for {path}"
-            lf = out.stdout
+        ent = states[path]
+
+        if ent["state"] == "repository":
+            if have_git:
+                out = subprocess.run(["git", "show", f"HEAD:{path}"],
+                                     capture_output=True, cwd=REPO)
+                assert out.returncode == 0, f"git show failed for {path}"
+                lf = out.stdout
+            else:
+                lf = (REPO / path).read_bytes().replace(b"\r\n", b"\n")
+            crlf = lf.replace(b"\n", b"\r\n")
+            if (hashlib.sha256(crlf).hexdigest() != hist[path]["sha256"]
+                    or len(crlf) != hist[path]["bytes"]):
+                unexplained.append(path)
+            recomputed += 1
         else:
-            lf = (REPO / path).read_bytes().replace(b"\r\n", b"\n")
-        crlf = lf.replace(b"\n", b"\r\n")
-        if (hashlib.sha256(crlf).hexdigest() != hist[path]["sha256"]
-                or len(crlf) != hist[path]["bytes"]):
-            unexplained.append(path)
+            rel_text = ent.get("eol_relationship", "")
+            if "CRLF" not in rel_text or "LF" not in rel_text:
+                unexplained.append(path)
+            elif ent["state"] == "relocated" and (
+                    ent.get("archive_member_byte_form")
+                    != "historical_windows_worktree_bytes"
+                    or ent.get("member_sha256") != hist[path]["sha256"]):
+                unexplained.append(path)
+            declared_only += 1
+
     assert not unexplained, (
         "difference not explained by the declared LF<->CRLF transform: "
         + ", ".join(unexplained))
@@ -590,6 +682,8 @@ def test_manifest_scope_difference_is_exactly_the_eol_transform(manifest):
         f"expected {EXPECTED_EOL_DIFFERENCES} EOL-differing entries, "
         f"got {len(differing)}")
     assert len(identical) == EXPECTED_MANIFEST_ENTRIES - EXPECTED_EOL_DIFFERENCES
+    assert recomputed + declared_only == EXPECTED_EOL_DIFFERENCES
+    assert recomputed, "no EOL entry was recomputed from real bytes"
 
 
 def test_manifest_does_not_claim_to_be_the_deposit_zip(manifest):
@@ -668,3 +762,101 @@ def test_manifest_relocation_schema(manifest):
         # both byte identities survive regardless of state
         assert path in manifest["scopes"]["historical_windows_worktree_bytes"]["files"]
         assert path in manifest["scopes"]["repository_normalized_bytes"]["files"]
+
+
+# ---------------------------------------------------------------------------
+# 8. Relocation crosswalk - the manifest and the public sidecar together must
+#    account for every relocation exactly once, with no path counted twice.
+# ---------------------------------------------------------------------------
+TOTAL_RELOCATIONS = 21
+
+SIDECAR_COLUMNS = (
+    "old_repository_path", "repository_sha256", "repository_bytes",
+    "historical_byte_identity_sha256", "historical_byte_identity_bytes",
+    "historical_identity_source", "archive_member_byte_form",
+    "eol_relationship", "reserved_data_doi", "archive_filename",
+    "archive_sha256", "archive_member_path", "member_sha256", "member_bytes",
+    "state", "recorded_in_sha256_manifest", "verification_status",
+)
+
+
+@pytest.fixture(scope="module")
+def sidecar():
+    return _rows("docs/RELOCATED_ARTIFACTS.csv")
+
+
+def test_relocation_sidecar_is_complete_and_well_formed(sidecar):
+    assert len(sidecar) == TOTAL_RELOCATIONS, (
+        f"sidecar has {len(sidecar)} rows, expected {TOTAL_RELOCATIONS}")
+    assert tuple(sidecar[0]) == SIDECAR_COLUMNS, "sidecar column set changed"
+    paths = [r["old_repository_path"] for r in sidecar]
+    assert len(set(paths)) == TOTAL_RELOCATIONS, "duplicate relocation in sidecar"
+    members = [r["archive_member_path"] for r in sidecar]
+    assert len(set(members)) == TOTAL_RELOCATIONS, "duplicate archive member"
+    for r in sidecar:
+        assert r["state"] == "relocated", f"{r['old_repository_path']}: bad state"
+        assert r["verification_status"] == "VERIFIED"
+        assert r["reserved_data_doi"] == "10.5281/zenodo.21717752"
+        assert r["archive_filename"] == "scorch_processed_data_v1.0.0.zip"
+        for col in ("repository_sha256", "historical_byte_identity_sha256",
+                    "member_sha256", "archive_sha256"):
+            assert len(r[col]) == 64, f"{r['old_repository_path']}: bad {col}"
+        assert int(r["repository_bytes"]) > 0 and int(r["member_bytes"]) > 0
+        # the relocated file must really be gone from the repository
+        assert not (REPO / r["old_repository_path"]).exists(), (
+            f"{r['old_repository_path']} is listed as relocated but still present")
+        # the member must carry exactly the byte form the row declares
+        want = (r["repository_sha256"]
+                if r["archive_member_byte_form"] == "repository_normalized_bytes"
+                else r["historical_byte_identity_sha256"])
+        assert r["member_sha256"] == want, (
+            f"{r['old_repository_path']}: member sha256 does not match its "
+            f"declared {r['archive_member_byte_form']}")
+
+
+def test_relocation_union_covers_every_relocation_once(manifest, sidecar):
+    """Manifest records + sidecar == exactly the 21 relocations, once each."""
+    in_manifest = {p for p, e in manifest["relocation"]["files"].items()
+                   if e["state"] == "relocated"}
+    sidecar_paths = {r["old_repository_path"] for r in sidecar}
+    flagged = {r["old_repository_path"] for r in sidecar
+               if r["recorded_in_sha256_manifest"] == "true"}
+
+    assert in_manifest == flagged, (
+        f"sidecar disagrees with the manifest about which relocations it "
+        f"records: manifest_only={in_manifest - flagged} "
+        f"sidecar_only={flagged - in_manifest}")
+    assert in_manifest <= sidecar_paths, (
+        f"manifest relocations missing from the sidecar: "
+        f"{in_manifest - sidecar_paths}")
+    assert len(in_manifest | sidecar_paths) == TOTAL_RELOCATIONS, (
+        f"union is {len(in_manifest | sidecar_paths)}, "
+        f"expected {TOTAL_RELOCATIONS}")
+
+    outside = sidecar_paths - in_manifest
+    frozen = set(manifest["expected_paths"])
+    assert not (outside & frozen), (
+        f"paths outside the frozen 29-path manifest scope must not appear in "
+        f"it: {outside & frozen}")
+    assert len(outside) == TOTAL_RELOCATIONS - len(in_manifest)
+
+    xw = manifest["relocation"]["relocation_crosswalk"]
+    assert xw["total_relocations"] == TOTAL_RELOCATIONS
+    assert xw["recorded_here"] == len(in_manifest)
+    assert xw["recorded_only_in_sidecar"] == len(outside)
+    assert (REPO / xw["public_sidecar"]).is_file()
+
+
+def test_frozen_manifest_scopes_were_not_widened_by_relocation(manifest):
+    """The 29-file scopes are frozen: relocation must never add paths to them."""
+    expected = set(manifest["expected_paths"])
+    assert len(expected) == EXPECTED_MANIFEST_ENTRIES
+    for key in ("historical_windows_worktree_bytes",
+                "repository_normalized_bytes"):
+        assert set(manifest["scopes"][key]["files"]) == expected
+    assert set(manifest["relocation"]["files"]) == expected
+    assert (len(manifest["identical_binary_paths"])
+            + len(manifest["eol_differing_text_paths"])
+            == EXPECTED_MANIFEST_ENTRIES)
+    assert set(manifest["identical_binary_paths"]) <= expected
+    assert set(manifest["eol_differing_text_paths"]) <= expected

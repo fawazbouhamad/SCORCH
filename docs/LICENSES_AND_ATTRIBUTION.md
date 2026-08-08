@@ -89,17 +89,18 @@ The licensing status of earlier public revisions is recorded separately in
 - Dataset: ERA5 hourly data on single levels from 1940 to present,
   DOI 10.24381/cds.adbb2d47. Accessed for this work through the ARCO-ERA5
   public mirror on Google Cloud (Google Research arco-era5 project).
-- Licence: ERA5 is distributed under Creative Commons Attribution 4.0 terms
-  together with the Copernicus licence conditions accepted at download time.
-  The terms in force are published on the dataset's Licence tab at
-  https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels
-  which supersedes the retired ECMWF licence URL
-  (`apps.ecmwf.int/datasets/licences/copernicus/`) cited by earlier versions
-  of this release.
-- Required notice, which must accompany all ERA5-derived content:
-  "Contains modified Copernicus Climate Change Service information
-  [1940-2025]; neither the European Commission nor ECMWF is responsible for
-  any use of the Copernicus information."
+- Licence: the underlying Copernicus information is provided under the licence
+  to use Copernicus products, https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products
+  That URL replaces the legacy licence URLs cited by earlier versions of this
+  release (`apps.ecmwf.int/datasets/licences/copernicus/` and the CDS dataset
+  Licence tab). The authors' CC BY 4.0 licence covers only their own
+  contribution; no CC BY licence is granted or implied over the underlying
+  ERA5 information, and no copyright is claimed over it.
+- ERA5 coverage used in this work: 1940-2025 (warm seasons, April-September).
+  This coverage span is stated separately and is NOT the notice's year token.
+- Required notice, which must accompany all ERA5-derived content, reproduced
+  verbatim and without brackets:
+  Contains modified Copernicus Climate Change Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.
 - Citation: Hersbach et al. (2020), Q. J. R. Meteorol. Soc., 10.1002/qj.3803.
 
 ### GHCN-Daily (NOAA NCEI)
