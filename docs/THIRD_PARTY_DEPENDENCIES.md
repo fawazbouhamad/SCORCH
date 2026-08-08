@@ -52,7 +52,15 @@ Not required to run the workflow; installed by `pip install .[dev]`.
 | jsonlite | 2.0.0 | MIT |
 
 The R packages are used as an external interpreter workflow step; they are
-not linked into, or redistributed with, the MIT-licensed SCORCH code.
+not linked into, or redistributed with, the GPL-3.0-only SCORCH code. Their
+GPL-2-or-later terms are in any case compatible with GPL-3.0.
+
+## Licence compatibility with GPL-3.0-only
+
+Every Python dependency above is BSD-, MIT-, Apache-2.0-, PSF- or
+HPND-licensed. All are one-way compatible with GPL-3.0, none is
+copyleft-incompatible, and none is vendored into this repository, so
+distributing the SCORCH software under GPL-3.0-only raises no conflict.
 
 ## Runtime-fetched data
 
