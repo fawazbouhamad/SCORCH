@@ -543,7 +543,7 @@
     }
   },
   "acceptance": {
-    "test_suite": "339 passed, 0 failed, 0 errors, 0 skipped with the deposit (SCORCH_DATA_DIR + SCORCH_CANONICAL_DATA_DIR + SCORCH_FINAL_DOCX_DIR + SCORCH_APTOS_FONT set)",
+    "test_suite": "356 passed, 0 failed, 0 errors, 0 skipped WITH the deposit and fixtures (SCORCH_DATA_DIR + SCORCH_CANONICAL_DATA_DIR + SCORCH_FINAL_DOCX_DIR + SCORCH_APTOS_FONT set)",
     "reproduction_stages": "33/33 PASS from a fresh extraction of the archive, exit 0",
     "publication_outputs": "PASS - 17 figures, 45 panels, 1 source component (Figure 8 only), 6 table files; Table 1 reconciled cell by cell with 0 declared presentation differences",
     "deposit_integrity": "93/93 files verified against the deposit's own SHA256SUMS in the corrected LOCAL STAGING COPY of the Zenodo data deposit, after the authorized table01 correction (manuscript header, canonical labels, manuscript column order, frequency-inference rows removed) and manifest regeneration; nothing else in the deposit was modified. The ONLINE Zenodo data draft still carried the pre-correction table01 files at audit time; uploading the corrected table01/ files and re-verifying the online draft checksums is a REQUIRED MANUAL RELEASE STEP before publication.",
@@ -554,7 +554,8 @@
       "status": "HISTORICAL - NOT CURRENT",
       "value": "244 passed, 2 skipped with the deposit (publication_outputs not materialised in a source-only checkout - by design); 246 collected including the 56 stale-provenance / structural / lifecycle guards and hardened-guard regression fixtures added in the v1.0.0 final remediation (R2), R3 and R4 passes and the 20 final-DOCX display-geometry / content-identity guards added in R5",
       "note": "pre-remediation measurement retained for provenance only"
-    }
+    },
+    "test_suite_source_only": "320 passed, 36 skipped in a source-only checkout with no deposit and no fixtures - separately MEASURED, not inferred; the 36 skips are the deposit-, DOCX- and font-dependent guards, each skipping with an explicit reason"
   },
   "centroid_convention": {
     "status": "REMEDIATED (fix/tmax-weighted-centroids)",

@@ -29,8 +29,8 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a clean checkout WITHOUT the deposit | **339 passed, 0 skipped** (current). HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
-| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`; FINAL DOCX dir via `SCORCH_FINAL_DOCX_DIR`) | **339 passed, 0 skipped** (current). HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
+| `pytest tests -q` in a source-only checkout WITHOUT the deposit or fixtures | **320 passed, 36 skipped** (current, separately measured; the 36 skips are the deposit-, DOCX- and font-dependent guards, each with an explicit skip reason). HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
+| `pytest tests -q` WITH the deposit and fixtures (`SCORCH_DATA_DIR`, `SCORCH_CANONICAL_DATA_DIR`, `SCORCH_FINAL_DOCX_DIR`, `SCORCH_APTOS_FONT`) | **356 passed, 0 skipped** (current, measured). HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
 
 The two remaining skips with the deposit are the publication-outputs
 isolation cases, which require a materialized `publication_outputs/` tree
@@ -217,10 +217,15 @@ wording: "Largest centroid per day" and "Largest centroid per event" become
 **"Daily-largest structure centroid"** and **"Event-largest structure
 centroid"**. The concentration-zone distance boxplot's y-axis becomes
 "Distance to nearest top-concentration zone (km)"; that boxplot is
-**panel (a)** of Fig. D in the current layout. The plotted data, quantile
-ranks, ticks, centroids and cross-validation numbers are unchanged. Figure
-12's colorbar already read "Relative centroid-concentration rank, R(s)" and
-is unchanged.
+**panel (a)** of Fig. D in the current layout. Scope of that statement:
+relative to the immediately preceding pre-label asset, the V3 operation
+changed legend and axis WORDING ONLY - plotted data, quantile ranks, ticks,
+centroids and cross-validation numbers were unchanged BY THE V3 STEP.
+Relative to the PRE-REMEDIATION unweighted artifacts, however, the plotted
+centroid positions, the fitted concentration surface and the
+cross-validation distances all DID change under the Tmax-weighted-centroid
+correction. Figure 12's colorbar already read "Relative
+centroid-concentration rank, R(s)" and is unchanged.
 
 *HISTORICAL (V3-era status, superseded -- retained for provenance).* At the
 V3 pass these corrected outputs were intentionally not byte-identical to the

@@ -1,10 +1,10 @@
 {
   "created_utc": "2026-08-07T07:09:50Z",
-  "scope_note": "This manifest declares TWO DISTINCT byte identities for the same logical files. They are not interchangeable and must never be conflated. 'archive_bytes' are the bytes of the corrected external archive/deposit as originally emitted on Windows (CRLF line endings) - this is the historical scope of this manifest and is what the deposit ZIP contains. 'repository_normalized_bytes' are the bytes Git actually stores and that a fresh clone receives, after .gitattributes normalization ('* text=auto eol=lf', '*.csv text eol=lf'). Of the 29 entries, 21 differ between the two scopes purely because of line endings; content is identical. A validator MUST select the scope matching what it is checking: deposit/ZIP payloads against 'archive_bytes', checked-out repository copies against 'repository_normalized_bytes'.",
+  "scope_note": "This manifest declares TWO DISTINCT byte identities for the same 29 logical files. They are not interchangeable and must never be conflated. 'historical_windows_worktree_bytes' are the bytes as originally emitted on Windows (CRLF). 'repository_normalized_bytes' are the bytes Git stores and a fresh clone receives after .gitattributes normalization ('* text=auto eol=lf', '*.csv text eol=lf'). Exactly 21 of the 29 differ, solely by LF<->CRLF; the remaining 8 are binary and identical. A validator MUST select the scope matching what it is checking.",
   "scopes": {
-    "archive_bytes": {
-      "description": "corrected archive/deposit bytes as emitted (CRLF preserved)",
-      "applies_to": "the deposit ZIP and any unnormalized copy of the archive",
+    "historical_windows_worktree_bytes": {
+      "description": "bytes of these 29 artifacts as they existed in the original Windows working tree when the manifest was written (CRLF preserved)",
+      "applies_to": "any unnormalized copy of these 29 files. NOTE: this scope is NOT the 94-file corrected data overlay and is NOT a deposit archive. No archive filename, archive SHA-256 or member prefix has been established for it, so it is deliberately named after what it demonstrably is: the historical Windows worktree bytes.",
       "files": {
         "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
           "sha256": "a7d1950683210124c8950b22657384f0bd2806413dab9371eea4f6509e6676a4",
@@ -365,5 +365,13 @@
       "bytes": 2857
     }
   },
-  "files_legacy_note": "Retained for backward compatibility and IDENTICAL to scopes.archive_bytes.files. New consumers should select an explicit scope instead of reading this key."
+  "files_legacy_note": "Retained for backward compatibility and IDENTICAL to scopes.archive_bytes.files. New consumers should select an explicit scope instead of reading this key.",
+  "relocation": {
+    "status": "NOT RELOCATED",
+    "note": "Reserved for a future move of these artifacts into the Zenodo evidence package. When that happens record doi, archive_filename, archive_sha256 and archive_member_path HERE - do not overwrite or delete either byte scope above, which are historical provenance.",
+    "doi": null,
+    "archive_filename": null,
+    "archive_sha256": null,
+    "archive_member_path": null
+  }
 }
