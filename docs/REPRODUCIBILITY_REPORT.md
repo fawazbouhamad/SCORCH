@@ -324,8 +324,11 @@ unchanged:
 
 * ALL QC CHECKS PASS, with **0 captured fit warnings**.
 * The refit parameter table (all 30 rows) is **identical** to the deposited
-  canonical table, including variant3 `sigma2 = 1.647219` and
-  `scale = 287.707960 km`, trend `~ lon + lat + mean_tmax_z + std_tmax_z`.
+  canonical table, including variant3 `sigma2 = 1.642911` and
+  `scale = 272.455153 km`, trend `~ lon + lat + mean_tmax_z + std_tmax_z`,
+  fitted to the 760 raw-Celsius Tmax-weighted centroids. (The superseded
+  unweighted fit, `sigma2 = 1.647219`, `scale = 287.707960 km`, is retained
+  only under `legacy_unweighted_baseline` in docs/CANONICAL_SCIENCE.json.)
 * The predicted-intensity surface matches the deposited canonical CSV
   exactly (`extract_variant3.py`: shape match, max absolute difference
   **0.000e+00**, EQUAL = True).

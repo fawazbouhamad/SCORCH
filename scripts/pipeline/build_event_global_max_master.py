@@ -464,7 +464,8 @@ def build():
     manifest = dict(
         method="event_global_maximum_dbscan_hyperparameters",
         tmax_weighted_centroids=dict(
-            weights="raw processed daily Tmax values (absolute observed "
+            weights="raw observed daily Tmax expressed in degrees Celsius, "
+                    "following the approved weighting convention ("
                     "level, not anomaly/exceedance; no abs())",
             units="degrees_Celsius",
             weighting_scope="structure-specific (member cells only; DBSCAN "

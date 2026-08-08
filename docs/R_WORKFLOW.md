@@ -29,7 +29,8 @@ where the language boundary sits.
   exponential covariance) on the 760 centroids and writes
   lgcp_model_parameters.csv and grid_predicted_intensity_all_variants.csv.
   The manuscript model is variant3: ~ lon + lat + mean_tmax_z + std_tmax_z
-  (sigma^2 = 1.647219, scale = 287.708 km).
+  fitted to the 760 raw-Celsius Tmax-weighted centroids
+  (sigma^2 = 1.642911, scale = 272.455 km).
 - Run:
   `Rscript scripts/lgcp/spatial_risk_lgcp_model_diagnostics.R <input-dir> <output-dir>`
   where `<input-dir>` holds the Stage-4 outputs (defaults to

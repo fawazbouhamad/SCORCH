@@ -14,7 +14,8 @@ Remediation stage separation (fix/tmax-weighted-centroids):
 
 Scientific definition of the weights (advisor-approved):
 
-    w_hk(t) = Tmax_hk(t)   in degrees Celsius ("absolute Tmax" = the observed
+    w_hk(t) = Tmax_hk(t)   raw observed daily Tmax expressed in degrees Celsius,
+    following the approved weighting convention (the observed
                             processed daily Tmax level, NOT abs()).
 
     lambda_w = sum(lon_k * w_k) / sum(w_k)

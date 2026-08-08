@@ -42,20 +42,41 @@ East (10–46 °N, 20–70 °E), restricted to the April–September warm season
 1940–2025. This yields **1,800 valid grid boxes** across **15,738**
 warm-season days.
 
-A local heatwave episode is a run of at least three consecutive days on
-which a grid box exceeds its own calendar-day 95th-percentile threshold. The
-count of grid boxes in local heatwave on a given day, *N*<sub>HW</sub>(*t*),
+For each grid cell, the local threshold is the 95th percentile of daily Tmax
+pooled across **all** April–September days during 1940–2025 — a single fixed
+threshold per cell, not a calendar-day climatology. A day is a
+**threshold-meeting day** for that cell when its Tmax is **greater than or
+equal to** that value.
+
+Local heatwave episodes are then delimited by **two consecutive
+non-exceedance days**, trimmed to begin and end on threshold-meeting days,
+and retained when they span at least three days **and** contain at least
+three threshold-meeting days. An isolated non-exceedance day inside a
+qualifying episode is therefore **bridged** and remains part of it. Cells
+belonging to a retained episode on a given day are **heatwave-labeled
+cells**.
+
+The count of heatwave-labeled cells on a day, *N*<sub>HW</sub>(*t*),
 measures how regionally extensive the heat is. Days satisfying
 *N*<sub>HW</sub>(*t*) ≥ **371** — the regional 97.5th-percentile threshold of
-that count — are retained as regionally extensive days; there are **395** of
-them. Maximal runs of consecutive retained days define **51 compound
-events**.
+that count — are retained as **regionally selected days**; there are **395**
+of them. **Compound events** are the maximal runs of consecutive selected
+days: **51** of them. Event construction is purely temporal — it is the
+consecutive-day runs, not any clustering step, that defines compound events.
 
-Within each retained day, DBSCAN groups the exceeding boxes into spatially
-coherent daily heat structures, giving **760** structures overall. Each
-structure's geometry is summarized by a PCA ellipse at a fixed σ = 1.25.
-Events are then classified by duration and daily structural multiplicity
-into four types, with **3, 4, 20 and 24** events in Types 1–4 respectively.
+Within each selected day, DBSCAN is applied to that day's
+**heatwave-labeled cells** to delineate spatially coherent **daily heat
+structures**, giving **760** structures overall. Each structure's geometry is
+summarized by a PCA ellipse at a fixed σ = 1.25. Events are then classified
+by duration and daily structural multiplicity into four types, with
+**3, 4, 20 and 24** events in Types 1–4 respectively.
+
+The five levels are distinct and are used consistently throughout: a
+*threshold-meeting cell* (Tmax ≥ its own pooled 95th percentile that day) →
+a *heatwave-labeled cell* (belonging to a retained persistence episode) → a
+*regionally selected day* (*N*<sub>HW</sub> ≥ 371) → a *compound event*
+(maximal run of selected days) → a *daily DBSCAN structure* (within one
+selected day).
 
 Two conventions are worth stating explicitly, because they are easy to
 assume otherwise:
@@ -84,18 +105,22 @@ impact estimate, and not a forecast.
 </p>
 
 <p align="center"><em>SCORCH analysis workflow. Local heatwave episodes are
-identified, regionally extensive days are selected, and maximal
+identified, regionally selected days are chosen, and maximal
 consecutive-day runs define compound events before daily spatial clustering
-and geometric analysis.</em></p>
+of heatwave-labeled cells and geometric analysis.</em></p>
 
 ## What SCORCH does
 
-- Detects local heatwave episodes against per-box, per-calendar-day
-  percentile thresholds.
-- Selects regionally extensive days by the regional
+- Identifies threshold-meeting cells against a per-cell 95th percentile
+  pooled over all April–September days of 1940–2025 (Tmax ≥ threshold).
+- Labels heatwave cells by the persistence rule (episodes split at two
+  consecutive non-exceedance days, trimmed, ≥3 days and ≥3 threshold-meeting
+  days, isolated gaps bridged).
+- Selects regionally selected days by the regional
   *N*<sub>HW</sub>(*t*) ≥ 371 criterion and builds compound events from
-  maximal consecutive runs.
-- Resolves daily heat structures with DBSCAN over the exceeding boxes.
+  maximal consecutive runs of those days.
+- Resolves daily heat structures by applying DBSCAN to each selected day's
+  heatwave-labeled cells.
 - Summarizes each structure with a fixed-σ PCA ellipse (orientation, axes,
   area, shape ratio) translated to its Tmax-weighted centroid.
 - Classifies each event into Types 1–4 by duration and daily multiplicity.
@@ -131,13 +156,14 @@ that provider-level route is **not fully automated** and is not executed by
 the commands below.
 
 ```bash
-# 1. install
-pip install -e .[figures]
+# 1. install — CANONICAL clean-room route (hash-locked, fully pinned)
+python -m pip install --require-hashes -r environment/requirements-lock-py312.txt
+python -m pip install --no-deps -e .
 
 # 2. fetch and verify the processed-data deposit
-#    (needs the deposit identifier; see the guide above while the
-#     Zenodo record remains an unpublished draft)
-python -m scorch.cli fetch-data --dest scorch_data
+python -m scorch.cli fetch-data \
+  --doi 10.5281/zenodo.21717752 \
+  --dest scorch_data
 python -m scorch.cli validate-deposit --dir scorch_data
 
 # 3. run the full fast route (canonical bootstrap NBOOT=5000)
@@ -150,6 +176,23 @@ python run_reproduction.py fast \
 # 4. unit and regression tests
 python -m pytest tests -q
 ```
+
+> **Step 1** is the canonical route: it installs the exact hash-pinned
+> environment that produced the published numbers. A convenience
+> alternative exists but is **explicitly non-canonical** — it resolves
+> dependencies freely and is not the environment the results were generated
+> in:
+>
+> ```bash
+> python -m pip install -e ".[full,dev]"   # NON-CANONICAL convenience install
+> ```
+>
+> **Step 2** requires the data record to be **published**. The data DOI
+> `10.5281/zenodo.21717752` is currently **reserved and does not yet
+> resolve**, so `fetch-data --doi` will not retrieve anything until the
+> record is public. Until then, obtain the deposit as described in
+> [docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md)
+> and point `--dest` / `--data-dir` at your local copy.
 
 Useful variants:
 
@@ -168,7 +211,7 @@ manuscript-reported values.
 |---|---|
 | Fast route | **33/33 stages PASS**, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages, weighted-centroid stage executing 760/760 |
-| Test suite | 287 passed, 0 failed, 0 errors |
+| Test suite | 318 passed, 0 failed, 0 errors |
 | Valid grid boxes | 1,800 |
 | Warm-season days | 15,738 |
 | Regional threshold | *N*<sub>HW</sub>(*t*) ≥ 371 |

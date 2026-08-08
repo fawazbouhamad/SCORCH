@@ -347,17 +347,25 @@
   },
   "lgcp": {
     "variant": "variant3",
+    "basis": "fitted to the 760 raw-Celsius Tmax-weighted structure centroids (the authoritative reported locations)",
     "model": "kppm mincon, K-function, exponential covariance; LAEA km window",
     "trend_formula": "~ lon + lat + mean_tmax_z + std_tmax_z",
     "parameters": {
-      "intercept": -11.352611,
-      "lon": -0.016062,
-      "lat": 0.063142,
-      "mean_tmax_z": 0.464404,
-      "std_tmax_z": -0.007187,
-      "sigma2": 1.647219,
-      "scale_km": 287.70796
+      "intercept": -11.457776,
+      "lon": -0.016147,
+      "lat": 0.066264,
+      "mean_tmax_z": 0.546415,
+      "std_tmax_z": -0.010951,
+      "sigma2": 1.642911,
+      "scale_km": 272.455153
     },
+    "intensity_min_x1e6": 5.01734,
+    "intensity_max_x1e6": 109.506,
+    "intensity_ratio": 21.8254,
+    "hotspot_lon_lat": [
+      45.5,
+      32.5
+    ],
     "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
     "numeric_tolerance": 1e-09,
     "string_identity_required_where_currently_achieved": true,
@@ -374,17 +382,22 @@
     "folds": 5,
     "grid_cells": 1800,
     "cell_area_formula": "A_j = 111.320 * 110.574 * cos(pi * lat_j / 180) km^2",
-    "heldout_mean_fractional_rank_range": [
-      0.59,
-      0.65
-    ],
-    "top20_area_zone_hit_rate_range": [
-      0.28,
-      0.38
-    ],
+    "basis": "held-out evaluation of the weighted-centroid fit; identical fold assignment by occurrence id, 5 folds x 152",
+    "pooled_hit_top10": 0.188158,
+    "pooled_hit_top20": 0.344737,
+    "pooled_hit_top30": 0.476316,
+    "pooled_hit_top50": 0.688158,
     "areal_baseline": 0.2,
-    "heldout_mean_distance_km": 286,
-    "heldout_median_distance_km": 173,
+    "mean_dist_top20_km": 231.808,
+    "median_dist_top20_km": 134.919,
+    "mean_distance_by_zone_km": {
+      "top10": 389.670139,
+      "top20": 231.807728,
+      "top30": 151.67211,
+      "top50": 69.064508
+    },
+    "area_weighted_rank_mean": 0.6438,
+    "area_weighted_rank_median": 0.6801,
     "scope_limits": "Evaluates only the covariate-driven first-order trend. Not event-independent (folds can share events and dates). Not external validation. Does not evaluate the latent covariance component."
   },
   "station_validation": {
@@ -541,7 +554,7 @@
   "centroid_convention": {
     "status": "REMEDIATED (fix/tmax-weighted-centroids)",
     "authoritative_location": "raw-Celsius Tmax-weighted centroid, computed AFTER the complete unweighted sigma=1.25 PCA ellipse; ellipse rigidly translated (no refit/resize/rotate)",
-    "weight_definition": "w_hk(t) = Tmax_hk(t) in degrees Celsius (absolute observed level; not anomaly, exceedance, Kelvin, abs(), clipped, shifted, or standardized)",
+    "weight_definition": "w_hk(t) = Tmax_hk(t): raw observed daily Tmax expressed in degrees Celsius, following the approved weighting convention (not anomaly, exceedance, Kelvin, abs(), clipped, shifted, or standardized)",
     "equation": "lambda_w = sum(lon_k*w_k)/sum(w_k); phi_w = sum(lat_k*w_k)/sum(w_k), per structure, member cells only",
     "weights_source": "scorch_processed_daily_tmax_field_v1.0.0.nc tmax (units degC), joined by exact date + 1-degree cell centre",
     "upstream_unchanged": [
@@ -583,34 +596,6 @@
       "none_exceed_structure_diameter": true
     }
   },
-  "lgcp_tmax_weighted": {
-    "note": "variant3 refit on the 760 Tmax-weighted centroids; the 'lgcp' section above is the frozen UNWEIGHTED baseline record",
-    "intercept": -11.457776,
-    "lon": -0.016147,
-    "lat": 0.066264,
-    "mean_tmax_z": 0.546415,
-    "std_tmax_z": -0.010951,
-    "sigma2": 1.642911,
-    "scale_km": 272.455153,
-    "intensity_min_x1e6": 5.01734,
-    "intensity_max_x1e6": 109.506,
-    "intensity_ratio": 21.8254,
-    "hotspot_lon_lat": [
-      45.5,
-      32.5
-    ]
-  },
-  "cross_validation_tmax_weighted": {
-    "note": "same seed 20260704, identical fold assignment by occurrence id (verified); 5 folds x 152",
-    "pooled_hit_top10": 0.188158,
-    "pooled_hit_top20": 0.344737,
-    "pooled_hit_top30": 0.476316,
-    "pooled_hit_top50": 0.688158,
-    "mean_dist_top20_km": 231.808,
-    "median_dist_top20_km": 134.919,
-    "area_weighted_rank_mean": 0.6438,
-    "area_weighted_rank_median": 0.6801
-  },
   "sector_counts_38_48E_29_37N": {
     "convention": "post hoc descriptive window, fixed BEFORE viewing weighted results",
     "unweighted": {
@@ -622,6 +607,56 @@
       "structures": "154/760",
       "daily_largest": "153/395",
       "event_largest": "19/51"
+    }
+  },
+  "legacy_unweighted_baseline": {
+    "status": "HISTORICAL - SUPERSEDED",
+    "explanation": "Frozen record of the pre-remediation fit computed on UNWEIGHTED PCA origins rather than the raw-Celsius Tmax-weighted centroids. Retained for provenance only. These values are NOT the reported results and must not be cited, consumed, or compared as current.",
+    "superseded_by": [
+      "lgcp",
+      "cross_validation"
+    ],
+    "lgcp": {
+      "variant": "variant3",
+      "model": "kppm mincon, K-function, exponential covariance; LAEA km window",
+      "trend_formula": "~ lon + lat + mean_tmax_z + std_tmax_z",
+      "parameters": {
+        "intercept": -11.352611,
+        "lon": -0.016062,
+        "lat": 0.063142,
+        "mean_tmax_z": 0.464404,
+        "std_tmax_z": -0.007187,
+        "sigma2": 1.647219,
+        "scale_km": 287.70796
+      },
+      "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+      "numeric_tolerance": 1e-09,
+      "string_identity_required_where_currently_achieved": true,
+      "expected_qc": {
+        "captured_fit_warnings": 0,
+        "all_qc_checks_pass": true
+      },
+      "grid_cells": 1800,
+      "rank_convention": "pandas ascending fractional rank with average ties"
+    },
+    "cross_validation": {
+      "design": "occurrence-level five-fold",
+      "seed": 20260704,
+      "folds": 5,
+      "grid_cells": 1800,
+      "cell_area_formula": "A_j = 111.320 * 110.574 * cos(pi * lat_j / 180) km^2",
+      "heldout_mean_fractional_rank_range": [
+        0.59,
+        0.65
+      ],
+      "top20_area_zone_hit_rate_range": [
+        0.28,
+        0.38
+      ],
+      "areal_baseline": 0.2,
+      "heldout_mean_distance_km": 286,
+      "heldout_median_distance_km": 173,
+      "scope_limits": "Evaluates only the covariate-driven first-order trend. Not event-independent (folds can share events and dates). Not external validation. Does not evaluate the latent covariance component."
     }
   }
 }

@@ -73,7 +73,8 @@ phi_w,h(t)    = sum_k lat_hk * w_hk / sum_k w_hk
 * Weights: the processed daily Tmax field
   `gridded/scorch_processed_daily_tmax_field_v1.0.0.nc`, variable `tmax`,
   attribute `units: degC` (checked at load; non-Celsius units refuse to run).
-* "Absolute Tmax" = observed level. **No** Kelvin conversion, `abs()`,
+* Weights are raw observed daily Tmax expressed in degrees Celsius,
+  following the approved weighting convention. **No** Kelvin conversion, `abs()`,
   `max(,0)`, threshold subtraction, exceedance, shifting, standardization,
   anomalies, normalized fields, area or latitude weights, weighted PCA
   covariance, or PCA refit about the weighted centroid. AST-scan tests
