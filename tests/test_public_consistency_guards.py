@@ -148,3 +148,149 @@ def test_no_absolute_temperature_wording(rel):
     t = _read(rel).lower()
     for bad in ('"absolute tmax"', "absolute observed level"):
         assert bad not in t, f"{rel} describes Celsius as an absolute level"
+
+
+# ===========================================================================
+# 5. ACTIVE EVIDENCE COLUMNS - not just headline labels (Phase 2.1B)
+# ===========================================================================
+WEIGHTED_LGCP = ("-11.457776", "-0.016147", "0.066264", "0.546415",
+                 "-0.010951", "1.642911", "272.455153")
+UNWEIGHTED_LGCP = ("-11.352611", "-0.016062", "0.063142", "0.464404",
+                   "-0.007187", "1.647219", "287.707960")
+ZONES_WEIGHTED = "389.670139/231.807728/151.672110/69.064508"
+ZONES_UNWEIGHTED = "437.854964/285.656041/180.807535/81.475518"
+FIGD_HASH = "88f9e177cf396d0d20325dbcea07c31b5838b49306b7847425d5231a2f993e72"
+FIGD_SUPERSEDED = "b7c48232d9f48c9dbf29291470562699590f7ed4f5be50ecb7087f37684574ae"
+
+CANONICAL_FIGURE_HASHES = {
+    "Fig. 1.": "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "Fig. 4.": "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "Fig. 5.": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
+    "Fig. 6.": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+    "Fig. 7.": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
+    "Fig. 12.": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
+    "Fig. D.": FIGD_HASH,
+    "Fig. S.1.": "d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634",
+}
+
+
+def _matrix_row(substr):
+    import csv
+    with open(REPO / "docs/REPRODUCIBILITY_MATRIX.csv", encoding="utf-8") as f:
+        rd = csv.DictReader(f)
+        for r in rd:
+            if substr in " | ".join(v or "" for v in r.values()):
+                return r
+    raise AssertionError(f"matrix row not found: {substr}")
+
+
+def test_matrix_lgcp_row_evidence_columns_are_weighted():
+    """Not just the label: expected/reproduced columns must carry the weighted fit."""
+    row = _matrix_row("variant3 LGCP")
+    blob = " | ".join(v or "" for v in row.values())
+    for v in WEIGHTED_LGCP:
+        assert v in blob, f"LGCP row missing weighted value {v}"
+    for v in UNWEIGHTED_LGCP:
+        assert v not in blob, f"LGCP row still asserts unweighted value {v}"
+
+
+def test_matrix_cv_row_uses_verified_distance():
+    row = _matrix_row("mean held-out centroid distance")
+    blob = " | ".join(v or "" for v in row.values())
+    assert "85.009602" in blob
+    assert "84.934649" not in blob and "84.935" not in blob
+
+
+def test_matrix_zone_distance_row_is_corrected():
+    row = _matrix_row("concentration-zone distances")
+    blob = " | ".join(v or "" for v in row.values())
+    assert ZONES_WEIGHTED in blob
+    assert ZONES_UNWEIGHTED not in blob, "unweighted zone distances still asserted"
+
+
+def test_matrix_figure_d_identity_is_canonical():
+    row = _matrix_row("Figure D occurrence-level five-fold")
+    blob = " | ".join(v or "" for v in row.values())
+    assert FIGD_HASH in blob, "Figure D row does not carry the canonical hash"
+    if FIGD_SUPERSEDED in blob:
+        assert "superseded" in blob.lower(),             "superseded Figure D hash present without a superseded label"
+
+
+def test_figure_provenance_figure_d_zone_claim_corrected():
+    t = _read("docs/FIGURE_PROVENANCE.csv")
+    assert "438/286/181/81 km are unchanged and are asserted at run time." not in t
+    assert "389.670139/231.807728/151.672110/69.064508" in t
+
+
+@pytest.mark.parametrize("label,sha", sorted(CANONICAL_FIGURE_HASHES.items()))
+def test_active_figure_identities_match_canonical_record(label, sha):
+    import csv
+    with open(REPO / "docs/MANUSCRIPT_FIGURE_IDENTITY.csv", encoding="utf-8") as f:
+        rows = {r["label"].strip(): r for r in csv.DictReader(f)}
+    assert label in rows, f"{label} missing from MANUSCRIPT_FIGURE_IDENTITY.csv"
+    assert rows[label]["manuscript_final_sha256"] == sha
+
+
+@pytest.mark.parametrize("label", ["Fig. 1.", "Fig. 4."])
+def test_figures_1_and_4_declared_deterministic(label):
+    import csv
+    with open(REPO / "docs/MANUSCRIPT_FIGURE_IDENTITY.csv", encoding="utf-8") as f:
+        rows = {r["label"].strip(): r for r in csv.DictReader(f)}
+    assert rows[label]["reproduction_class"] == "deterministic_producer"
+
+
+@pytest.mark.parametrize("rel", ["docs/REPRODUCIBILITY_REPORT.md",
+                                 "docs/SANITIZATION_NOTES.md"])
+def test_no_claim_that_figures_1_and_4_lack_producers(rel):
+    flat = " ".join(_read(rel).split()).lower()
+    for bad in ("no runnable producer exists and none is claimed",
+                "no runnable producer exists (frozen assets only)",
+                "without a shipped producing command"):
+        assert bad not in flat, f"{rel} still denies the Fig 1/4 producers"
+
+
+def test_legacy_phi_not_presented_as_current_manuscript(canonical):
+    legacy = json.dumps(canonical["legacy_unweighted_baseline"])
+    assert "The manuscript's phi = 287.7" not in legacy
+    assert "pre-remediation manuscript candidate" in legacy
+
+
+# ===========================================================================
+# 6. MANIFEST BYTE-SCOPE SEPARATION (archive CRLF vs git-normalized LF)
+# ===========================================================================
+@pytest.fixture(scope="module")
+def manifest():
+    return json.loads(_read("remediation/corrected_outputs/SHA256_MANIFEST.json"))
+
+
+def test_manifest_declares_both_byte_scopes(manifest):
+    s = manifest["scopes"]
+    assert "archive_bytes" in s and "repository_normalized_bytes" in s
+    assert manifest["scopes"]["archive_bytes"]["files"] == manifest["files"],         "legacy 'files' key must remain identical to the archive scope"
+    assert "not interchangeable" in manifest["scope_note"].lower()
+
+
+def test_manifest_scopes_are_not_conflated(manifest):
+    """The two scopes genuinely differ; collapsing them would be a real error."""
+    a = manifest["scopes"]["archive_bytes"]["files"]
+    r = manifest["scopes"]["repository_normalized_bytes"]["files"]
+    assert set(a) == set(r)
+    differing = [p for p in a if a[p]["sha256"] != r[p]["sha256"]]
+    assert differing, ("archive and repository scopes are identical - either "
+                       "normalization changed or the scopes were conflated")
+
+
+def test_repository_scope_matches_what_git_actually_stores(manifest):
+    """A fresh clone must verify against repository_normalized_bytes."""
+    import hashlib
+    import subprocess
+    r = manifest["scopes"]["repository_normalized_bytes"]["files"]
+    checked = 0
+    for path, meta in list(r.items())[:6]:
+        out = subprocess.run(["git", "show", f"HEAD:{path}"],
+                             capture_output=True, cwd=REPO)
+        if out.returncode:
+            continue
+        assert hashlib.sha256(out.stdout).hexdigest() == meta["sha256"], path
+        checked += 1
+    assert checked, "no manifest entry could be checked against git"

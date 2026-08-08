@@ -629,7 +629,7 @@
         "sigma2": 1.647219,
         "scale_km": 287.70796
       },
-      "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+      "phi_disambiguation": "The pre-remediation manuscript candidate's scale = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
       "numeric_tolerance": 1e-09,
       "string_identity_required_where_currently_achieved": true,
       "expected_qc": {

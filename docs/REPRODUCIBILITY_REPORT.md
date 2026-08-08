@@ -196,11 +196,20 @@ identical dimensions with **5.10%** of pixels differing: that difference is
 the authors' manual post-processing pass, which the script does not and
 cannot reproduce. The plotted content is reproduced exactly.
 
-**FROZEN (Figures 1 and 4).** Author-created slide exports. No runnable
-producer exists and none is claimed. The frozen PNGs ship in
-`assets/frozen_figures/` with checksums and are byte-identical to the
-deployed manuscript embeds. These are the only two publication figures
-without a shipped producing command.
+**DETERMINISTIC DONOR-BASED PRODUCERS (Figures 1 and 4).** Both figures now
+have runnable, deterministic producers that transform approved donor
+artwork:
+`scripts/figures/fig01/restore_fig01_original_threshold.py` (re-renders one
+authorized text line onto the archived original; emits a difference mask and
+a locality report) and `scripts/figures/fig04/make_fig04_symmetry_final.py`
+(operates on the immutable approved-horizontal donor). Each reproduces its
+shipped asset byte-identically across clean builds, and both are
+byte-identical to the deployed manuscript embeds. Determinism is enforced by
+`tests/test_corrected_schematic_figures.py` and
+`tests/test_fig04_symmetry_final.py`. The Figure 1 producer additionally
+requires the non-redistributable Aptos face, supplied via `--font` or
+`SCORCH_APTOS_FONT`; without it the producer fails deterministically and the
+test skips with an explicit reason.
 
 **V3 label corrections (Figure 12 and the composite now designated
 Fig. D).** Both figures were regenerated with corrected marker-legend

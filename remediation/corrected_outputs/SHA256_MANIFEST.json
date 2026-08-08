@@ -1,121 +1,369 @@
 {
- "created_utc": "2026-08-07T07:09:50Z",
- "files": {
-  "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
-   "sha256": "a7d1950683210124c8950b22657384f0bd2806413dab9371eea4f6509e6676a4",
-   "bytes": 2476
+  "created_utc": "2026-08-07T07:09:50Z",
+  "scope_note": "This manifest declares TWO DISTINCT byte identities for the same logical files. They are not interchangeable and must never be conflated. 'archive_bytes' are the bytes of the corrected external archive/deposit as originally emitted on Windows (CRLF line endings) - this is the historical scope of this manifest and is what the deposit ZIP contains. 'repository_normalized_bytes' are the bytes Git actually stores and that a fresh clone receives, after .gitattributes normalization ('* text=auto eol=lf', '*.csv text eol=lf'). Of the 29 entries, 21 differ between the two scopes purely because of line endings; content is identical. A validator MUST select the scope matching what it is checking: deposit/ZIP payloads against 'archive_bytes', checked-out repository copies against 'repository_normalized_bytes'.",
+  "scopes": {
+    "archive_bytes": {
+      "description": "corrected archive/deposit bytes as emitted (CRLF preserved)",
+      "applies_to": "the deposit ZIP and any unnormalized copy of the archive",
+      "files": {
+        "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
+          "sha256": "a7d1950683210124c8950b22657384f0bd2806413dab9371eea4f6509e6676a4",
+          "bytes": 2476
+        },
+        "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
+          "sha256": "e1c9c6cc883addc8aea856db919c0ccb4d9840a88872dfb19154d25154c50c39",
+          "bytes": 4588750
+        },
+        "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
+          "sha256": "4c95ee5423bb24fe92d908ae2042504b26d99813a7e6043518f83d50712e429b",
+          "bytes": 16157
+        },
+        "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
+          "sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d",
+          "bytes": 816814
+        },
+        "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
+          "sha256": "4ca9ef136ee0a98ada2acc7d3976bc314a4402f8b22af62f818119ba286e6b42",
+          "bytes": 428600
+        },
+        "remediation/corrected_outputs/figures/Figure3_assembled.png": {
+          "sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
+          "bytes": 10881223
+        },
+        "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
+          "sha256": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
+          "bytes": 1602678
+        },
+        "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
+          "sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+          "bytes": 2765403
+        },
+        "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
+          "sha256": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
+          "bytes": 3472492
+        },
+        "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
+          "sha256": "d3afb429f369b834da224d464f51306aee76bc87abfaba20225a03c27a3c8ff8",
+          "bytes": 2902437
+        },
+        "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
+          "sha256": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
+          "bytes": 2108309
+        },
+        "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
+          "sha256": "663ed3152decd443bddfc631ff75601b9566fb755433ad6e41124fa1f732d6fa",
+          "bytes": 81922
+        },
+        "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
+          "sha256": "f5c6d18e7dfc8a758d00739a8f074302e80a50c00519c89738817e1dd1806f30",
+          "bytes": 179561
+        },
+        "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
+          "sha256": "8bd848d96f9155191119d7cc6876b8df54300669e5bd1d01e6db370aa67cb820",
+          "bytes": 414428
+        },
+        "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
+          "sha256": "5408d77457082fafc88a9873cbf49c10ced7005588d19fed13cfe4efae2db24f",
+          "bytes": 2653
+        },
+        "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
+          "sha256": "9f21d82021a9ab1d24b32fde597550b901f681feeca96b15d4ffcda023b9030e",
+          "bytes": 692
+        },
+        "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
+          "sha256": "e3740f343e544f2691a3b66034843034f26e0ecaee673a59dabddd2c06ae48ee",
+          "bytes": 1912
+        },
+        "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
+          "sha256": "ded12540f3014dc56292923f0e17fe4a068b329eb50f4ef5e311141ccdba7b41",
+          "bytes": 139250
+        },
+        "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
+          "sha256": "569ebbdc83b393820369f1f8163ed2301f13a657290c3a9b3b879bfd39f099de",
+          "bytes": 1129
+        },
+        "remediation/audit/audit_map_old_vs_new_centroids.png": {
+          "sha256": "e59c3bfe46a22c2361cb6c30c8754ffb76a1d5757809f4dcd4bca578c6cc7b5d",
+          "bytes": 335503
+        },
+        "remediation/audit/centroid_displacement_audit_760.csv": {
+          "sha256": "1524962148427c168fe987e4b22168a9af42cdabbca3fbb3fe24dae8a7392e7e",
+          "bytes": 240060
+        },
+        "remediation/audit/displacement_by_area.csv": {
+          "sha256": "461e9311007736893fc8246831d6759ce8a49b9f13b3d3b5923628f96b77d650",
+          "bytes": 394
+        },
+        "remediation/audit/displacement_by_membercount.csv": {
+          "sha256": "4b16ff9fccddb1f10a7bbcf9d1419397e6334642a5b8c13b343a904e6cc1b827",
+          "bytes": 340
+        },
+        "remediation/audit/displacement_by_multiplicity.csv": {
+          "sha256": "df990a6556f71eed1a35ec89dcdaccb0f4c5765f9bb94ab04bb1e08f3fcdd7ce",
+          "bytes": 347
+        },
+        "remediation/audit/displacement_by_type.csv": {
+          "sha256": "11d93063092f883b4cfe8d3e421ccb5f6546fa262e3d2a22f47ab51799ffb231",
+          "bytes": 276
+        },
+        "remediation/audit/displacement_by_year.csv": {
+          "sha256": "0b5331eee4ab6ca2b8f556ee248111edc068aa0f631f318be6e74880baef0ee2",
+          "bytes": 1568
+        },
+        "remediation/audit/displacement_statistics.json": {
+          "sha256": "c479ec2ea785533d79e851e61b28aeec72232e53e97d2ebfd70472a1c004c621",
+          "bytes": 450
+        },
+        "remediation/audit/fig3_footprint_before_after.json": {
+          "sha256": "391660627637aa4a6e6e14f7c3f3c788867e95c75915c12b2601728e3da04424",
+          "bytes": 269
+        },
+        "remediation/audit/top20_displacements.csv": {
+          "sha256": "d3e5ec1aabeeb58fce6d91aa013b6f742d8333c3e73f6760d00155be3a24ec86",
+          "bytes": 2857
+        }
+      }
+    },
+    "repository_normalized_bytes": {
+      "description": "bytes stored by Git after .gitattributes EOL normalization",
+      "applies_to": "any checked-out copy of this repository (fresh clone)",
+      "files": {
+        "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
+          "sha256": "6e4ab5d232df3a9e1878c575091b125019963e65cd29f9fe52d22b9748aed245",
+          "bytes": 2424
+        },
+        "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
+          "sha256": "5e9d93820c1fb48506be02e667414eadca36b5170314b46e620685650c666da3",
+          "bytes": 4397651
+        },
+        "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
+          "sha256": "f38b00223ea04c6c31475db44bf1883dadcd9cfc6633fffe568ff27d61f711a8",
+          "bytes": 15761
+        },
+        "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
+          "sha256": "f9e98478875cb706721a023b06759317903065d413948b4c1170bc773e62fc5c",
+          "bytes": 816053
+        },
+        "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
+          "sha256": "4ca9ef136ee0a98ada2acc7d3976bc314a4402f8b22af62f818119ba286e6b42",
+          "bytes": 428600
+        },
+        "remediation/corrected_outputs/figures/Figure3_assembled.png": {
+          "sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
+          "bytes": 10881223
+        },
+        "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
+          "sha256": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
+          "bytes": 1602678
+        },
+        "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
+          "sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+          "bytes": 2765403
+        },
+        "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
+          "sha256": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
+          "bytes": 3472492
+        },
+        "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
+          "sha256": "d3afb429f369b834da224d464f51306aee76bc87abfaba20225a03c27a3c8ff8",
+          "bytes": 2902437
+        },
+        "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
+          "sha256": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
+          "bytes": 2108309
+        },
+        "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
+          "sha256": "6a16b5294f2fd6b3d5f123c96ee6731f964527e66fcabfd592bf2792c8c6dbe2",
+          "bytes": 81161
+        },
+        "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
+          "sha256": "905ee2fd93e00aa09f25bcabef224ffae9eccdbeb1103760b3f3e5b797e443cf",
+          "bytes": 178800
+        },
+        "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
+          "sha256": "87704b297d3bbb2ac47350fe7f36a1e2d3219538e4072b633acd3cbb42cf4fe4",
+          "bytes": 412627
+        },
+        "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
+          "sha256": "447b8f5e2cd1e96e6b77da9324f6373e4eaf11533e533313688c8529d2dfec4c",
+          "bytes": 2622
+        },
+        "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
+          "sha256": "4c8ec80b838799a3b70904938750f319a448d4ec27e6c5f128519f790cee9009",
+          "bytes": 682
+        },
+        "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
+          "sha256": "0719600f3db5624084b34d8acb12dba7e023f51fa1d06c978b4b4be3a69c9c13",
+          "bytes": 1906
+        },
+        "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
+          "sha256": "6c2392b80c56118115d6af63d221f85d944410e2357732d8a98f444c70957f8f",
+          "bytes": 138489
+        },
+        "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
+          "sha256": "af60b3a0e41df86e334ad1e17e0844415995321aa8f503dda3b4d216cf8726ec",
+          "bytes": 1125
+        },
+        "remediation/audit/audit_map_old_vs_new_centroids.png": {
+          "sha256": "e59c3bfe46a22c2361cb6c30c8754ffb76a1d5757809f4dcd4bca578c6cc7b5d",
+          "bytes": 335503
+        },
+        "remediation/audit/centroid_displacement_audit_760.csv": {
+          "sha256": "6c6ce31f4b4b972d024c76bb11ba9d7f45788dbfd53d3a6ccc218b73f4564e00",
+          "bytes": 239299
+        },
+        "remediation/audit/displacement_by_area.csv": {
+          "sha256": "a7bf390160565fcad03b8461fcd454d6932fe23e3727b016ca27aa291a910bb6",
+          "bytes": 389
+        },
+        "remediation/audit/displacement_by_membercount.csv": {
+          "sha256": "ca0e63c0f58e58f11ef883d988a156c310494cba78d0ba6fddb04ad452f6ca03",
+          "bytes": 335
+        },
+        "remediation/audit/displacement_by_multiplicity.csv": {
+          "sha256": "1aece0b3a5d20cb80f72abd979bc689352768beba0e04383f49244ea53dd67f4",
+          "bytes": 341
+        },
+        "remediation/audit/displacement_by_type.csv": {
+          "sha256": "82eda759decbd46d2278e8e696797d813a3f897ef10d06159983790f77d777c8",
+          "bytes": 271
+        },
+        "remediation/audit/displacement_by_year.csv": {
+          "sha256": "31cb3df1fc62b48abbf5a5eedaf7848c2815bbaafe6be2fa4aa55f5b210999b6",
+          "bytes": 1543
+        },
+        "remediation/audit/displacement_statistics.json": {
+          "sha256": "d30766848995886b1686ccf970622d08ca7e5e7bdb7b03b9bcf999b07a0a9f8b",
+          "bytes": 433
+        },
+        "remediation/audit/fig3_footprint_before_after.json": {
+          "sha256": "1c8b6705a7c07b65cc7bfb21dc5bc537f8fa6f8c4d3e3280af8eb3cbb9b06e60",
+          "bytes": 250
+        },
+        "remediation/audit/top20_displacements.csv": {
+          "sha256": "cfc32d7194e485c41500389eb546bbdce0cc5709e5f4c8b657cbd7cbc3b90080",
+          "bytes": 2836
+        }
+      }
+    }
   },
-  "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
-   "sha256": "e1c9c6cc883addc8aea856db919c0ccb4d9840a88872dfb19154d25154c50c39",
-   "bytes": 4588750
+  "files": {
+    "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
+      "sha256": "a7d1950683210124c8950b22657384f0bd2806413dab9371eea4f6509e6676a4",
+      "bytes": 2476
+    },
+    "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
+      "sha256": "e1c9c6cc883addc8aea856db919c0ccb4d9840a88872dfb19154d25154c50c39",
+      "bytes": 4588750
+    },
+    "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
+      "sha256": "4c95ee5423bb24fe92d908ae2042504b26d99813a7e6043518f83d50712e429b",
+      "bytes": 16157
+    },
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
+      "sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d",
+      "bytes": 816814
+    },
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
+      "sha256": "4ca9ef136ee0a98ada2acc7d3976bc314a4402f8b22af62f818119ba286e6b42",
+      "bytes": 428600
+    },
+    "remediation/corrected_outputs/figures/Figure3_assembled.png": {
+      "sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
+      "bytes": 10881223
+    },
+    "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
+      "sha256": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
+      "bytes": 1602678
+    },
+    "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
+      "sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
+      "bytes": 2765403
+    },
+    "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
+      "sha256": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
+      "bytes": 3472492
+    },
+    "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
+      "sha256": "d3afb429f369b834da224d464f51306aee76bc87abfaba20225a03c27a3c8ff8",
+      "bytes": 2902437
+    },
+    "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
+      "sha256": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
+      "bytes": 2108309
+    },
+    "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
+      "sha256": "663ed3152decd443bddfc631ff75601b9566fb755433ad6e41124fa1f732d6fa",
+      "bytes": 81922
+    },
+    "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
+      "sha256": "f5c6d18e7dfc8a758d00739a8f074302e80a50c00519c89738817e1dd1806f30",
+      "bytes": 179561
+    },
+    "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
+      "sha256": "8bd848d96f9155191119d7cc6876b8df54300669e5bd1d01e6db370aa67cb820",
+      "bytes": 414428
+    },
+    "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
+      "sha256": "5408d77457082fafc88a9873cbf49c10ced7005588d19fed13cfe4efae2db24f",
+      "bytes": 2653
+    },
+    "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
+      "sha256": "9f21d82021a9ab1d24b32fde597550b901f681feeca96b15d4ffcda023b9030e",
+      "bytes": 692
+    },
+    "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
+      "sha256": "e3740f343e544f2691a3b66034843034f26e0ecaee673a59dabddd2c06ae48ee",
+      "bytes": 1912
+    },
+    "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
+      "sha256": "ded12540f3014dc56292923f0e17fe4a068b329eb50f4ef5e311141ccdba7b41",
+      "bytes": 139250
+    },
+    "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
+      "sha256": "569ebbdc83b393820369f1f8163ed2301f13a657290c3a9b3b879bfd39f099de",
+      "bytes": 1129
+    },
+    "remediation/audit/audit_map_old_vs_new_centroids.png": {
+      "sha256": "e59c3bfe46a22c2361cb6c30c8754ffb76a1d5757809f4dcd4bca578c6cc7b5d",
+      "bytes": 335503
+    },
+    "remediation/audit/centroid_displacement_audit_760.csv": {
+      "sha256": "1524962148427c168fe987e4b22168a9af42cdabbca3fbb3fe24dae8a7392e7e",
+      "bytes": 240060
+    },
+    "remediation/audit/displacement_by_area.csv": {
+      "sha256": "461e9311007736893fc8246831d6759ce8a49b9f13b3d3b5923628f96b77d650",
+      "bytes": 394
+    },
+    "remediation/audit/displacement_by_membercount.csv": {
+      "sha256": "4b16ff9fccddb1f10a7bbcf9d1419397e6334642a5b8c13b343a904e6cc1b827",
+      "bytes": 340
+    },
+    "remediation/audit/displacement_by_multiplicity.csv": {
+      "sha256": "df990a6556f71eed1a35ec89dcdaccb0f4c5765f9bb94ab04bb1e08f3fcdd7ce",
+      "bytes": 347
+    },
+    "remediation/audit/displacement_by_type.csv": {
+      "sha256": "11d93063092f883b4cfe8d3e421ccb5f6546fa262e3d2a22f47ab51799ffb231",
+      "bytes": 276
+    },
+    "remediation/audit/displacement_by_year.csv": {
+      "sha256": "0b5331eee4ab6ca2b8f556ee248111edc068aa0f631f318be6e74880baef0ee2",
+      "bytes": 1568
+    },
+    "remediation/audit/displacement_statistics.json": {
+      "sha256": "c479ec2ea785533d79e851e61b28aeec72232e53e97d2ebfd70472a1c004c621",
+      "bytes": 450
+    },
+    "remediation/audit/fig3_footprint_before_after.json": {
+      "sha256": "391660627637aa4a6e6e14f7c3f3c788867e95c75915c12b2601728e3da04424",
+      "bytes": 269
+    },
+    "remediation/audit/top20_displacements.csv": {
+      "sha256": "d3e5ec1aabeeb58fce6d91aa013b6f742d8333c3e73f6760d00155be3a24ec86",
+      "bytes": 2857
+    }
   },
-  "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
-   "sha256": "4c95ee5423bb24fe92d908ae2042504b26d99813a7e6043518f83d50712e429b",
-   "bytes": 16157
-  },
-  "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
-   "sha256": "dffb5e8f393080728f0b1f11c53f9e0803889705429cb190ed8548604194a53d",
-   "bytes": 816814
-  },
-  "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
-   "sha256": "4ca9ef136ee0a98ada2acc7d3976bc314a4402f8b22af62f818119ba286e6b42",
-   "bytes": 428600
-  },
-  "remediation/corrected_outputs/figures/Figure3_assembled.png": {
-   "sha256": "ff6a5129452d73e3c67650836d725c4c35f6945ed9ace21504d2bac7f43ee319",
-   "bytes": 10881223
-  },
-  "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
-   "sha256": "5eeec34640e91ea346165b06aa81a14c2ed2eaa055cc70395863b34f2621085d",
-   "bytes": 1602678
-  },
-  "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
-   "sha256": "ac2ebeaf5037fe7dafb00daf595aff91485b52c2af89127a52006e508c07afcb",
-   "bytes": 2765403
-  },
-  "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
-   "sha256": "769161f776249555f48be2dec12456a8a0afc26d8b2e7627f8df6e933eadeadd",
-   "bytes": 3472492
-  },
-  "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
-   "sha256": "d3afb429f369b834da224d464f51306aee76bc87abfaba20225a03c27a3c8ff8",
-   "bytes": 2902437
-  },
-  "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
-   "sha256": "ce09ab2fa492c5b1321031d07aadf6bcfe819d21159c3c269e380335d596801b",
-   "bytes": 2108309
-  },
-  "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
-   "sha256": "663ed3152decd443bddfc631ff75601b9566fb755433ad6e41124fa1f732d6fa",
-   "bytes": 81922
-  },
-  "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
-   "sha256": "f5c6d18e7dfc8a758d00739a8f074302e80a50c00519c89738817e1dd1806f30",
-   "bytes": 179561
-  },
-  "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
-   "sha256": "8bd848d96f9155191119d7cc6876b8df54300669e5bd1d01e6db370aa67cb820",
-   "bytes": 414428
-  },
-  "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
-   "sha256": "5408d77457082fafc88a9873cbf49c10ced7005588d19fed13cfe4efae2db24f",
-   "bytes": 2653
-  },
-  "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
-   "sha256": "9f21d82021a9ab1d24b32fde597550b901f681feeca96b15d4ffcda023b9030e",
-   "bytes": 692
-  },
-  "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
-   "sha256": "e3740f343e544f2691a3b66034843034f26e0ecaee673a59dabddd2c06ae48ee",
-   "bytes": 1912
-  },
-  "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
-   "sha256": "ded12540f3014dc56292923f0e17fe4a068b329eb50f4ef5e311141ccdba7b41",
-   "bytes": 139250
-  },
-  "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
-   "sha256": "569ebbdc83b393820369f1f8163ed2301f13a657290c3a9b3b879bfd39f099de",
-   "bytes": 1129
-  },
-  "remediation/audit/audit_map_old_vs_new_centroids.png": {
-   "sha256": "e59c3bfe46a22c2361cb6c30c8754ffb76a1d5757809f4dcd4bca578c6cc7b5d",
-   "bytes": 335503
-  },
-  "remediation/audit/centroid_displacement_audit_760.csv": {
-   "sha256": "1524962148427c168fe987e4b22168a9af42cdabbca3fbb3fe24dae8a7392e7e",
-   "bytes": 240060
-  },
-  "remediation/audit/displacement_by_area.csv": {
-   "sha256": "461e9311007736893fc8246831d6759ce8a49b9f13b3d3b5923628f96b77d650",
-   "bytes": 394
-  },
-  "remediation/audit/displacement_by_membercount.csv": {
-   "sha256": "4b16ff9fccddb1f10a7bbcf9d1419397e6334642a5b8c13b343a904e6cc1b827",
-   "bytes": 340
-  },
-  "remediation/audit/displacement_by_multiplicity.csv": {
-   "sha256": "df990a6556f71eed1a35ec89dcdaccb0f4c5765f9bb94ab04bb1e08f3fcdd7ce",
-   "bytes": 347
-  },
-  "remediation/audit/displacement_by_type.csv": {
-   "sha256": "11d93063092f883b4cfe8d3e421ccb5f6546fa262e3d2a22f47ab51799ffb231",
-   "bytes": 276
-  },
-  "remediation/audit/displacement_by_year.csv": {
-   "sha256": "0b5331eee4ab6ca2b8f556ee248111edc068aa0f631f318be6e74880baef0ee2",
-   "bytes": 1568
-  },
-  "remediation/audit/displacement_statistics.json": {
-   "sha256": "c479ec2ea785533d79e851e61b28aeec72232e53e97d2ebfd70472a1c004c621",
-   "bytes": 450
-  },
-  "remediation/audit/fig3_footprint_before_after.json": {
-   "sha256": "391660627637aa4a6e6e14f7c3f3c788867e95c75915c12b2601728e3da04424",
-   "bytes": 269
-  },
-  "remediation/audit/top20_displacements.csv": {
-   "sha256": "d3e5ec1aabeeb58fce6d91aa013b6f742d8333c3e73f6760d00155be3a24ec86",
-   "bytes": 2857
-  }
- }
+  "files_legacy_note": "Retained for backward compatibility and IDENTICAL to scopes.archive_bytes.files. New consumers should select an explicit scope instead of reading this key."
 }

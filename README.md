@@ -214,7 +214,7 @@ manuscript-reported values.
 |---|---|
 | Fast route | **33/33 stages PASS**, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages, weighted-centroid stage executing 760/760 |
-| Test suite | 318 passed, 0 failed, 0 errors |
+| Test suite | 339 passed, 0 failed, 0 errors |
 | Valid grid boxes | 1,800 |
 | Warm-season days | 15,738 |
 | Regional threshold | *N*<sub>HW</sub>(*t*) ≥ 371 |

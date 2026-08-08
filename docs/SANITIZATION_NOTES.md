@@ -218,8 +218,10 @@ algorithms, no seeds, and no scientific data were touched:
 
 ## Not shipped (documented gaps)
 
-* Figures 1 and 4: PowerPoint slide exports; no runnable producer exists
-  (frozen assets only). The earlier candidate's slide-export PowerShell
+* Figures 1 and 4: originally PowerPoint slide exports. They now HAVE
+  deterministic donor-based producers
+  (`restore_fig01_original_threshold.py`, `make_fig04_symmetry_final.py`)
+  that reproduce the frozen assets byte-identically. The earlier candidate's slide-export PowerShell
   script (broken `param()` order, PPTX not releasable) is NOT included.
 * Tier-B-only inputs: canonical daily-adaptive workbook,
   `final_labels_method_A.csv`, and `master_exceed_heatwaves_long.csv`
