@@ -24,6 +24,11 @@ data/*
 *.zarr/
 *.csv.gz
 
+# R caches / session state (the LGCP stage runs an external Rscript)
+.Rhistory
+.RData
+.Rproj.user/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -34,9 +39,29 @@ desktop.ini
 .vscode/
 *.swp
 
+# Microsoft Word owner-lock files, created whenever a manuscript is open
+~$*
+*.~lock.*
+
 # Regenerated verification outputs (kept locally, not in the public repo)
 reproduced/
 
 # Local release staging (corrected data overlay + archives; large payloads,
 # published via deposit archives, never committed to the source tree)
 release_staging/
+
+# Assembled publication tree. Deterministic output of
+# scripts/publication/build_publication_outputs.py, rebuilt on demand by the
+# fast route; it is materialized locally and shipped via the deposit, never
+# committed as source.
+publication_outputs/
+
+# Local manuscript review rounds and their exports (DOCX/PDF candidates,
+# page renders, screenshots). Author-review working material, not source.
+manuscript_revision_inputs/
+manuscript_revision_output/
+*_page_renders/
+
+# Local reproduction and release audit outputs written outside reproduced/.
+reproduction_audit/
+release_audit/
