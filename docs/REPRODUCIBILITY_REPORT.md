@@ -29,20 +29,10 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a source-only checkout WITHOUT the deposit or fixtures | **320 passed, 36 skipped** (current, separately measured; the 36 skips are the deposit-, DOCX- and font-dependent guards, each with an explicit skip reason). HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
-| `pytest tests -q` WITH the deposit and fixtures (`SCORCH_DATA_DIR`, `SCORCH_CANONICAL_DATA_DIR`, `SCORCH_FINAL_DOCX_DIR`, `SCORCH_APTOS_FONT`) | **356 passed, 0 skipped** (current, measured). HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
+| `pytest tests -q` in a source-only checkout WITHOUT the deposit or fixtures | **327 passed, 36 skipped** (current, separately measured; the 36 skips are the deposit-, DOCX- and font-dependent guards, each with an explicit skip reason). HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
+| `pytest tests -q` WITH the deposit and fixtures (`SCORCH_DATA_DIR`, `SCORCH_CANONICAL_DATA_DIR`, `SCORCH_FINAL_DOCX_DIR`, `SCORCH_APTOS_FONT`) | **363 passed, 0 skipped** (current, measured). HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
 
-The two remaining skips with the deposit are the publication-outputs
-isolation cases, which require a materialized `publication_outputs/` tree
-that a source-only checkout deliberately does not ship; the assembly stage
-itself is executed and verified by the reproduction workflow. The
-without-deposit skips are the deposit-dependent regression tests, which
-require either `SCORCH_CANONICAL_DATA_DIR` or a downloaded deposit, plus
-the FINAL-DOCX identity guards, which require the frozen release documents
-(`SCORCH_FINAL_DOCX_DIR`). These
-counts must
-be measured in a checkout that is NOT nested inside the research repository,
-because the discovery helper also finds the research repo's frozen catalog.
+With the deposit and fixtures configured there are **no** remaining skips (363 passed, 0 skipped). In a source-only checkout 36 guards skip - the deposit-, DOCX- and font-dependent cases, including the publication-outputs isolation cases that require a materialized `publication_outputs/` tree - each with an explicit skip reason.
 
 Known benign import warning (investigated in V5): the netCDF4/cftime
 binary wheels emit `RuntimeWarning: numpy.ndarray size changed` when

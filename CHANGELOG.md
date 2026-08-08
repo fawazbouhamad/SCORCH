@@ -186,7 +186,7 @@ pre-release candidates, never published.
   direct pins are the EXACT versions of the CPython 3.12.10 environment
   that produced the paper outputs - the same pins as environment.yml) and
   `environment/renv.lock` (R 4.5.1 + spatstat).
-* Test suite (356 tests with deposit and fixtures): unit + schema + CLI/fetch behaviour +
+* Test suite (363 tests with deposit and fixtures): unit + schema + CLI/fetch behaviour +
   stale-provenance release-alignment guards (added in the v1.0.0 final
   remediation: false Figure A account, stale Table 1 checksums,
   defective-Figure-9-as-published wording, retired staging paths,
@@ -212,7 +212,9 @@ pre-release candidates, never published.
   source tree) + canonical regression tests (the latter run when the
   deposit or the frozen catalog is present, and skip with a clear message
   otherwise). Measured in the hash-locked clean-room environment:
-  356 passed, 0 failed, 0 errors, 0 skipped with the deposit and fixtures
+  363 passed, 0 failed, 0 errors, 0 skipped with the deposit and fixtures
+  (fully configured acceptance run); a source-only checkout measures
+  327 passed, 36 skipped
   (current). HISTORICAL, not current: 212 passed + 34 skipped without the
   deposit and 244 passed + 2 skipped with it were pre-remediation
   measurements (their two skips were the

@@ -214,7 +214,7 @@ manuscript-reported values.
 |---|---|
 | Fast route | **33/33 stages PASS**, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages, weighted-centroid stage executing 760/760 |
-| Test suite | 356 passed, 0 failed, 0 errors, 0 skipped (with deposit + fixtures) |
+| Test suite | 363 passed, 0 failed, 0 errors, 0 skipped (fully configured acceptance run). A source-only checkout without the deposit or fixtures measures 327 passed, 36 skipped - see [docs/REPRODUCIBILITY_REPORT.md](docs/REPRODUCIBILITY_REPORT.md) |
 | Valid grid boxes | 1,800 |
 | Warm-season days | 15,738 |
 | Regional threshold | *N*<sub>HW</sub>(*t*) ≥ 371 |

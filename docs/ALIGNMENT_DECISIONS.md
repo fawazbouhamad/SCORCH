@@ -409,7 +409,7 @@ produced:
 
 ## 17. Standing prohibitions honoured
 
-No push. No tag. No Zenodo publication. No external record touched. The public
+No push, no tag, no Zenodo publication and no external record touched DURING THE ORIGINAL ALIGNMENT PASS. (Current status: the draft branch `chore/final-repository-cleanup` has since been pushed and draft PR #1 opened; nothing has been merged, tagged, released or published.) The public
 `v1.0.0` tag was not moved or rewritten. Neither original DOCX was overwritten.
 No legacy evidence was deleted. Both stashes are untouched. The processed-data
 deposit re-verified 93/93 against its own `SHA256SUMS` after every run.

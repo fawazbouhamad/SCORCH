@@ -156,56 +156,74 @@ def test_figure_mappings_are_unique_and_complete():
 
 
 def _crosswalk(rel, structured_field, mapping, current_fields):
+    """Return (rows_per_label, hashes_per_label, problems).
+
+    Canonical presence is required for every matched label UNCONDITIONALLY -
+    not only when some hash already happens to be present in the row.
+    """
     ident = _identity()
-    matched, checked, problems = set(), 0, []
+    rows_per = {lab: 0 for labs in mapping.values() for lab in labs}
+    hashes_per = {lab: 0 for lab in rows_per}
+    problems = []
     for i, row in enumerate(_rows(rel), 2):
         key = (row.get(structured_field) or "").strip()
         labels = mapping.get(key)
         if not labels:
             continue
-        matched.update(labels)
+        for lab in labels:
+            rows_per[lab] += 1
         canon = {ident[lab]["manuscript_final_sha256"] for lab in labels}
         for fld in current_fields:
             val = row.get(fld) or ""
             if not val or HIST_FIELD.search(fld):
                 continue
-            for clause in CLAUSE_SPLIT.split(val):
+            # Per-HASH classification works at CLAUSE level: a canonical hash
+            # must still be counted even when it shares a sentence with a
+            # trailing "superseded ..." note, which _units() would discard.
+            for clause in CLAUSE_SPLIT.split(" ".join(val.split())):
                 for h in HASH_RX.findall(clause):
-                    checked += 1
-                    if h in canon or HIST_CLAUSE.search(clause):
+                    if h in canon:
+                        for lab in labels:
+                            if ident[lab]["manuscript_final_sha256"] == h:
+                                hashes_per[lab] += 1
+                        continue
+                    if HIST_CLAUSE.search(clause):
                         continue
                     problems.append(
                         f"{rel} row {i} [{key}] field {fld}: {h[:16]}... is not "
                         f"canonical and its clause is not marked historical")
         joined = " ".join((row.get(f) or "") for f in current_fields)
-        if HASH_RX.search(joined):
-            for lab in labels:
-                want = ident[lab]["manuscript_final_sha256"]
-                if want not in joined:
-                    problems.append(
-                        f"{rel} row {i} [{key}]: canonical hash for {lab} "
-                        f"({want[:16]}...) absent from the current fields")
-    return matched, checked, problems
+        for lab in labels:
+            want = ident[lab]["manuscript_final_sha256"]
+            if want not in joined:
+                problems.append(
+                    f"{rel} row {i} [{key}]: canonical hash for {lab} "
+                    f"({want[:16]}...) absent from the current fields")
+    return rows_per, hashes_per, problems
 
 
 def test_matrix_figure_crosswalk():
-    matched, checked, problems = _crosswalk(
+    rows_per, hashes_per, problems = _crosswalk(
         "docs/REPRODUCIBILITY_MATRIX.csv", "figure_table", MATRIX_FIGURE_MAP,
         ["canonical_expected", "reproduced_value", "checksum"])
-    assert matched == EXPECTED_LABELS, (
-        f"matrix crosswalk missed {EXPECTED_LABELS - matched}")
-    assert checked > 0, "matrix crosswalk inspected ZERO hashes (vacuous guard)"
+    assert set(rows_per) == EXPECTED_LABELS
+    empty_rows = [lab for lab, n in rows_per.items() if n == 0]
+    assert not empty_rows, f"no matrix row matched for {empty_rows}"
+    empty_hash = [lab for lab, n in hashes_per.items() if n == 0]
+    assert not empty_hash, f"no canonical hash inspected for {empty_hash}"
     assert not problems, "matrix crosswalk problems: " + " ;; ".join(problems)
 
 
 def test_provenance_figure_crosswalk():
-    matched, checked, problems = _crosswalk(
+    rows_per, hashes_per, problems = _crosswalk(
         "docs/FIGURE_PROVENANCE.csv", "figure", PROVENANCE_FIGURE_MAP,
         ["deployed_embed_sha256", "reproduced_output_sha256",
          "reproduction_result"])
-    assert matched == EXPECTED_LABELS, (
-        f"provenance crosswalk missed {EXPECTED_LABELS - matched}")
-    assert checked > 0, "provenance crosswalk inspected ZERO hashes (vacuous guard)"
+    assert set(rows_per) == EXPECTED_LABELS
+    empty_rows = [lab for lab, n in rows_per.items() if n == 0]
+    assert not empty_rows, f"no provenance row matched for {empty_rows}"
+    empty_hash = [lab for lab, n in hashes_per.items() if n == 0]
+    assert not empty_hash, f"no canonical hash inspected for {empty_hash}"
     assert not problems, "provenance crosswalk problems: " + " ;; ".join(problems)
 
 
@@ -327,6 +345,35 @@ STALE_TOKENS = {
     "438/286/181/81": "zone tuple (unweighted)",
 }
 
+
+def _units(text):
+    """Yield non-historical sentence/clause units of a CSV cell.
+
+    A LATER sentence containing "superseded" must never exonerate an EARLIER
+    sentence that states a current falsehood, so the cell is split into
+    sentences FIRST (after whitespace normalization) and only then into
+    clauses. Each unit is judged on its own words.
+    """
+    for sent in _sentences(text):
+        if HIST_CLAUSE.search(sent):
+            continue
+        for clause in CLAUSE_SPLIT.split(sent):
+            if HIST_CLAUSE.search(clause):
+                continue
+            yield clause
+
+
+def test_sentence_scoped_classification_rejects_earlier_current_claim():
+    """Regression fixture: the FIRST sentence is a current falsehood; the
+    SECOND is historical. The first must still be flagged."""
+    fixture = ("zone means 438/286/181/81 km unchanged. "
+               "Superseded embed: abc123.")
+    hits = [tok for unit in _units(fixture) for tok in STALE_TOKENS
+            if tok in unit]
+    assert "438/286/181/81" in hits, (
+        "sentence-scoped classifier let a later 'superseded' sentence "
+        "exonerate an earlier current claim")
+
 SWEEP_FILES = [
     "docs/REPRODUCIBILITY_MATRIX.csv", "docs/REPRODUCIBILITY_REPORT.md",
     "docs/FIGURE_PROVENANCE.csv", "docs/ALIGNMENT_DECISIONS.md",
@@ -357,11 +404,9 @@ def test_no_unclassified_superseded_values(rel):
                     continue
                 if HIST_FIELD.search(fld):
                     continue
-                for clause in CLAUSE_SPLIT.split(val):
-                    if HIST_CLAUSE.search(clause):
-                        continue
+                for unit in _units(val):
                     for tok, desc in STALE_TOKENS.items():
-                        if tok in clause:
+                        if tok in unit:
                             problems.append(f"row {i} / {fld}: {tok} [{desc}]")
     else:
         for sent in _sentences(_read(rel)):
@@ -390,35 +435,76 @@ def test_figure12_claim_is_scoped():
 COUNT_RX = re.compile(r"(\d{2,4})\s+passed")
 
 
-def _authoritative_counts(canonical):
-    """Both separately MEASURED configurations are authoritative.
+CFG_RX = re.compile(r"(\d{2,4})\s+passed[^.]*?(\d{1,3})\s+skipped", re.I)
 
-    The with-deposit run and the source-only run legitimately differ; a
-    document may quote either, but nothing else.
+
+def _measured(canonical):
+    """Structured, configuration-bound acceptance counts.
+
+    Deliberately NOT reduced to an unordered set of numbers: each measured
+    configuration keeps its own passed/skipped pair and label.
     """
     acc = canonical["acceptance"]
-    counts = set()
-    for key in ("test_suite", "test_suite_source_only"):
-        if key in acc:
-            m = COUNT_RX.search(acc[key])
-            assert m, f"acceptance.{key} states no passed count"
-            counts.add(m.group(1))
-    assert counts, "no authoritative test count in acceptance"
-    return counts
+    out = {}
+    m = COUNT_RX.search(acc["test_suite"])
+    assert m, "acceptance.test_suite states no passed count"
+    sk = re.search(r"(\d{1,3})\s+skipped", acc["test_suite"])
+    out["with_deposit"] = {"passed": int(m.group(1)),
+                           "skipped": int(sk.group(1)) if sk else None}
+    src = acc.get("test_suite_source_only")
+    assert src, "acceptance.test_suite_source_only is missing"
+    m2 = CFG_RX.search(src)
+    assert m2, "acceptance.test_suite_source_only states no passed/skipped pair"
+    out["source_only"] = {"passed": int(m2.group(1)), "skipped": int(m2.group(2))}
+    return out
+
+
+def test_acceptance_counts_are_configuration_bound(canonical):
+    """Structure and internal consistency only - the literal totals live in
+    the metadata (one source of truth) and are deliberately NOT duplicated
+    here, where they would go stale the moment a test is added."""
+    m = _measured(canonical)
+    assert set(m) == {"with_deposit", "source_only"}
+    for cfg, v in m.items():
+        assert isinstance(v["passed"], int) and v["passed"] > 0, cfg
+        assert isinstance(v["skipped"], int) and v["skipped"] >= 0, cfg
+    assert m["with_deposit"]["skipped"] == 0, "fully configured run must not skip"
+    assert m["source_only"]["skipped"] > 0, "source-only run must record its skips"
+    assert m["source_only"]["passed"] < m["with_deposit"]["passed"], (
+        "source-only cannot pass more tests than the fully configured run")
+    assert (m["source_only"]["passed"] + m["source_only"]["skipped"]
+            == m["with_deposit"]["passed"]), (
+        "collected totals must agree across configurations")
+    acc = canonical["acceptance"]
+    assert "deposit" in acc["test_suite"].lower()
+    assert "source-only" in acc["test_suite_source_only"].lower()
+
+
+def test_no_active_claim_of_remaining_with_deposit_skips(canonical):
+    """with_deposit skipped == 0, so no active prose may say skips remain."""
+    assert _measured(canonical)["with_deposit"]["skipped"] == 0
+    for rel in ("docs/REPRODUCIBILITY_REPORT.md", "README.md", "CHANGELOG.md"):
+        for sent in _sentences(_read(rel)):
+            if HIST_CLAUSE.search(sent):
+                continue
+            low = sent.lower()
+            assert not ("remaining skips" in low and "deposit" in low), (
+                f"{rel} still claims remaining with-deposit skips: "
+                f"{sent.strip()[:110]}")
 
 
 @pytest.mark.parametrize("rel", ["README.md", "CHANGELOG.md",
                                  "docs/REPRODUCIBILITY_REPORT.md"])
 def test_documents_agree_with_authoritative_test_count(canonical, rel):
-    want = _authoritative_counts(canonical)
+    allowed = {c["passed"] for c in _measured(canonical).values()}
     current = [s for s in _sentences(_read(rel))
                if COUNT_RX.search(s) and not HIST_CLAUSE.search(s)]
     assert current, f"{rel} states no current test count"
     for s in current:
         for n in COUNT_RX.findall(s):
-            assert n in want, (
-                f"{rel} states {n} passed but the authoritative measured "
-                f"counts are {sorted(want)}: {s.strip()[:110]}")
+            assert int(n) in allowed, (
+                f"{rel} states {n} passed but the measured configurations are "
+                f"{sorted(allowed)}: {s.strip()[:110]}")
 
 
 def test_historical_counts_are_labelled(canonical):
@@ -512,3 +598,73 @@ def test_manifest_does_not_claim_to_be_the_deposit_zip(manifest):
     assert "deposit zip" not in blob
     assert "historical_windows_worktree_bytes" in manifest["scopes"]
     assert "relocation" in blob, "relocation-ready metadata missing"
+
+
+def test_manifest_rejects_duplicate_json_keys():
+    """A duplicate key would let one identity silently shadow another."""
+    seen_dupes = []
+
+    def hook(pairs):
+        keys = [k for k, _ in pairs]
+        for k in keys:
+            if keys.count(k) > 1 and k not in seen_dupes:
+                seen_dupes.append(k)
+        return dict(pairs)
+
+    json.loads(_read("remediation/corrected_outputs/SHA256_MANIFEST.json"),
+               object_pairs_hook=hook)
+    assert not seen_dupes, f"duplicate JSON keys in manifest: {seen_dupes}"
+
+
+def test_manifest_expected_path_set_is_frozen(manifest):
+    expected = manifest["expected_paths"]
+    assert len(expected) == EXPECTED_MANIFEST_ENTRIES
+    assert len(set(expected)) == len(expected), "duplicate path in expected_paths"
+    for scope in ("historical_windows_worktree_bytes",
+                  "repository_normalized_bytes"):
+        assert set(manifest["scopes"][scope]["files"]) == set(expected), (
+            f"{scope} does not match the frozen expected path set")
+
+
+def test_manifest_identical_binaries_are_explicit(manifest):
+    hist = manifest["scopes"]["historical_windows_worktree_bytes"]["files"]
+    repo = manifest["scopes"]["repository_normalized_bytes"]["files"]
+    declared = manifest["identical_binary_paths"]
+    assert len(declared) == 8, f"expected 8 identical binaries, got {len(declared)}"
+    actual = sorted(p for p in hist if hist[p]["sha256"] == repo[p]["sha256"])
+    assert sorted(declared) == actual, (
+        f"declared identical binaries != actual; declared_only="
+        f"{set(declared) - set(actual)} actual_only={set(actual) - set(declared)}")
+    for p in declared:
+        assert hist[p]["bytes"] == repo[p]["bytes"], (
+            f"{p} declared identical but byte counts differ")
+    assert sorted(manifest["eol_differing_text_paths"]) == sorted(
+        set(hist) - set(declared))
+
+
+def test_manifest_relocation_schema(manifest):
+    r = manifest["relocation"]
+    assert set(r["allowed_states"]) == {"repository", "relocated",
+                                        "approved_removal"}
+    assert isinstance(r["packages"], dict), "packages must support MULTIPLE archives"
+    files = r["files"]
+    assert set(files) == set(manifest["expected_paths"])
+    for path, ent in files.items():
+        st = ent["state"]
+        assert st in r["allowed_states"], f"{path}: bad state {st}"
+        if st == "repository":
+            assert (REPO / path).exists(), f"{path} declared repository but absent"
+            assert ent["package"] is None
+        elif st == "relocated":
+            pkg = ent["package"]
+            assert pkg in r["packages"], f"{path}: unknown package {pkg}"
+            meta = r["packages"][pkg]
+            for k in ("doi", "archive_filename", "archive_sha256",
+                      "verification_status"):
+                assert meta.get(k), f"package {pkg} missing {k}"
+            assert ent["archive_member_path"], f"{path}: no archive_member_path"
+        else:
+            assert ent["removal_approval"] and ent["removal_reason"], path
+        # both byte identities survive regardless of state
+        assert path in manifest["scopes"]["historical_windows_worktree_bytes"]["files"]
+        assert path in manifest["scopes"]["repository_normalized_bytes"]["files"]

@@ -365,13 +365,288 @@
       "bytes": 2857
     }
   },
-  "files_legacy_note": "Retained for backward compatibility and IDENTICAL to scopes.archive_bytes.files. New consumers should select an explicit scope instead of reading this key.",
+  "files_legacy_note": "Retained for backward compatibility and IDENTICAL to scopes.historical_windows_worktree_bytes.files. New consumers should select an explicit scope instead of reading this key.",
   "relocation": {
-    "status": "NOT RELOCATED",
-    "note": "Reserved for a future move of these artifacts into the Zenodo evidence package. When that happens record doi, archive_filename, archive_sha256 and archive_member_path HERE - do not overwrite or delete either byte scope above, which are historical provenance.",
-    "doi": null,
-    "archive_filename": null,
-    "archive_sha256": null,
-    "archive_member_path": null
-  }
+    "schema": "packages + per-file state; supports MULTIPLE Zenodo packages because the scope ledger may route data artifacts and software/evidence artifacts separately",
+    "allowed_states": [
+      "repository",
+      "relocated",
+      "approved_removal"
+    ],
+    "validation_rules": {
+      "repository": "the original path MUST exist and match repository_normalized_bytes metadata",
+      "relocated": "absence is allowed ONLY with a complete, verified package entry and archive_member_path",
+      "approved_removal": "absence requires a recorded approval and reason; BOTH byte identities remain preserved"
+    },
+    "packages": {},
+    "files": {
+      "remediation/audit/audit_map_old_vs_new_centroids.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/centroid_displacement_audit_760.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_by_area.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_by_membercount.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_by_multiplicity.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_by_type.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_by_year.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/displacement_statistics.json": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/fig3_footprint_before_after.json": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/audit/top20_displacements.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/Figure3_assembled.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/Figure5_type1_type2.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/Figure6_type3_two_events.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/Figure7_type4_six_days.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/validation_kfold/cv_summary.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/validation_kfold/fold_metrics.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      },
+      "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv": {
+        "state": "repository",
+        "package": null,
+        "archive_member_path": null,
+        "removal_approval": null,
+        "removal_reason": null
+      }
+    }
+  },
+  "expected_paths": [
+    "remediation/audit/audit_map_old_vs_new_centroids.png",
+    "remediation/audit/centroid_displacement_audit_760.csv",
+    "remediation/audit/displacement_by_area.csv",
+    "remediation/audit/displacement_by_membercount.csv",
+    "remediation/audit/displacement_by_multiplicity.csv",
+    "remediation/audit/displacement_by_type.csv",
+    "remediation/audit/displacement_by_year.csv",
+    "remediation/audit/displacement_statistics.json",
+    "remediation/audit/fig3_footprint_before_after.json",
+    "remediation/audit/top20_displacements.csv",
+    "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv",
+    "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv",
+    "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv",
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx",
+    "remediation/corrected_outputs/figures/Figure3_assembled.png",
+    "remediation/corrected_outputs/figures/Figure5_type1_type2.png",
+    "remediation/corrected_outputs/figures/Figure6_type3_two_events.png",
+    "remediation/corrected_outputs/figures/Figure7_type4_six_days.png",
+    "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png",
+    "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png",
+    "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv",
+    "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv",
+    "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv",
+    "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv",
+    "remediation/corrected_outputs/validation_kfold/cv_summary.csv",
+    "remediation/corrected_outputs/validation_kfold/fold_metrics.csv",
+    "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv",
+    "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv"
+  ],
+  "identical_binary_paths": [
+    "remediation/audit/audit_map_old_vs_new_centroids.png",
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx",
+    "remediation/corrected_outputs/figures/Figure3_assembled.png",
+    "remediation/corrected_outputs/figures/Figure5_type1_type2.png",
+    "remediation/corrected_outputs/figures/Figure6_type3_two_events.png",
+    "remediation/corrected_outputs/figures/Figure7_type4_six_days.png",
+    "remediation/corrected_outputs/figures/Figure_S4_kfold_heldout_maps.png",
+    "remediation/corrected_outputs/figures/q1_four_variable_centroid_risk_map.png"
+  ],
+  "eol_differing_text_paths": [
+    "remediation/audit/centroid_displacement_audit_760.csv",
+    "remediation/audit/displacement_by_area.csv",
+    "remediation/audit/displacement_by_membercount.csv",
+    "remediation/audit/displacement_by_multiplicity.csv",
+    "remediation/audit/displacement_by_type.csv",
+    "remediation/audit/displacement_by_year.csv",
+    "remediation/audit/displacement_statistics.json",
+    "remediation/audit/fig3_footprint_before_after.json",
+    "remediation/audit/top20_displacements.csv",
+    "remediation/corrected/event_global_max_algorithm/event_global_max_parameters.csv",
+    "remediation/corrected/event_global_max_algorithm/final_labels_event_global_max.csv",
+    "remediation/corrected/event_global_max_algorithm/kernel_selfcheck_daily_canonical.csv",
+    "remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
+    "remediation/corrected_outputs/lgcp/centroid_points_all_ellipses_validated.csv",
+    "remediation/corrected_outputs/lgcp/centroid_points_with_nearest_grid_covariates.csv",
+    "remediation/corrected_outputs/lgcp/grid_predicted_intensity_all_variants.csv",
+    "remediation/corrected_outputs/lgcp/lgcp_model_parameters.csv",
+    "remediation/corrected_outputs/validation_kfold/cv_summary.csv",
+    "remediation/corrected_outputs/validation_kfold/fold_metrics.csv",
+    "remediation/corrected_outputs/validation_kfold/per_centroid_risk_zone_validation.csv",
+    "remediation/corrected_outputs/validation_kfold/risk_zone_summary_by_centroid_type.csv"
+  ]
 }
