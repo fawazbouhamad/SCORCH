@@ -29,8 +29,8 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a clean checkout WITHOUT the deposit | **212 passed, 34 skipped** (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
-| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`; FINAL DOCX dir via `SCORCH_FINAL_DOCX_DIR`) | **244 passed, 2 skipped** |
+| `pytest tests -q` in a clean checkout WITHOUT the deposit | **339 passed, 0 skipped** (current). HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
+| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`; FINAL DOCX dir via `SCORCH_FINAL_DOCX_DIR`) | **339 passed, 0 skipped** (current). HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
 
 The two remaining skips with the deposit are the publication-outputs
 isolation cases, which require a materialized `publication_outputs/` tree
@@ -312,7 +312,7 @@ reproduced the embedded rasters, which they do not.
 | Power-law statistics (canonical `--nboot 5000`) | The entire `power_law/statistics/` directory is byte-identical to the deposit, bootstrap CSVs included |
 | variant3 surface extraction | Exact: max absolute difference **0.0** over 1,800 rows against the frozen variant3 CSV |
 | 5-fold CV (seed 20260704) | Mean held-out distance **85.009602 km** (verified from the corrected committed `validation_kfold/cv_summary.csv`); all five CV CSVs byte-identical to the deposit |
-| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **437.854964 / 285.656041 / 180.807535 / 81.475518 km** (manuscript 437.85 / 285.66 / 180.81 / 81.48) |
+| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **389.670139 / 231.807728 / 151.672110 / 69.064508 km** (weighted centroids; the superseded pre-remediation values were 437.854964 / 285.656041 / 180.807535 / 81.475518 km) |
 | GHCN-ERA5 Aswan validation | r = 0.9802, RMSE = 1.696 C, bias = -1.5952 C, n = 9 (manuscript 0.98 / 1.70 / -1.60) |
 | Canonical counts | 1,800 cells; 15,738 days; Theta = 371; fraction 0.2061; 395 days; 51 events; 760 ellipses; types 3/4/20/24; event-day split 3/4/75/313; event 14 = Type 3 |
 

@@ -17,7 +17,7 @@ column headings, dates inside the bottom-right of each snapshot, ONE
 unified L1/L2/Centroid legend below, no per-snapshot legends, no slide
 heading (the event/region description moves to the caption).
 
-Centroid convention (v1.0.1 remediation): each ellipse and its axes keep
+Centroid convention (pre-release v1.0.0 remediation): each ellipse and its axes keep
 the unweighted sigma=1.25 PCA geometry and are rigidly translated to the
 raw-Celsius Tmax-weighted centroid of the structure (the canonical
 ``render_day_tmax_weighted`` path shared with Figures 5-7). Every rendered

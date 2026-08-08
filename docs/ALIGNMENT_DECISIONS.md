@@ -261,7 +261,8 @@ binaries built under R 4.5.3.** The fit completed with `Captured fit warnings: 0
 `3.7.1` occurrence in the release tree. Recorded as verified-correct; the contract pins `3.7-1`.
 
 **φ = 287.7 km.** The manuscript's φ corresponds to the LGCP output field **`scale_km`**
-(`scale = 287.707960` km), **not** the separate `phi` field the R script emits. `spatstat`'s
+(`scale = 272.455153` km for the current weighted-centroid fit; the superseded
+pre-remediation value was `287.707960` km), **not** the separate `phi` field the R script emits. `spatstat`'s
 `kppm` does not define a cluster-strength `phi` for this LGCP parameterisation; the script's own note
 says so. This must be stated explicitly wherever φ is reported.
 

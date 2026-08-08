@@ -752,7 +752,7 @@ def stage_rebuild_catalog(stage, base_dir, out_dir=None, config=None):
 
 
 # ---------------------------------------------------------------------------
-# Stage: weighted-centroids  (h2)  [v1.0.1 remediation]
+# Stage: weighted-centroids  (h2)  [pre-release v1.0.0 remediation]
 # ---------------------------------------------------------------------------
 def stage_weighted_centroids(stage, base_dir, out_dir=None, config=None):
     """(h2) STRICT post-PCA raw-Celsius Tmax-weighted centroid stage.

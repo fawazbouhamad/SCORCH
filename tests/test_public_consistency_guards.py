@@ -1,6 +1,6 @@
 """Guards against stale science re-entering the public-facing surfaces.
 
-The v1.0.1 remediation replaced the unweighted PCA-origin locations with
+The pre-release v1.0.0 remediation replaced the unweighted PCA-origin locations with
 raw-Celsius Tmax-weighted centroids. Everything downstream of *location*
 changed: the LGCP fit, the cross-validation distances, the sector counts and
 the centroid-dependent figures. These tests fail if any superseded value or
@@ -294,3 +294,130 @@ def test_repository_scope_matches_what_git_actually_stores(manifest):
         assert hashlib.sha256(out.stdout).hexdigest() == meta["sha256"], path
         checked += 1
     assert checked, "no manifest entry could be checked against git"
+
+
+# ===========================================================================
+# 7. STRUCTURED FIGURE CROSSWALK + CURRENT-vs-HISTORICAL SWEEP (Phase 2.1C)
+# ===========================================================================
+import csv as _csv
+import re as _re
+
+_IN_SCOPE = {"Fig. 1.": "Figure 1", "Fig. 4.": "Figure 4", "Fig. 5.": "Figure 5",
+             "Fig. 6.": "Figure 6", "Fig. 7.": "Figure 7", "Fig. 12.": "Figure 12",
+             "Fig. D.": "Figure D"}
+
+# fields that carry a CURRENT identity (historical fields excluded by name)
+_CURRENT_FIELDS = {
+    "docs/REPRODUCIBILITY_MATRIX.csv":
+        ["canonical_expected", "reproduced_value", "checksum"],
+    "docs/FIGURE_PROVENANCE.csv":
+        ["deployed_embed_sha256", "reproduced_output_sha256", "reproduction_result"],
+}
+
+_HIST_MARK = _re.compile(
+    r"histor|supersed|pre-remediat|legacy|earlier|previous|deprecat|"
+    r"approved.original|prior|formerly|not current|no longer", _re.I)
+
+
+def _identity():
+    with open(REPO / "docs/MANUSCRIPT_FIGURE_IDENTITY.csv", encoding="utf-8") as f:
+        return {r["label"].strip(): r for r in _csv.DictReader(f)}
+
+
+def test_figure_crosswalk_current_hashes_agree_everywhere():
+    """Every in-scope figure's CURRENT-identity fields in the matrix and the
+    provenance table must carry the canonical hash. A different hash is allowed
+    only when the same cell explicitly marks it historical/superseded."""
+    ident = _identity()
+    canon = {name: ident[lab]["manuscript_final_sha256"]
+             for lab, name in _IN_SCOPE.items()}
+    problems = []
+    for path, fields in _CURRENT_FIELDS.items():
+        with open(REPO / path, encoding="utf-8") as f:
+            for i, row in enumerate(_csv.DictReader(f), 2):
+                blob = " | ".join(v or "" for v in row.values())
+                names = [n for n in _IN_SCOPE.values()
+                         if _re.search(rf"{_re.escape(n)}", blob)]
+                if not names:
+                    continue
+                for fld in fields:
+                    val = row.get(fld) or ""
+                    for h in _re.findall(r"[0-9a-f]{64}", val):
+                        if any(h == canon[n] for n in names):
+                            continue
+                        if _HIST_MARK.search(val):
+                            continue
+                        problems.append(f"{path} row {i} / {fld} ({','.join(names)}): {h[:16]}...")
+    assert not problems, ("unclassified non-canonical figure hashes: "
+                          + "; ".join(problems))
+
+
+_STALE_TOKENS = {
+    "-11.352611": "LGCP intercept (unweighted)",
+    "0.464404": "LGCP mean_tmax_z (unweighted)",
+    "1.647219": "LGCP sigma2 (unweighted)",
+    "287.707960": "LGCP scale (unweighted)",
+    "287.70796": "LGCP scale (unweighted)",
+    "84.934649": "CV distance (unweighted)",
+    "437.854964": "zone top10 (unweighted)",
+    "285.656041": "zone top20 (unweighted)",
+    "438/286/181/81": "zone tuple (unweighted)",
+    "212 passed": "historical acceptance count",
+    "244 passed": "historical acceptance count",
+}
+
+_SWEEP_FILES = [
+    "docs/REPRODUCIBILITY_MATRIX.csv", "docs/REPRODUCIBILITY_REPORT.md",
+    "docs/FIGURE_PROVENANCE.csv", "docs/CANONICAL_SCIENCE.json",
+    "docs/ALIGNMENT_DECISIONS.md", "docs/SANITIZATION_NOTES.md",
+    "CHANGELOG.md", "README.md",
+    "remediation/MANUSCRIPT_IMPACT_INVENTORY.md",
+    "remediation/corrected/event_global_max_algorithm/build_manifest.json",
+]
+
+
+@pytest.mark.parametrize("rel", _SWEEP_FILES)
+def test_no_unclassified_superseded_values(rel):
+    """Superseded values may appear ONLY in a cell/line that marks them as
+    historical. Bare numbers are never banned globally - classification is
+    contextual."""
+    p = REPO / rel
+    problems = []
+    if rel.endswith(".csv"):
+        with open(p, encoding="utf-8") as f:
+            for i, row in enumerate(_csv.DictReader(f), 2):
+                for fld, val in row.items():
+                    if not val or _HIST_MARK.search(val):
+                        continue
+                    for tok, desc in _STALE_TOKENS.items():
+                        if tok in val:
+                            problems.append(f"row {i} / {fld}: {tok} [{desc}]")
+    else:
+        lines = p.read_text(encoding="utf-8").splitlines()
+        in_legacy = False
+        for i, line in enumerate(lines, 1):
+            if rel.endswith(".json"):
+                if "legacy_unweighted_baseline" in line or "_historical" in line:
+                    in_legacy = True
+                elif in_legacy and _re.match(r'^  "[a-z_]+":', line):
+                    in_legacy = False
+            ctx = " ".join(lines[max(0, i - 4):i + 3])
+            if in_legacy or _HIST_MARK.search(ctx):
+                continue
+            for tok, desc in _STALE_TOKENS.items():
+                if tok in line:
+                    problems.append(f"line {i}: {tok} [{desc}]")
+    assert not problems, (f"{rel} presents superseded values as current: "
+                          + "; ".join(problems))
+
+
+def test_current_acceptance_count_is_recorded(canonical):
+    ts = canonical["acceptance"]["test_suite"]
+    assert "339 passed" in ts
+    assert "test_suite_historical" in canonical["acceptance"]
+    assert "HISTORICAL" in canonical["acceptance"]["test_suite_historical"]["status"].upper()
+
+
+def test_figure12_does_not_claim_plotted_data_unchanged():
+    t = _read("docs/REPRODUCIBILITY_MATRIX.csv")
+    assert "plotted data and quantile ranks unchanged" not in t

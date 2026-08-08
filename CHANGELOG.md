@@ -11,7 +11,7 @@ Applied before any public release. This work was developed on an internal
 `1.0.1-rc` working line; it is **not** a released 1.0.1 and is folded here
 as pre-release remediation of the forthcoming v1.0.0.
 
-The v1.0.0 catalog reported the ordinary (unweighted) PCA origin as each
+An earlier pre-release catalog candidate reported the ordinary (unweighted) PCA origin as each
 daily heat structure's location; the advisor-approved raw-Celsius
 Tmax-weighted centroid was never applied (the builder called
 `evaluate_cluster_ellipse` without structure-specific Tmax weights, and the
@@ -169,7 +169,10 @@ pre-release candidates, never published.
 * `scripts/deposit/build_processed_field_netcdf.py`: builds and verifies
   the deposit's CF-1.10 NetCDF of the complete processed daily field.
 * Frozen author-created assets with checksums (`assets/frozen_figures/`):
-  Figures 1 and 4 are ACTIVE frozen assets with no runnable producer
+  Figures 1 and 4 are ACTIVE frozen assets WITH deterministic donor-based
+  producers (scripts/figures/fig01/restore_fig01_original_threshold.py and
+  scripts/figures/fig04/make_fig04_symmetry_final.py), each reproducing its
+  shipped asset byte-identically
   (hand-drawn schematics, by design). The old Fig. S.1 station drawing in
   the same tree is a SUPERSEDED HISTORICAL FALLBACK only — since the
   v1.0.0 pre-release correction the canonical S.1 station panels (c)/(d)
@@ -209,7 +212,9 @@ pre-release candidates, never published.
   source tree) + canonical regression tests (the latter run when the
   deposit or the frozen catalog is present, and skip with a clear message
   otherwise). Measured in the hash-locked clean-room environment:
-  212 passed + 34 skipped without the deposit;
-  244 passed + 2 skipped with it (the two remaining skips are the
+  339 passed, 0 failed, 0 errors, 0 skipped with the deposit and fixtures
+  (current). HISTORICAL, not current: 212 passed + 34 skipped without the
+  deposit and 244 passed + 2 skipped with it were pre-remediation
+  measurements (their two skips were the
   publication-outputs isolation cases, which need a materialized
   `publication_outputs/` tree that a source-only checkout does not ship).
