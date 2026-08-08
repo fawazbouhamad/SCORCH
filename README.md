@@ -270,6 +270,6 @@ Copernicus information.
 
 ## Issues and contact
 
-Please open an issue at
-https://github.com/fawazbouhamad/SCORCH/issues. Contributor guidance is in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Please open an issue on the
+[issue tracker](https://github.com/fawazbouhamad/SCORCH/issues). Contributor
+guidance is in [CONTRIBUTING.md](CONTRIBUTING.md).
