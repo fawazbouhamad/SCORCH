@@ -10,7 +10,6 @@ Eastern Mediterranean and Middle East (lat 10-46 N, lon 20-70 E, Apr-Sep
 event typology, and a first-order centroid-concentration model of where
 heat-structure centroids concentrate spatially.
 
-Repository: <https://github.com/fawazbouhamad/SCORCH>
 
 ## What this repository contains
 
