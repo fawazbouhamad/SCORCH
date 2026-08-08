@@ -1,7 +1,7 @@
 {
  "purpose": "SCORCH Tmax-weighted-centroid remediation freeze manifest (pre-implementation)",
  "base_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5",
- "deposit_root": "C:/Users/fawaw/AppData/Local/Temp/scorch_dep_v100/scorch_processed_data_v1.0.0",
+ "deposit_root": "<TMPDIR>/scorch_dep_v100/scorch_processed_data_v1.0.0",
  "created_utc": "2026-08-07T06:42:29Z",
  "n_files": 126,
  "files": [

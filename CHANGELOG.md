@@ -1,8 +1,15 @@
 # Changelog
 
-## 1.0.1-rc (local release candidate; unpublished)
+## 1.0.0 (unreleased; date set at public release)
 
-### Scientific correction: raw-Celsius Tmax-weighted structure centroids
+Initial public release accompanying the SCORCH paper
+(SCORCH = Spatiotemporal Classification of Regional Compound Heatwaves).
+
+### Pre-release remediation: raw-Celsius Tmax-weighted structure centroids
+
+Applied before any public release. This work was developed on an internal
+`1.0.1-rc` working line; it is **not** a released 1.0.1 and is folded here
+as pre-release remediation of the forthcoming v1.0.0.
 
 The v1.0.0 catalog reported the ordinary (unweighted) PCA origin as each
 daily heat structure's location; the advisor-approved raw-Celsius
@@ -28,11 +35,6 @@ with a silent unweighted fallback).
   (seed 20260704, identical folds); Appendix D products; sector counts.
 * Evidence packet: `remediation/` (freeze manifest, 760-row displacement
   audit, before/after results, manuscript impact inventory).
-
-## 1.0.0 (unreleased; date set at public release)
-
-Initial public release accompanying the SCORCH paper
-(SCORCH = Spatiotemporal Classification of Regional Compound Heatwaves).
 
 ### Pre-release corrections (2026-08-04)
 

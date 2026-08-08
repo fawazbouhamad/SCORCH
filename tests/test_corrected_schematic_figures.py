@@ -13,6 +13,7 @@ guarantee (pixel changes confined to the authorized regions).
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 import subprocess
 import sys
@@ -26,9 +27,9 @@ FIG01_SCRIPT = (REPO / "scripts" / "figures" / "fig01" /
                 "restore_fig01_original_threshold.py")
 FIG01_ORIGINAL = (REPO / "scripts" / "figures" / "fig01" / "original" /
                   "Figure_01_original.png")
-FIG01_FONT = Path(
-    "C:/Users/fawaw/AppData/Local/Microsoft/FontCache/4/CloudFonts/Aptos/"
-    "30153066857.ttf")
+# Resolved from the environment only; no workstation path is embedded.
+_APTOS = os.environ.get("SCORCH_APTOS_FONT", "").strip()
+FIG01_FONT = Path(_APTOS) if _APTOS else None
 FIG04_SCRIPT = (REPO / "scripts" / "figures" / "fig04" /
                 "correct_fig04_type4_horizontal.py")
 FIG04_ORIGINAL = (REPO / "scripts" / "figures" / "fig04" / "original" /
@@ -50,9 +51,10 @@ def _sha(p: Path) -> str:
 @pytest.mark.skipif(not FIG01_SCRIPT.exists() or not FIG01_ORIGINAL.exists(),
                     reason="fig01 restorer or archived original missing")
 def test_fig01_reproduces_byte_identical_and_local(tmp_path):
-    if not FIG01_FONT.exists():
-        pytest.skip("pinned Aptos Regular font file not present on this "
-                    "machine (Microsoft 365 cloud font, not redistributable)")
+    if FIG01_FONT is None or not FIG01_FONT.exists():
+        pytest.skip("pinned Aptos Regular font not available; set "
+                    "SCORCH_APTOS_FONT (Microsoft 365 cloud font, "
+                    "not redistributable)")
     subprocess.run([sys.executable, str(FIG01_SCRIPT), "--out", str(tmp_path)],
                    check=True, cwd=REPO)
     assert _sha(tmp_path / "Figure_01.png") == _sha(

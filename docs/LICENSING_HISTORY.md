@@ -8,8 +8,13 @@ can tell which terms apply to it.
 
 | Revisions | Software licence | Status |
 |---|---|---|
-| Initial public history through the `v1.0.0` release (tag `v1.0.0`, commit `184f15c6`) and the subsequent `main` commit `bd6e4608` | **MIT** | Historical. Still in force for those revisions. |
-| This release onward | **GPL-3.0-only** | Current. |
+| Public pre-release repository snapshots up to and including the `v1.0.0` tag target (commit `184f15c6`) and the subsequent `main` commit `bd6e4608` | **MIT** | Historical. Still in force for those revisions. |
+| The forthcoming formal v1.0.0 release onward | **GPL-3.0-only** | Current. |
+
+> The existing `v1.0.0` tag currently points at a **pre-release repository
+> snapshot**, not the completed formal release. Final tag alignment is a
+> separate release stop gate; the tag object and its commit are preserved
+> as provenance and are not moved in this round.
 
 ## What the change does and does not do
 
@@ -41,8 +46,11 @@ Contributor audit of the complete git history (all branches):
 
 | Author identity | Commits |
 |---|---|
-| Fawaz Bouhamad `<fawawaz@hotmail.com>` | 29 |
-| Fawaz Bouhamad `<fawazbouhamad@ufl.edu>` | 1 |
+| Fawaz Bouhamad (personal address) | 29 |
+| Fawaz Bouhamad (institutional address) | 1 |
+
+Addresses are omitted here deliberately; both identities belong to the same
+author and remain visible in the commit metadata itself for any auditor.
 
 There are no third-party contributors, so no outside contributor's consent
 is implicated. (`GitHub <noreply@github.com>` appears twice as *committer*

@@ -366,7 +366,7 @@
       45.5,
       32.5
     ],
-    "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+    "phi_disambiguation": "The manuscript's phi = 272.5 km (weighted-centroid fit; scale_km = 272.455153) corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
     "numeric_tolerance": 1e-09,
     "string_identity_required_where_currently_achieved": true,
     "expected_qc": {
@@ -452,7 +452,7 @@
   "environment": {
     "python": {
       "version": "3.12.10",
-      "interpreter": "C:/Users/fawaw/AppData/Local/Programs/Python/Python312/python.exe",
+      "interpreter": "<PYTHON-3.12.10>/python.exe",
       "numpy": "2.4.6",
       "pandas": "3.0.3",
       "scipy": "1.17.1",
@@ -462,7 +462,7 @@
     },
     "r": {
       "executed_interpreter_version": "4.5.1",
-      "interpreter_path": "C:/Program Files/R/R-4.5.1/bin/Rscript.exe",
+      "interpreter_path": "<R-4.5.1>/bin/Rscript.exe",
       "spatstat_binaries_built_under": "4.5.3",
       "discrepancy_resolution": "NOT a conflict. R emitted only build-provenance warnings ('package X was built under R version 4.5.3'). The executing interpreter was 4.5.1, matching environment/renv.lock. Documented as: executed under R 4.5.1 with spatstat binaries built under R 4.5.3.",
       "packages": {

@@ -190,9 +190,12 @@ python -m pytest tests -q
 > **Step 2** requires the data record to be **published**. The data DOI
 > `10.5281/zenodo.21717752` is currently **reserved and does not yet
 > resolve**, so `fetch-data --doi` will not retrieve anything until the
-> record is public. Until then, obtain the deposit as described in
+> record is public. Until then, the processed-data route still works from an
+> authorized Zenodo preview link or an existing local copy of the deposit:
+> point `--data-dir` at that directory and skip `fetch-data`. Note that
 > [docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md)
-> and point `--dest` / `--data-dir` at your local copy.
+> describes rebuilding the inputs from **raw provider data**; it does not
+> grant access to the processed deposit.
 
 Useful variants:
 
@@ -235,7 +238,7 @@ the deposit root so that every scientific and publication guard runs.
 | `assets/` | Frozen figure assets and canonical manuscript figure rasters |
 | `data/auxiliary/` | Small author-generated inputs shipped with the code |
 | `environment/` | Hash-pinned environment locks |
-| `remediation/` | Evidence packet for the v1.0.1 correction round |
+| `remediation/` | Evidence packet for the pre-release Tmax-weighted-centroid correction |
 | `run_reproduction.py` | Cross-platform driver for the stage table |
 
 Per-figure provenance is machine-readable rather than narrated here: see

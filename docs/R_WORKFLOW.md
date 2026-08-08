@@ -37,9 +37,10 @@ where the language boundary sits.
   `scorch_data/lgcp`, the processed-data deposit layout) and `<output-dir>`
   receives the fit results (defaults to
   `reproduced/lgcp/model_diagnostics_and_variants`).
-- The R stage is also invoked automatically by
-  the provider-level reconstruction guide (`scorch reconstruction-guide`)
-  (stage `lgcp-fit-r`), which locates and runs `Rscript` for you.
+- `scorch reconstruction-guide` (equivalently `run_reproduction.py guide`)
+  only **prints** the provider-level reconstruction instructions, including
+  the `lgcp-fit-r` stage. It does **not** locate or execute `Rscript`, and it
+  runs no R workflow. Invoke the command above yourself to fit the model.
 - The Python-side variant3 extraction (scripts/lgcp/extract_variant3.py) then
   produces grid_predicted_intensity_variant3.csv, which is also archived in
   the processed-data deposit, so the FAST reproduction route never needs R.

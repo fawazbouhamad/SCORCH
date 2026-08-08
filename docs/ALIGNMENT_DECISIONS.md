@@ -11,7 +11,7 @@
 
 | Item | Value |
 |---|---|
-| Repository | `C:\Users\fawaw\OneDrive\Documents\GitHub\SCORCH` |
+| Repository | `<CANONICAL-REPO>` |
 | Branch at start | `scorch-demo-pack-v1-local` |
 | HEAD at start | `a5853793b6e09bffd78dd93701edeb1419be8a2a` |
 | Working branch | `alignment-v1.0.1` — internal, never-public pre-release working name (same HEAD; all working-tree changes preserved) |
@@ -20,7 +20,7 @@
 | Stashes | `stash@{0}`, `stash@{1}` — untouched |
 | Pre-existing modification | `scripts/common/ellipse_pca.py` (M) — **preserved, see §6** |
 | Pre-existing untracked trees | `clean/`, `release_staging/`, `outputs/…`, `paper_intake/`, `scripts/event_global_max/`, `scripts/six_task_review/`, `scripts/validation/`, `colab_assignment/`, `analysis_outputs/`, … — **all preserved** |
-| Audit evidence | `C:\Users\fawaw\AppData\Local\Temp\SCORCH_AUDIT_20260804` — **read-only, nothing deleted** |
+| Audit evidence | `<TMPDIR>\SCORCH_AUDIT_20260804` — **read-only, nothing deleted** |
 
 Authoritative document artifacts (confirmed by content hash):
 
@@ -252,7 +252,7 @@ package 'spatstat.geom' was built under R version 4.5.3
 
 This is R's standard *build-provenance* warning. The **executing interpreter was R 4.5.1**
 (`environment/renv.lock` `"Version": "4.5.1"`, and the installed toolchain at
-`C:/Program Files/R/R-4.5.1/bin/Rscript.exe`). Documented as: **executed under R 4.5.1 with spatstat
+`<R-4.5.1>/bin/Rscript.exe`). Documented as: **executed under R 4.5.1 with spatstat
 binaries built under R 4.5.3.** The fit completed with `Captured fit warnings: 0` and
 `ALL QC CHECKS PASS: TRUE`.
 

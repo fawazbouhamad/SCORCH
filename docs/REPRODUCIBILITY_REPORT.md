@@ -245,8 +245,12 @@ and RELOCATED from the supplementary document into the main manuscript as
 `scripts/figures/figS2/make_new_figS2_candidate.py` (legacy internal name).
 Layout and labelling only: dataset, seed 20260704, fold membership
 (152 held-out centroids per fold), refit surfaces, ranks, colours, ticks,
-markers and the zone means 438/286/181/81 km are unchanged and are asserted
-at run time. The superseded supplementary embed was `d3de47b8...`. The
+markers and the zone-mean assertions are unchanged in FORM. The zone means
+themselves moved with the corrected centroids and are now
+**389.670139 / 231.807728 / 151.672110 / 69.064508 km** for the top
+10/20/30/50% zones (the superseded unweighted values were
+437.85/285.66/180.81/81.48 km, quoted in earlier revisions as
+438/286/181/81). They are asserted at run time. The superseded supplementary embed was `d3de47b8...`. The
 separate supplementary document now contains **Fig. S.1 only**.
 
 **V4 correction (internal figS4 component).** The internal fold-map
@@ -298,7 +302,7 @@ reproduced the embedded rasters, which they do not.
 | Trend tables (Sen slope + Mann-Kendall) | Byte-identical to the corrected local staging copies of the Zenodo data deposit (`figure_table_source_data/table01/`), pending the same online-draft synchronization |
 | Power-law statistics (canonical `--nboot 5000`) | The entire `power_law/statistics/` directory is byte-identical to the deposit, bootstrap CSVs included |
 | variant3 surface extraction | Exact: max absolute difference **0.0** over 1,800 rows against the frozen variant3 CSV |
-| 5-fold CV (seed 20260704) | Mean held-out distance **84.934649 km** (manuscript 84.935); all five CV CSVs byte-identical to the deposit |
+| 5-fold CV (seed 20260704) | Mean held-out distance **85.009602 km** (verified from the corrected committed `validation_kfold/cv_summary.csv`); all five CV CSVs byte-identical to the deposit |
 | Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **437.854964 / 285.656041 / 180.807535 / 81.475518 km** (manuscript 437.85 / 285.66 / 180.81 / 81.48) |
 | GHCN-ERA5 Aswan validation | r = 0.9802, RMSE = 1.696 C, bias = -1.5952 C, n = 9 (manuscript 0.98 / 1.70 / -1.60) |
 | Canonical counts | 1,800 cells; 15,738 days; Theta = 371; fraction 0.2061; 395 days; 51 events; 760 ellipses; types 3/4/20/24; event-day split 3/4/75/313; event 14 = Type 3 |

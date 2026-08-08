@@ -46,6 +46,7 @@ fig01_diff_mask.png, fig01_diff_report.json.
 from __future__ import annotations
 
 import argparse
+import os
 import hashlib
 import json
 from pathlib import Path
@@ -62,9 +63,16 @@ CANVAS = (4500, 2531)
 
 # Aptos Regular, Version 2.01;O365 (Microsoft 365 cloud font). The face
 # is not redistributable, so it is referenced in place and pinned by hash.
-FONT_DEFAULT = Path(
-    "C:/Users/fawaw/AppData/Local/Microsoft/FontCache/4/CloudFonts/Aptos/"
-    "30153066857.ttf")
+# Supply the face with --font or the SCORCH_APTOS_FONT environment
+# variable. There is deliberately NO machine-specific default: the file
+# is not redistributable and any path here would be workstation-local.
+FONT_ENV = "SCORCH_APTOS_FONT"
+FONT_FILENAME = "30153066857.ttf"
+
+
+def _font_from_env():
+    v = os.environ.get(FONT_ENV, "").strip()
+    return v or None
 FONT_SHA256 = (
     "95980114fcfd42f2f9c446dae429b70582bf2f03097d68433ea9e7d85a49da0b")
 FONT_SIZE_PX = 93
@@ -108,7 +116,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     ap.add_argument("--donor", default=str(DONOR_DEFAULT))
-    ap.add_argument("--font", default=str(FONT_DEFAULT))
+    ap.add_argument("--font", default=_font_from_env())
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -117,6 +125,12 @@ def main():
     if _sha256(donor_path) != DONOR_SHA256:
         raise SystemExit(f"donor hash mismatch: {donor_path} is not the "
                          "verified original Figure 1 embed")
+    if not args.font:
+        raise SystemExit(
+            f"Aptos Regular not supplied. Pass --font /path/to/"
+            f"{FONT_FILENAME} or set {FONT_ENV}. The face (Version "
+            f"2.01;O365) is a non-redistributable Microsoft 365 cloud "
+            f"font pinned by SHA-256 {FONT_SHA256}.")
     font_path = Path(args.font)
     if _sha256(font_path) != FONT_SHA256:
         raise SystemExit(f"font hash mismatch: {font_path} is not "

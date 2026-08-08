@@ -21,7 +21,7 @@
       "centroid_lon_unweighted",
       "centroid_lat_unweighted"
     ],
-    "tmax_source": "C:/Users/fawaw/AppData/Local/Temp/scorch_dep_v100/scorch_processed_data_v1.0.0\\gridded\\scorch_processed_daily_tmax_field_v1.0.0.nc",
+    "tmax_source": "<TMPDIR>/scorch_dep_v100/scorch_processed_data_v1.0.0\\gridded\\scorch_processed_daily_tmax_field_v1.0.0.nc",
     "tmax_source_sha256": "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c",
     "weighted_stage_calls": 760
   },
@@ -29,9 +29,9 @@
   "eps_rule": "max(daily_avg_eps) per event (kept continuous)",
   "sigma": 1.25,
   "grid_step": 1.0,
-  "source_workbook": "..\\AppData\\Local\\Temp\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
+  "source_workbook": "<TMPDIR>\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv",
   "source_workbook_sha256": "ed91dab5a1f05b2331c78e5ea801f5484b5730cb813230cda4d26e92ba3531e1",
-  "source_labels": "..\\AppData\\Local\\Temp\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\final_labels_event_global_max.csv",
+  "source_labels": "<TMPDIR>\\scorch_dep_v100\\scorch_processed_data_v1.0.0\\catalogs\\final_labels_event_global_max.csv",
   "n_events": 51,
   "n_event_days": 395,
   "n_ellipse_rows": 760,

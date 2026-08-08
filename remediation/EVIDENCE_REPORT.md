@@ -1,13 +1,13 @@
 # SCORCH Tmax-Weighted Centroid Remediation — Evidence Report
 
-Branch `fix/tmax-weighted-centroids` · worktree `C:/Users/fawaw/scorch_tmaxfix`
+Branch `fix/tmax-weighted-centroids` · worktree `<WORKTREE>`
 Date: 2026-08-07 · Operator: automated remediation session (Claude Code), audit-first.
 
 ---
 
 ## 1. Repository identity and lineage
 
-* Canonical repository: `C:/Users/fawaw/OneDrive/Documents/GitHub/SCORCH`
+* Canonical repository: `<CANONICAL-REPO>`
   (remote `origin = https://github.com/fawazbouhamad/SCORCH.git`).
 * Expected private canonical release commit **verified present**:
   `184f15c6c889044324fb07f7545ec73dd849f8e5`
@@ -18,12 +18,12 @@ Date: 2026-08-07 · Operator: automated remediation session (Claude Code), audit
   **zero modified tracked files**, 22 untracked paths (recorded; none can
   reach a worktree created from `184f15c6`).
 * Environment: Python 3.12.10
-  (`C:/Users/fawaw/AppData/Local/Programs/Python/Python312/python.exe`),
-  R 4.5.1 + spatstat 3.x (`C:/Program Files/R/R-4.5.1/bin/Rscript.exe`),
+  (`<PYTHON-3.12.10>/python.exe`),
+  R 4.5.1 + spatstat 3.x (`<R-4.5.1>/bin/Rscript.exe`),
   git 2.54.0.windows.1, Windows 11. Package versions captured in
   `remediation/corrected/event_global_max_algorithm/build_manifest.json`
   (`dependency_versions`).
-* Processed-data deposit: `%LOCALAPPDATA%/Temp/scorch_dep_v100/scorch_processed_data_v1.0.0`
+* Processed-data deposit: `<TMPDIR>/scorch_dep_v100/scorch_processed_data_v1.0.0`
   — **93/93 files verified against its SHA256SUMS (0 mismatch, 0 missing)**.
 
 ## 2–3. Base commit, remediation branch, final state
@@ -297,7 +297,7 @@ machine-readable weighting metadata), LGCP inputs and refit tables,
 variant3 surface, CV tables, Figures 3/5/6/7/12, Figure S4, CV figure,
 fold maps, displacement audit set. Corrected data overlay (deposit layout,
 baseline never touched):
-`%LOCALAPPDATA%/Temp/scorch_dep_v100/scorch_corrected_overlay_v1.0.1`
+`<TMPDIR>/scorch_dep_v100/scorch_corrected_overlay_v1.0.1`
 (DATA_DICTIONARY extended with the 20 new columns).
 Verified unchanged: v1.0.0 deposit (93/93 hashes), labels/params CSVs
 (byte-identical rebuilds), covariate grids (byte-identical), Appendix A

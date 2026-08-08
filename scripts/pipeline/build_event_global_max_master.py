@@ -55,8 +55,11 @@ WHAT IS PRESERVED (NOT changed)
 * Event identity, dates, duration, day index -- copied from the canonical
   workbook, never recomputed.
 * Event TYPE labels (``v3_type`` / ``type`` / ``event_type_name`` ...).  The
-  typology is a fixed, manually-curated classification keyed to event dates and
-  structure; it is carried over unchanged.  A separate diagnostic
+  final typology is MECHANICALLY CALCULATED from event duration and daily
+  structural multiplicity, and is mechanically validated against the master
+  catalog (see ``test_params_v3_type_matches_master``). The labels carried in
+  the source workbook are input METADATA, not a hand-made classification, and
+  are carried over only after that validation succeeds.  A separate diagnostic
   (``compare_event_global_max.py``) reports how per-day ellipse structure changed
   and which events *would* shift type if the typology were mechanically
   re-derived -- for Dr. Najibi's review -- without overwriting the labels.
@@ -466,7 +469,7 @@ def build():
         tmax_weighted_centroids=dict(
             weights="raw observed daily Tmax expressed in degrees Celsius, "
                     "following the approved weighting convention ("
-                    "level, not anomaly/exceedance; no abs())",
+                    "not anomaly/exceedance; no abs())",
             units="degrees_Celsius",
             weighting_scope="structure-specific (member cells only; DBSCAN "
                             "noise and other structures excluded)",
