@@ -440,14 +440,48 @@ CFG_RX = re.compile(r"(\d{2,4})\s+passed[^.]*?(\d{1,3})\s+skipped", re.I)
 
 XFAIL_RX = re.compile(r"(\d{1,3})\s+xfailed", re.I)
 
+# Anchored so it cannot match the "failed" inside "xfailed": the digits must be
+# followed by whitespace and then "failed" itself.
+FAILED_RX = re.compile(r"(\d{1,3})\s+failed\b", re.I)
+ERROR_RX = re.compile(r"(\d{1,3})\s+errors?\b", re.I)
+XPASS_RX = re.compile(r"(\d{1,3})\s+xpassed\b", re.I)
+
+
+ACCEPTANCE_OUTCOMES = ("passed", "failed", "errors", "skipped",
+                       "xfailed", "xpassed")
+
 
 def _pair(text, label):
-    """(passed, skipped, xfailed) parsed from one measured configuration."""
+    """All six pytest outcomes parsed from one measured configuration.
+
+    Every outcome pytest can report is parsed, not just the convenient ones, so
+    that the accounting below covers the whole collection with nothing left
+    implicit.
+
+    ``failed`` matters because the required-archive profile is EXPECTED to fail:
+    the release gate reports the stale-NetCDF blocker as one ordinary failure
+    with a nonzero exit. Without that term the accounting cannot close, and the
+    only ways to close it would be to drop the blocker or absorb it back into an
+    xfail - which is exactly the defect the archive-gate refactor removed.
+
+    ``errors`` and ``xpassed`` are required to be STATED even though both are
+    currently zero. A silently absent field is indistinguishable from a field
+    someone stopped measuring, and an unreported collection error or an
+    unexpected xpass are both real ways a release run can be wrong while every
+    other number still looks tidy.
+    """
     m = CFG_RX.search(text)
     assert m, f"{label} states no passed/skipped pair"
-    xf = XFAIL_RX.search(text)
-    return {"passed": int(m.group(1)), "skipped": int(m.group(2)),
-            "xfailed": int(xf.group(1)) if xf else 0}
+    out = {"passed": int(m.group(1)), "skipped": int(m.group(2))}
+    for name, rx in (("xfailed", XFAIL_RX), ("failed", FAILED_RX),
+                     ("errors", ERROR_RX), ("xpassed", XPASS_RX)):
+        found = rx.search(text)
+        assert found, (
+            f"{label} does not state '{name}'. Every one of "
+            f"{', '.join(ACCEPTANCE_OUTCOMES)} must be recorded explicitly, "
+            f"including the zeros")
+        out[name] = int(found.group(1))
+    return out
 
 
 def _measured(canonical):
@@ -484,10 +518,41 @@ def test_acceptance_counts_are_configuration_bound(canonical):
     cur = canonical["acceptance"]["test_suite_current_head"]
     total = cur["collected_total"]
     for cfg, v in m.items():
-        got = v["passed"] + v["skipped"] + v["xfailed"]
+        got = sum(v[k] for k in ACCEPTANCE_OUTCOMES)
         assert got == total, (
             f"{cfg} accounts for {got} tests but the collected total is "
-            f"{total}: passed+skipped+xfailed must cover every collected test")
+            f"{total}: " + "+".join(ACCEPTANCE_OUTCOMES) +
+            " must cover every collected test")
+        # Neither profile may carry a collection error or an unexpected xpass.
+        # These are zero today; requiring them to stay zero means a future run
+        # cannot bury one behind an otherwise-tidy set of numbers.
+        assert v["errors"] == 0, (
+            f"{cfg} records {v['errors']} error(s); a release-relevant profile "
+            f"must have none - an error is an unrun test, not a result")
+        assert v["xpassed"] == 0, (
+            f"{cfg} records {v['xpassed']} xpass(es); a test expected to fail "
+            f"that passes means the expectation is stale and must be resolved, "
+            f"not recorded")
+
+    # The two profiles differ in KIND, not merely in count, and the records must
+    # say so. Source-only is a clean pass; the required-archive profile is the
+    # release gate, and at this head it is expected to report exactly one
+    # ordinary failure - the stale-NetCDF deposit blocker - with a nonzero exit.
+    # Asserting both directions stops the records from drifting into either lie:
+    # a source-only run quietly carrying a failure, or a required-archive run
+    # recorded as green while the archive is still stale.
+    assert m["source_only"]["failed"] == 0, (
+        "the source-only profile must record zero failures; it is the profile "
+        "that has to be green")
+    assert m["with_deposit"]["failed"] == 1, (
+        "the required-archive profile must record exactly ONE failure - the "
+        "stale-NetCDF release blocker. Zero would mean the gate was recorded "
+        "as passing while the archive is still stale; more than one would mean "
+        "the release run is no longer reporting a single unambiguous cause")
+    assert m["with_deposit"]["xfailed"] == 0, (
+        "the required-archive blocker must be an ordinary failure, not an "
+        "xfail: absorbing it into an expected-failure marker is the defect the "
+        "archive-gate refactor removed")
 
     # This head does NOT claim a 0-skip fully configured acceptance run; the
     # non-redistributable Aptos face makes one unachievable here, so acceptance
@@ -1100,3 +1165,241 @@ def test_pointer_records_do_not_claim_a_published_deposit(rel):
     assert "has not been uploaded, deposited, or published" in low, (
         f"{rel} does not state the archive candidate's unpublished status")
     assert "10.5281/zenodo.21717752" in text, f"{rel} omits the reserved DOI"
+
+
+# ---------------------------------------------------------------------------
+# 12. Reproduction-class counts are DERIVED from the identity CSV.
+#
+# The public report used to assert "6 data_generated / 8 deployment_export /
+# 2 frozen_approved_artwork (Fig. 1, 4)" as literal prose. Every one of those
+# numbers was wrong by the time Figures 1 and 4 gained deterministic
+# producers, and nothing in the test suite noticed, because no guard tied the
+# prose to docs/MANUSCRIPT_FIGURE_IDENTITY.csv. These guards close that gap:
+# the CSV is the source of truth and the prose must agree with it.
+# ---------------------------------------------------------------------------
+KNOWN_REPRODUCTION_CLASSES = {
+    "data_generated",
+    "deployment_export_of_reproduced_original",
+    "deterministic_producer",
+    "manually_postprocessed_approved_artwork",
+    "frozen_approved_artwork",
+}
+
+EXPECTED_FIGURE_TOTAL = 17
+
+# "9 `data_generated`" / "2 `deterministic_producer`" in any prose position.
+CLASS_COUNT_RX = re.compile(r"(\d+)\s+`([a-z_]+)`")
+
+
+def _derived_class_counts():
+    """Members per reproduction class, straight from the identity CSV."""
+    counts = {name: 0 for name in KNOWN_REPRODUCTION_CLASSES}
+    for row in _rows("docs/MANUSCRIPT_FIGURE_IDENTITY.csv"):
+        name = row["reproduction_class"].strip()
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def test_identity_csv_uses_only_the_declared_class_vocabulary():
+    counts = _derived_class_counts()
+    unknown = set(counts) - KNOWN_REPRODUCTION_CLASSES
+    assert not unknown, (
+        f"docs/MANUSCRIPT_FIGURE_IDENTITY.csv uses undeclared reproduction "
+        f"class(es) {sorted(unknown)}; add them to the vocabulary "
+        f"deliberately rather than by typo")
+    assert sum(counts.values()) == EXPECTED_FIGURE_TOTAL, (
+        f"identity CSV holds {sum(counts.values())} figures, not "
+        f"{EXPECTED_FIGURE_TOTAL}")
+
+
+def test_reproducibility_report_class_counts_match_the_identity_csv():
+    """Every 'N `class`' the report states must equal the derived count."""
+    derived = _derived_class_counts()
+    text = _read("docs/REPRODUCIBILITY_REPORT.md")
+    seen, problems = set(), []
+    for sent in _sentences(text):
+        if HIST_CLAUSE.search(sent):
+            continue  # an explicitly superseded statement may quote old counts
+        for stated, name in CLASS_COUNT_RX.findall(sent):
+            if name not in KNOWN_REPRODUCTION_CLASSES:
+                continue
+            seen.add(name)
+            if int(stated) != derived[name]:
+                problems.append(
+                    f"report says {stated} {name}, identity CSV says "
+                    f"{derived[name]}: {sent.strip()[:140]}")
+    assert not problems, (
+        "docs/REPRODUCIBILITY_REPORT.md contradicts "
+        "docs/MANUSCRIPT_FIGURE_IDENTITY.csv: " + " ;; ".join(problems))
+    # Coverage: a guard that matched nothing is a failure, not a pass.
+    in_use = {n for n, c in derived.items() if c}
+    missing = in_use - seen
+    assert not missing, (
+        f"the report never states a count for the populated class(es) "
+        f"{sorted(missing)}; the guard inspected nothing for them")
+
+
+def test_empty_reproduction_classes_are_not_presented_as_populated():
+    """A class with zero members must never be given a figure count."""
+    derived = _derived_class_counts()
+    empty = {n for n, c in derived.items() if c == 0}
+    assert empty, (
+        "no reproduction class is currently empty - if that is a real change, "
+        "update this guard deliberately; it exists because "
+        "frozen_approved_artwork was left in the prose after it lost both "
+        "of its figures")
+    problems = []
+    for rel in ("docs/REPRODUCIBILITY_REPORT.md", "README.md",
+                "assets/frozen_figures/README.md",
+                "assets/manuscript_final/README.md"):
+        for sent in _sentences(_read(rel)):
+            if HIST_CLAUSE.search(sent):
+                continue
+            for stated, name in CLASS_COUNT_RX.findall(sent):
+                if name in empty and int(stated) > 0:
+                    problems.append(f"{rel}: '{stated} {name}' - "
+                                    f"{sent.strip()[:140]}")
+    assert not problems, (
+        "an empty reproduction class is described as though it still holds "
+        "figures: " + " ;; ".join(problems))
+
+
+# ---------------------------------------------------------------------------
+# 13. The defective Figure 9 rasters left the Git tree. Structural truth
+#     first; wording second.
+# ---------------------------------------------------------------------------
+LEGACY_FIG9_DIR = "legacy_defective_figure09"
+
+LEGACY_RASTER_NAMES = (
+    "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
+    "Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png",
+)
+
+# Present-tense claims that the artifacts are still carried by the repository.
+SHIPPED_CLAIM_RX = re.compile(
+    r"shipped in this release|ships? (in|with) (this|the) "
+    r"(release|repository|tree)|(are|is) (still )?(in|shipped in) "
+    r"the (git )?tree", re.I)
+
+# Wording that makes such a sentence truthful: it is reporting the former
+# state and saying so, or naming the relocation.
+RELOCATED_RX = re.compile(
+    r"\bWERE\b|have since|since been|relocated|staged at|no longer", re.I)
+
+
+def test_legacy_figure09_directory_tracks_only_its_pointer_readme():
+    """Unfakeable by prose: ask Git what is actually tracked there."""
+    out = subprocess.run(
+        ["git", "ls-files", LEGACY_FIG9_DIR],
+        cwd=REPO, capture_output=True, text=True, check=True).stdout
+    tracked = sorted(p for p in out.splitlines() if p.strip())
+    assert tracked == [f"{LEGACY_FIG9_DIR}/README.md"], (
+        f"{LEGACY_FIG9_DIR}/ must track only its explanatory pointer README; "
+        f"Git reports {tracked}")
+    for name in LEGACY_RASTER_NAMES:
+        assert not (REPO / LEGACY_FIG9_DIR / name).exists(), (
+            f"{name} is back in the working tree; it was relocated to the "
+            f"local processed-data archive candidate")
+
+
+@pytest.mark.parametrize("rel", [
+    "docs/ALIGNMENT_DECISIONS.md",
+    "docs/CANONICAL_SCIENCE.json",
+    "CHANGELOG.md",
+    "assets/manuscript_final/README.md",
+    f"{LEGACY_FIG9_DIR}/README.md",
+])
+def test_no_record_claims_the_legacy_rasters_are_still_shipped(rel):
+    text = _read(rel)
+    inspected, problems = 0, []
+    for sent in _sentences(text):
+        if not (LEGACY_FIG9_DIR in sent
+                or any(n in sent for n in LEGACY_RASTER_NAMES)):
+            continue
+        inspected += 1
+        # The subject's own names contain "LEGACY"/"legacy", which HIST_CLAUSE
+        # matches. Left in place they would exempt EVERY sentence naming the
+        # rasters - the guard would inspect them and then always pass. The
+        # historical label has to come from the surrounding prose, so the
+        # subject tokens are removed before asking whether one is present.
+        stripped = sent
+        for token in (*LEGACY_RASTER_NAMES, LEGACY_FIG9_DIR):
+            stripped = stripped.replace(token, " ")
+        if HIST_CLAUSE.search(stripped) or RELOCATED_RX.search(stripped):
+            continue
+        if SHIPPED_CLAIM_RX.search(sent):
+            problems.append(sent.strip()[:180])
+    assert not problems, (
+        f"{rel} states as CURRENT fact that the defective Figure 9 rasters "
+        f"are shipped in the repository; they were relocated: "
+        + " ;; ".join(problems))
+    assert inspected, (
+        f"{rel} never mentions {LEGACY_FIG9_DIR} or the defective rasters - "
+        f"it is in this parametrization because it is supposed to, so an "
+        f"empty inspection is a failure, not a pass")
+
+
+# ---------------------------------------------------------------------------
+# 14. CANONICAL_SCIENCE.json: the author-input baselines are inputs, and the
+#     superseded Fig. S.1 baseline is not the current canonical S.1.
+#
+# The block used to be called "originals_untouched" and listed the
+# pre-correction HYBRID COMPOSITE S.1 hash under a neutral key, so a reader
+# could reasonably take a5632323... for the current canonical figure. It is
+# not: the canonical S.1 was fully regenerated from deposited series.
+# ---------------------------------------------------------------------------
+SUPERSEDED_S1_BASELINE = (
+    "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc")
+
+
+def _walk_json(node, path=()):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield path + (key,), value
+            yield from _walk_json(value, path + (key,))
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            yield from _walk_json(item, path + (str(i),))
+
+
+def test_author_input_baselines_are_scoped_and_not_called_originals(canonical):
+    keys = {p[-1] for p, _ in _walk_json(canonical)}
+    assert "originals_untouched" not in keys, (
+        "the neutral key 'originals_untouched' is back; author-supplied "
+        "inputs must not be presented as untouched canonical originals")
+    assert "author_input_baselines_untouched" in keys, (
+        "the author-input baseline block is missing from "
+        "docs/CANONICAL_SCIENCE.json")
+
+    block = next(v for p, v in _walk_json(canonical)
+                 if p[-1] == "author_input_baselines_untouched")
+    assert isinstance(block, dict)
+    note = block.get("scope_note", "")
+    assert "AUTHOR-INPUT BASELINES ONLY" in note, (
+        "the baseline block does not scope itself as author input")
+    assert "not current canonical outputs" in note, (
+        "the baseline block does not deny being a current canonical output")
+
+
+def test_superseded_figS1_baseline_is_labelled_superseded(canonical):
+    """a5632323... may appear, but never unlabelled."""
+    hits = [(p, v) for p, v in _walk_json(canonical)
+            if isinstance(v, str) and SUPERSEDED_S1_BASELINE in v]
+    assert hits, (
+        "the superseded Fig. S.1 author-input baseline is no longer recorded "
+        "anywhere; it is provenance and must be retained, not deleted")
+    for path, value in hits:
+        context = " ".join(path) + " " + value
+        assert HIST_CLAUSE.search(context), (
+            f"{'.'.join(path)} carries the superseded Fig. S.1 baseline "
+            f"{SUPERSEDED_S1_BASELINE[:8]}... with no superseded/historical "
+            f"label; a reader would take it for the current canonical S.1")
+
+    # And the current canonical S.1 must be the identity CSV's figure, not it.
+    s1 = _identity()["Fig. S.1."]
+    assert s1["manuscript_final_sha256"] != SUPERSEDED_S1_BASELINE, (
+        "the identity CSV now names the superseded hybrid composite as the "
+        "canonical Fig. S.1")
+    assert s1["reproduction_class"] == "data_generated", (
+        "Fig. S.1 must remain data_generated: its panels are regenerated "
+        "from the deposited GHCN-Daily and ERA5 series")

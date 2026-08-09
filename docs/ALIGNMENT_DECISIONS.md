@@ -404,8 +404,13 @@ produced:
 * clean-room and R environment logs, retained in the private alignment
   staging area (not part of this release tree);
 * `legacy_defective_figure09/` — superseded defective artifacts, clearly
-  labelled, excluded from canonical publication outputs, and shipped in this
-  release for auditability.
+  labelled and excluded from canonical publication outputs. They WERE shipped
+  in the release tree at the time of this alignment round; they have SINCE
+  been relocated, so the repository directory now retains only its
+  explanatory pointer README and the two rasters are staged at
+  `provenance_evidence/legacy_defective_figure09/` inside the local,
+  unpublished processed-data archive candidate — not deposited, not
+  published, not publicly retrievable.
 
 ## 17. Standing prohibitions honoured
 

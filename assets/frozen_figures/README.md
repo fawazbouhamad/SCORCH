@@ -86,8 +86,23 @@ property of the *encoder*, not of the figure. A Linux audit regenerated Figure 4
 **pixel-identically** while emitting **different PNG bytes**, because Pillow
 chooses the filters and zlib emits the deflate stream. Both results were
 correct. Conflating them would be a false portability claim, so the two
-guarantees are stated separately and enforced separately by
-`tests/test_fig04_cross_platform_determinism.py`:
+guarantees are stated separately and enforced separately by the two ACTIVE
+Figure 4 guards:
+
+* `tests/test_fig04_symmetry_final.py` — the symmetry-round regressions (Type 4
+  horizontal reading, lattice symmetry, Type 3 label centring, exact integer
+  label translation, prohibited-region invariance) plus a producer run that
+  must be PIXEL-identical to the shipped asset;
+* `tests/test_fig04_cross_platform_determinism.py` — the identity split itself,
+  plus adversarial regressions on the producer's contracts (missing donor,
+  hash-mutated donor, wrong raw-RGB digest, wrong encoded digest, and the
+  encoder-policy classification).
+
+Kept explicitly SEPARATE from both: the guard covering the **superseded**
+horizontal stage `correct_fig04_type4_horizontal.py`. That stage produced the
+immutable donor, not the shipped figure, and is retained for provenance only.
+
+The split those two active guards enforce is:
 
 * **Cross-platform pixel determinism - portable, always required.** A producer
   run must match the shipped asset in **raw RGB, exactly**, on every supported

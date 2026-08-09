@@ -216,7 +216,7 @@
     "corrected_manuscript_embed_sha256": "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431",
     "legacy_defective_full_resolution_sha256": "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
     "legacy_defective_embed_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
-    "legacy_archive_location": "legacy_defective_figure09/ (shipped in this release tree; excluded from all canonical publication outputs)",
+    "legacy_archive_location": "provenance_evidence/legacy_defective_figure09/ inside the LOCAL, UNPUBLISHED processed-data archive candidate (scorch_processed_data_v1.0.0.zip). The repository directory legacy_defective_figure09/ now retains ONLY its explanatory pointer README; the two rasters are not in the Git tree. Excluded from all canonical publication outputs. NOT deposited, NOT published, NOT publicly retrievable.",
     "event4_before_deg": -21.10137813712798,
     "event4_after_deg": 68.98532754765856,
     "panel_pixel_hashes": {
@@ -440,7 +440,8 @@
   },
   "document_artifacts": {
     "manuscript_working_docx_sha256": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
-    "supplement_working_docx_figS1_media_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "supplement_working_docx_figS1_media_SUPERSEDED_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "supplement_working_docx_figS1_media_note": "SUPERSEDED author-input baseline, recorded here for provenance only: the pre-correction HYBRID COMPOSITE Figure S.1 media carried by the author-supplied working supplement DOCX. It is NOT the current canonical Figure S.1. The current canonical S.1 is d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634, fully regenerated from deposited GHCN-Daily and ERA5 series.",
     "manuscript_media_count": 16,
     "supplement_media_count": 1,
     "embed_resolution": "17/17 embeds resolved to a byte-exact deterministic derivation",
@@ -536,9 +537,11 @@
     "final_documents": {
       "manuscript": "SCORCH_Manuscript_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
       "supplement": "SCORCH_Supplementary_Material_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
-      "originals_untouched": {
+      "author_input_baselines_untouched": {
+        "scope_note": "AUTHOR-INPUT BASELINES ONLY. These are the untouched author-supplied inputs this release was built FROM; they are not current canonical outputs and must never be read as such.",
         "manuscript": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
-        "supplement_figS1_media": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc"
+        "supplement_figS1_media_SUPERSEDED": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+        "supplement_figS1_media_note": "a5632323... is the SUPERSEDED author-input Figure S.1 baseline - the pre-correction HYBRID COMPOSITE whose panels (c)/(d) came from the frozen legacy donor drawing. It is NOT the current canonical Figure S.1. The current canonical S.1 was fully regenerated from deposited GHCN-Daily and ERA5 series in the v1.0.0 pre-release correction; see docs/FIGURE_PROVENANCE.csv for its current hashes."
       }
     },
     "full_section9_validation": "PENDING at the current head. The last verified 33/33 fast-route + 9/9 reconstruction run was performed at commit 2d6d76f5a9c8995618c403864276e02602b913d5 (2026-08-08); later commits changed documentation, guards and metadata only, and the full chain has NOT been re-run against the current head."
@@ -555,11 +558,18 @@
       "note": "Separately measured at the same prior head; retained as provenance only."
     },
     "test_suite_current_head": {
-      "status": "MEASURED at the 2.2A1 pre-history correction-pass head",
-      "deposit_and_archive_configured": "373 passed, 22 skipped, 1 xfailed (SCORCH_DATA_DIR set to a fresh extraction of the v1.0.0 data-archive candidate and SCORCH_DATA_ARCHIVE set to the candidate ZIP). The 22 skips are 21 FINAL-DOCX-dependent guards (SCORCH_FINAL_DOCX_DIR unset in this checkout) and 1 pinned-Aptos font guard (a non-redistributable Microsoft 365 cloud font, absent here). The 1 xfail is the recorded archive-NetCDF staleness release blocker.",
-      "source_only": "350 passed, 46 skipped in a source-only checkout with no deposit, no archive and no fixtures - separately MEASURED, not inferred.",
-      "collected_total": 396,
-      "fully_configured_acceptance": "PENDING - deferred to the final section 9 gate. A fully configured 0-skip run is NOT achievable in this environment: the pinned Aptos Regular face is a non-redistributable Microsoft 365 cloud font and the FINAL-DOCX fixtures are absent from this checkout. No 0-skip acceptance is claimed at this head."
+      "status": "MEASURED on the current working tree: committed head 6d483cf93c6ba29f07fc43b580722fc2446b3e2f PLUS the uncommitted Phase 2.2A2 code/test changes. Both profiles were measured once, in one pass, against the same frozen collection of 496 tests.",
+      "deposit_and_archive_configured": "473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed, 0 xpassed - EXIT 1. This is an EXPECTED FAILURE and a verified release blocker, NOT a regression and NOT a passing run. SCORCH_DATA_DIR was set to a fresh extraction of the v1.0.0 data-archive candidate, SCORCH_DATA_ARCHIVE to the candidate ZIP (sha256 8d6ca0c5cd77d672a7c73924a1d243dab01d1a592c1730389aa0f1a864871383, 116845724 bytes, unchanged) and SCORCH_REQUIRE_ARCHIVE=1. The single failing node is tests/test_archive_backed_verification.py::test_release_gate_archive_is_available_and_valid, which raises DepositContractError carrying all NINE NETCDF issue codes against the archive's stale metadata: NETCDF_AUTHORS_RIGHTS_SCOPE, NETCDF_COVERAGE_LABEL, NETCDF_CURRENT_ECDS_URL, NETCDF_NOTICE_COUNT, NETCDF_NOTICE_COVERAGE_YEAR, NETCDF_NOTICE_EXACT, NETCDF_REFERENCES_STATUS, NETCDF_RETIRED_CDS_URL, NETCDF_SOURCE_CONTRACT. No structural ARCHIVE code fired, so the container itself is intact. The 22 skips are 21 FINAL-DOCX-dependent guards (SCORCH_FINAL_DOCX_DIR unset - the fixtures are absent from this checkout) and 1 pinned-Aptos font guard (a non-redistributable Microsoft 365 cloud font, absent here); neither fixture set was supplied.",
+      "source_only": "450 passed, 46 skipped, 0 failed, 0 errors, 0 xfailed, 0 xpassed - EXIT 0. PASS. Measured in a source-only checkout with every SCORCH environment variable cleared: no deposit, no archive, no fixtures - separately MEASURED, not inferred. The 46 skips are the deposit-, canonical-catalog-, DOCX- and font-dependent guards, each with an explicit skip reason.",
+      "collected_total": 496,
+      "required_archive_profile_is_expected_to_fail": "At the committed head 6d483cf9 this profile exited 0 with 1 xfailed, because the archive-staleness guard was an unconditional xfail(strict=True) that absorbed the defect in every mode, including required-archive mode. The uncommitted Phase 2.2A2 change removes that absorption so the release gate is a real gate. The move from 'exit 0 with 1 xfailed' to 'exit 1 with 1 failed' is therefore a deliberate hardening rather than a new defect: the underlying stale-metadata condition is the same one, now reported honestly and with a nonzero exit. The archive was NOT rebuilt; rebuilding it is gated on the outstanding artwork authorization.",
+      "fully_configured_acceptance": "PENDING - deferred to the final section 9 gate. A fully configured 0-skip run is NOT achievable in this environment: the pinned Aptos Regular face is a non-redistributable Microsoft 365 cloud font and the FINAL-DOCX fixtures are absent from this checkout. No 0-skip acceptance is claimed at this head.",
+      "final_release_acceptance": "PENDING. The candidate is internally aligned but the formal release gate is NOT met, for two independent reasons: (1) the artwork authorization for Figures 1 and 4 from coauthor Dr. Nasser Najibi has not been recorded, so CC BY 4.0 over that artwork remains PENDING and NOT IN FORCE; and (2) the unchanged v1.0.0 archive candidate still carries stale NetCDF metadata, which the required-archive profile correctly reports as one failure with a nonzero exit. Neither is resolvable by editing records, and no archive rebuild is authorized."
+    },
+    "test_suite_committed_head_before_phase22a2": {
+      "status": "SUPERSEDED - measured at committed head 6d483cf93c6ba29f07fc43b580722fc2446b3e2f BEFORE the uncommitted Phase 2.2A2 code/test changes. NOT A CURRENT RESULT.",
+      "value": "396 collected. Source-only: 350 passed, 46 skipped, exit 0. Deposit-and-archive configured: 373 passed, 22 skipped, 1 xfailed, exit 0.",
+      "note": "Superseded by the current-head measurement for two reasons, both of which must be kept in view when comparing the numbers. First, the collection grew from 396 to 496 as the Phase 2.2A2 passes added deposit-contract, release-gate exit-code, XLSX guardrail, Figure 4 determinism, publication-builder and record-consistency guards, so the passed counts are not comparable term by term. Second, the configured profile's exit code changed from 0 to 1 by design: its 1 xfailed was an unconditional xfail(strict=True) absorbing the stale-NetCDF blocker, and removing that absorption converted the same defect into one ordinary, honestly reported failure. Retained as provenance only; it must never be quoted as a current result."
     },
     "reproduction_stages": "33/33 PASS from a fresh extraction of the archive, exit 0",
     "publication_outputs": "PASS - 17 figures, 45 panels, 1 source component (Figure 8 only), 6 table files; Table 1 reconciled cell by cell with 0 declared presentation differences",

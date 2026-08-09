@@ -29,10 +29,43 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a source-only checkout WITHOUT the deposit or fixtures | **350 passed, 46 skipped** (current head, separately measured; the skips are the deposit-, DOCX- and font-dependent guards, each with an explicit skip reason). PRIOR HEAD `44a54a05`, historical only: 327 passed / 36 skipped. HISTORICAL, not current: 212 passed / 34 skipped was measured on the pre-remediation tree (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
-| `pytest tests -q` WITH the deposit and fixtures (`SCORCH_DATA_DIR`, `SCORCH_CANONICAL_DATA_DIR`, `SCORCH_FINAL_DOCX_DIR`, `SCORCH_APTOS_FONT`) | **373 passed, 22 skipped, 1 xfailed** (current head, measured). The 22 skips are 21 FINAL-DOCX-dependent guards and 1 pinned-Aptos-font guard (a non-redistributable Microsoft 365 cloud font); the 1 xfail is the recorded archive-NetCDF staleness blocker. A zero-skip fully configured acceptance run is PENDING the final release gate and is NOT claimed at this head. PRIOR HEAD `44a54a05`, historical only: 363 passed / 0 skipped. HISTORICAL, not current: 244 passed / 2 skipped was the pre-remediation measurement |
+Both profiles below were measured **once, in one pass**, against the same frozen
+collection of **496** tests, on the current working tree: committed head
+`6d483cf9` **plus** the uncommitted Phase 2.2A2 code/test changes.
 
-With the deposit and archive candidate configured the current head measures 373 passed, 22 skipped, 1 xfailed; the remaining skips are the 21 FINAL-DOCX-dependent guards and the pinned-Aptos-font guard. A zero-skip fully configured run is PENDING the final release gate. At the PRIOR HEAD `44a54a05` there were no remaining skips (363 passed, 0 skipped). In a source-only checkout 46 guards skip - the deposit-, DOCX- and font-dependent cases, including the publication-outputs isolation cases that require a materialized `publication_outputs/` tree - each with an explicit skip reason.
+| Condition | Result |
+|---|---|
+| SOURCE-ONLY: `pytest tests -q` with every `SCORCH_*` variable cleared -- no deposit, no archive, no fixtures | **450 passed, 46 skipped, 0 failed, 0 errors, 0 xfailed, 0 xpassed -- exit 0. PASS.** The 46 skips are the deposit-, canonical-catalog-, DOCX- and font-dependent guards, each with an explicit skip reason |
+| REQUIRED-ARCHIVE: `pytest tests -q` with `SCORCH_DATA_DIR` set to a fresh extraction of the v1.0.0 archive candidate, `SCORCH_DATA_ARCHIVE` set to the candidate ZIP and `SCORCH_REQUIRE_ARCHIVE=1` | **473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed, 0 xpassed -- exit 1. EXPECTED FAILURE: the release gate reporting a real, verified blocker. This is NOT a regression and NOT a passing run.** The single failing node is `tests/test_archive_backed_verification.py::test_release_gate_archive_is_available_and_valid`, raising `DepositContractError` with all **nine** `NETCDF_*` issue codes against the unchanged archive's stale metadata. No structural `ARCHIVE_*` code fired, so the container itself is intact. The 22 skips are 21 FINAL-DOCX-dependent guards and 1 pinned-Aptos-font guard; both fixture sets are absent on the measuring machine and were deliberately NOT supplied |
+
+The nine codes reported against the archive are `NETCDF_AUTHORS_RIGHTS_SCOPE`,
+`NETCDF_COVERAGE_LABEL`, `NETCDF_CURRENT_ECDS_URL`, `NETCDF_NOTICE_COUNT`,
+`NETCDF_NOTICE_COVERAGE_YEAR`, `NETCDF_NOTICE_EXACT`, `NETCDF_REFERENCES_STATUS`,
+`NETCDF_RETIRED_CDS_URL` and `NETCDF_SOURCE_CONTRACT`.
+
+**Why the required-archive profile now exits 1.** At the committed head `6d483cf9`
+this profile exited **0** carrying `1 xfailed`, because the archive-staleness guard was
+an unconditional `xfail(strict=True)` that absorbed the defect in every mode, including
+required-archive mode. The uncommitted Phase 2.2A2 change removes that absorption so
+the release gate is a real gate. The move from `exit 0 with 1 xfailed` to `exit 1 with
+1 failed` is a deliberate hardening, not a new defect: the underlying stale-metadata
+condition is the same one, now reported honestly and with a nonzero exit. The archive
+was **not** rebuilt.
+
+A zero-skip fully configured acceptance run is **PENDING** the final release gate and is
+**NOT** claimed at this head: the FINAL-DOCX fixtures and the pinned Aptos Regular face
+are unavailable on the measuring machine, so such a run is not producible here. Final
+release acceptance likewise remains **PENDING** -- see §9.
+
+Superseded totals, each labelled with the revision it belongs to; none is a current
+result. Comparison term by term is invalid because the collection itself grew from 396
+to 496 across the Phase 2.2A2 passes.
+
+| Revision (historical, superseded) | Collected | Source-only | Configured |
+|---|---|---|---|
+| Committed head `6d483cf9`, before the uncommitted Phase 2.2A2 changes | 396 | 350 passed / 46 skipped, exit 0 | 373 passed / 22 skipped / **1 xfailed**, exit 0 |
+| Prior head `44a54a05` | -- | 327 passed / 36 skipped | 363 passed / 0 skipped |
+| Pre-remediation tree, hash-locked clean-room environment | 246 | 212 passed / 34 skipped | 244 passed / 2 skipped |
 
 Known benign import warning (investigated in V5): the netCDF4/cftime
 binary wheels emit `RuntimeWarning: numpy.ndarray size changed` when
@@ -80,7 +113,14 @@ corrected Fig. A / Fig. B extents with matching `wp:extent` and
 embedded publication images pinned byte-for-byte, the supplement
 `docProps/app.xml` page count of 2, and unchanged Table 1 OOXML, alt
 text, captions/prose, comments/tracking state and media relationships),
-bringing the suite to 246 collected tests.
+bringing the suite to 246 collected tests. The Phase 2.2A scope cleanup and the
+2.2A1 correction pass then brought the collection to 396; the Phase 2.2A2 passes
+add the deposit-contract and release-gate exit-code guards, the XLSX equivalence
+guardrails, the Figure 4 pixel/encoded-identity and cross-platform determinism
+guards, the publication-builder contracts and the record-consistency guards,
+bringing the collection to **496** on the current working tree. Every total in
+this paragraph before that last figure is historical and belongs to the pass that
+introduced it.
 
 ## 2. Connected reconstruction: processed field to catalog
 
@@ -141,15 +181,21 @@ and S.2 are RETIRED and appear below only in explicitly historical
 statements. S.3 and S.4 are not current manuscript figures; their scripts
 are retained as internal component producers of Fig. D.
 
-Of those 17, by reproduction class: **6 `data_generated`** (Fig. 2, 3, 12,
-B, D, S.1), **8 `deployment_export_of_reproduced_original`** (Fig. 5, 6, 7,
-9, 10, 11, A, C), **1 `manually_postprocessed_approved_artwork`** (Fig. 8)
-and **2 `frozen_approved_artwork`** (Fig. 1, 4). Figure 9 joined the
+Of those 17, by reproduction class, derived from
+`docs/MANUSCRIPT_FIGURE_IDENTITY.csv`: **9 `data_generated`** (Fig. 2, 3, 5,
+6, 7, 12, B, D, S.1), **5 `deployment_export_of_reproduced_original`**
+(Fig. 9, 10, 11, A, C), **2 `deterministic_producer`** (Fig. 1, 4) and
+**1 `manually_postprocessed_approved_artwork`** (Fig. 8).
+**`frozen_approved_artwork` now has 0 members.** The 2026-08 correction round
+gave Figures 1 and 4 deterministic donor-based runnable producers, so the
+earlier "2 `frozen_approved_artwork` (Fig. 1, 4)" statement is superseded;
+an empty class is not listed as though it described a shipped figure.
+Figure 9 joined the
 deployment-export class in the v1.0.0 pre-release correction: the
 axial-orientation fix regenerated its approved original end-to-end from the
-deposit, so no manual post-processing pass remains. Only the first six are
-byte-identical to the embedded raster when regenerated from data; section 3
-below describes each situation. Per-figure hashes, including the separate
+deposit, so no manual post-processing pass remains. Only the nine
+`data_generated` figures are byte-identical to the embedded raster when
+regenerated from data; section 3 below describes each situation. Per-figure hashes, including the separate
 approved-original, deployed-embed and reproduced-output fields, are in
 `FIGURE_PROVENANCE.csv`, and the machine-readable class per figure is in
 `MANUSCRIPT_FIGURE_IDENTITY.csv`.
@@ -290,13 +336,16 @@ row, which claimed an executed byte-identical output that is absent from
 `reproduced/`.)
 
 When internal outputs are discussed anywhere in this release, the correct
-phrasing is: **17 publication figures in four reproduction classes (6
-`data_generated`, 8 `deployment_export_of_reproduced_original`, 1
-`manually_postprocessed_approved_artwork`, 2 `frozen_approved_artwork`),
-plus three internal or superseded diagnostic products.** The phrase "15
-regenerated publication figures" must not be used: it counts the nine
-deployment exports and manually post-processed artworks as if the scripts
-reproduced the embedded rasters, which they do not.
+phrasing is: **17 publication figures in four reproduction classes in use (9
+`data_generated`, 5 `deployment_export_of_reproduced_original`, 2
+`deterministic_producer`, 1 `manually_postprocessed_approved_artwork`),
+plus three internal or superseded diagnostic products.** The count and the
+membership are derived from `docs/MANUSCRIPT_FIGURE_IDENTITY.csv`, not
+asserted here; a fifth class, `frozen_approved_artwork`, remains defined in
+the vocabulary but currently has **0** members. The phrase "15 regenerated
+publication figures" must not be used: it counts the deployment exports and
+the manually post-processed artwork as if the scripts reproduced the embedded
+rasters, which they do not.
 
 ## 4. Tables and numeric results (EXECUTED)
 

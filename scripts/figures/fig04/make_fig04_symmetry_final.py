@@ -55,6 +55,22 @@ Ink ownership is a nearest-core Voronoi partition, so every non-pure-white
 pixel in a work region is assigned to exactly one drawn element and no
 antialiased fringe pixel is orphaned when a component moves.
 
+Identity policy - two DIFFERENT claims, never conflated
+-------------------------------------------------------
+* **Pixel identity is universal.** Mode RGB, 4500x2531, and the exact raw-RGB
+  digest are enforced on every platform and every encoder, before anything is
+  written. Wrong pixels never reach the filesystem.
+* **Encoded PNG byte identity is canonical-stack only.** ``74ea37f0...`` is
+  required when running Pillow 12.2.x with zlib 1.3.1. On any other stack the
+  same exact pixels may serialise to different PNG bytes; that run succeeds and
+  records ``encoded_identity_status = "noncanonical-byte-encoding"``. It is
+  never silently reported as canonical.
+
+The donor hash, canvas, mode, raw-pixel digest and encoded-byte contract are
+checked with explicit exceptions rather than ``assert``, because assertions
+disappear under ``python -O`` - which would disable every gate here precisely
+when someone runs it in a "fast" configuration.
+
 Usage:
   python make_fig04_symmetry_final.py --out <dir> [--src <donor png>]
 
@@ -79,7 +95,77 @@ DONOR_SHA256 = ('c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2'
                 'eefc829f')
 EXPECTED_PNG_SHA256 = ('74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de6'
                        '7154721db23484')
+# SHA-256 of the raw RGB pixel buffer (4500 x 2531 x 3 = 34,168,500 bytes),
+# independently recomputed from assets/frozen_figures/fig04/Figure_04.png.
+# This is the PORTABLE identity: it holds on every platform and every encoder,
+# because it never touches PNG serialisation.
+EXPECTED_RAW_RGB_SHA256 = ('575194848947aac4bb71b6aa3bbab3cef06486f3530f746db'
+                           'c7f1340e9f858d7')
 CANVAS = (4500, 2531)
+CANONICAL_MODE = 'RGB'
+
+# The encoded PNG bytes are reproducible only on the canonical encoder stack.
+# Pillow's PNG writer and zlib's deflate both choose byte-level encodings that
+# are free to change between releases while the DECODED IMAGE stays identical,
+# so demanding byte identity everywhere would fail honest machines for a reason
+# that has nothing to do with the figure.
+CANONICAL_PILLOW_MAJOR_MINOR = '12.2'
+CANONICAL_ZLIB_RUNTIME = '1.3.1'
+
+
+class Fig04ContractError(RuntimeError):
+    """An external input or a final identity contract was violated.
+
+    Deliberately an exception and not ``assert``: assertions vanish under
+    ``python -O``, which would silently disable every identity gate in this
+    producer exactly when someone runs it in a "fast" configuration.
+    """
+
+
+def _require(condition, message):
+    if not condition:
+        raise Fig04ContractError(message)
+
+
+def encoder_profile(pillow_version=None, zlib_runtime=None):
+    """Describe the encoder stack, and whether it is the canonical one.
+
+    Both components are injectable so the policy can be exercised against a
+    simulated stack without pretending the local machine is something it is not.
+    """
+    import zlib as _zlib
+
+    import PIL
+
+    pv = pillow_version if pillow_version is not None else PIL.__version__
+    zv = (zlib_runtime if zlib_runtime is not None
+          else _zlib.ZLIB_RUNTIME_VERSION)
+    mm = '.'.join(str(pv).split('.')[:2])
+    return {'pillow': str(pv), 'pillow_major_minor': mm,
+            'zlib_runtime': str(zv),
+            'canonical_pillow_major_minor': CANONICAL_PILLOW_MAJOR_MINOR,
+            'canonical_zlib_runtime': CANONICAL_ZLIB_RUNTIME,
+            'canonical': (mm == CANONICAL_PILLOW_MAJOR_MINOR
+                          and str(zv) == CANONICAL_ZLIB_RUNTIME)}
+
+
+def classify_encoded_identity(encoded_sha256, encoder):
+    """Pure policy for the ENCODED bytes, given an encoder profile.
+
+    Returns the status string, or raises. Separating this from the pixel check
+    is the whole point: a differently encoded PNG carrying identical pixels is
+    a correct figure on a noncanonical stack and a contract violation on the
+    canonical one - and it must never be quietly called canonical.
+    """
+    if encoded_sha256 == EXPECTED_PNG_SHA256:
+        return 'canonical-byte-identity'
+    if encoder['canonical']:
+        raise Fig04ContractError(
+            'canonical encoder stack (Pillow %s / zlib %s) produced PNG '
+            'sha256 %s, which is not the approved %s'
+            % (encoder['pillow'], encoder['zlib_runtime'], encoded_sha256,
+               EXPECTED_PNG_SHA256))
+    return 'noncanonical-byte-encoding'
 
 PURPLE = (112, 48, 160)
 AMBER_D = (255, 188, 1)        # Type 3 saturated row
@@ -295,15 +381,24 @@ def best_offset(sp, dx0, dy0, A, B, r_src, r_dst, span=2):
     return best
 
 
-def build(donor: Path, outdir: Path) -> dict:
-    assert sha256(donor) == DONOR_SHA256, 'src is not the immutable approved-horizontal Figure 4 donor'
+def build(donor: Path, outdir: Path, encoder=None) -> dict:
+    # External input contracts. Explicit checks, never `assert`.
+    _require(donor.is_file(), f'donor not found: {donor}')
+    donor_sha = sha256(donor)
+    _require(donor_sha == DONOR_SHA256,
+             'src is not the immutable approved-horizontal Figure 4 donor: '
+             f'sha256 {donor_sha} != {DONOR_SHA256}')
     im = Image.open(donor)
-    assert im.size == CANVAS and im.mode == 'RGB'
+    _require(im.mode == CANONICAL_MODE,
+             f'donor mode {im.mode!r} != {CANONICAL_MODE!r}')
+    _require(tuple(im.size) == CANVAS,
+             f'donor size {tuple(im.size)} != {CANVAS}')
+    enc = encoder if encoder is not None else encoder_profile()
     src = np.array(im)
     rgb = src
     out = src.copy()
     log = {'donor_sha256': DONOR_SHA256, 'row_spread': ROW_SPREAD,
-           'type4': {}, 'type3': {}}
+           'encoder': enc, 'type4': {}, 'type3': {}}
 
     # =================================================== TYPE 4 cores
     m4 = colour_mask(rgb, PURPLE, tol=90)
@@ -585,18 +680,36 @@ def build(donor: Path, outdir: Path) -> dict:
                          'ellipsis_pitch': round(pitch, 4)})
 
     # =================================================== locality / outputs
-    outdir.mkdir(parents=True, exist_ok=True)
     diff = np.any(src != out, axis=-1)
     log['changed_pixels_total'] = int(diff.sum())
     outside = diff.copy()
     for x0, y0, x1, y1 in ([T4_REGION] + T3_SUBREGIONS + LABEL_BANDS):
         outside[y0:y1, x0:x1] = False
     log['changed_pixels_outside_work_regions'] = int(outside.sum())
-    assert outside.sum() == 0, 'edit escaped the work regions'
+    _require(outside.sum() == 0, 'edit escaped the work regions')
     log['changed_pixels_type1_type2'] = int(diff[:, :2248].sum())
-    assert diff[:, :2248].sum() == 0, 'Type 1 / Type 2 changed'
+    _require(diff[:, :2248].sum() == 0, 'Type 1 / Type 2 changed')
 
-    Image.fromarray(out, mode='RGB').save(
+    # ---- PIXEL identity, checked BEFORE anything is written ---------------
+    # Wrong pixels must never reach the filesystem, and this check is the one
+    # that holds on every platform: it is computed on the raw RGB buffer and
+    # is independent of how the PNG is later serialised.
+    _require(out.shape == (CANVAS[1], CANVAS[0], 3),
+             f'output array shape {out.shape} != {(CANVAS[1], CANVAS[0], 3)}')
+    _require(out.dtype == np.uint8, f'output dtype {out.dtype} != uint8')
+    raw_sha = hashlib.sha256(out.tobytes()).hexdigest()
+    log['raw_rgb_sha256'] = raw_sha
+    log['raw_rgb_bytes'] = int(out.size)
+    _require(raw_sha == EXPECTED_RAW_RGB_SHA256,
+             'raw RGB pixel sha256 %s != approved %s - the produced IMAGE is '
+             'wrong, independently of any encoder'
+             % (raw_sha, EXPECTED_RAW_RGB_SHA256))
+    log['pixel_identity_status'] = 'exact-raw-rgb-match'
+    log['image_mode'] = CANONICAL_MODE
+    log['image_size'] = list(CANVAS)
+
+    outdir.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(out, mode=CANONICAL_MODE).save(
         outdir / 'Figure_04.png')
     Image.fromarray((diff * 255).astype(np.uint8), mode='L').save(
         outdir / 'fig04_symmetry_diff_mask.png')
@@ -614,8 +727,19 @@ def build(donor: Path, outdir: Path) -> dict:
                           'Creator': 'SCORCH figure04 symmetry candidate'})
     plt.close(fig)
 
-    log['output_png_sha256'] = sha256(
-        outdir / 'Figure_04.png')
+    log['output_png_sha256'] = sha256(outdir / 'Figure_04.png')
+    log['expected_png_sha256'] = EXPECTED_PNG_SHA256
+    # Raises on a canonical stack that failed to reproduce the approved bytes;
+    # records `noncanonical-byte-encoding` on any other stack. The report is
+    # written first either way, so a failing run still leaves its evidence.
+    try:
+        log['encoded_identity_status'] = classify_encoded_identity(
+            log['output_png_sha256'], enc)
+    except Fig04ContractError:
+        log['encoded_identity_status'] = 'canonical-byte-identity-violated'
+        (outdir / 'fig04_symmetry_report.json').write_text(
+            json.dumps(log, indent=1))
+        raise
     (outdir / 'fig04_symmetry_report.json').write_text(
         json.dumps(log, indent=1))
     return log
@@ -633,12 +757,21 @@ def main() -> None:
     outdir = Path(args.out).resolve()
     if not donor.is_file():
         raise SystemExit(f'donor not found: {donor}')
-    log = build(donor, outdir)
+    try:
+        log = build(donor, outdir)
+    except Fig04ContractError as exc:
+        raise SystemExit(f'Figure 4 contract violated: {exc}')
     print(json.dumps(log, indent=1))
-    if log['output_png_sha256'] != EXPECTED_PNG_SHA256:
-        raise SystemExit(
-            'output PNG sha256 %s != approved %s'
-            % (log['output_png_sha256'], EXPECTED_PNG_SHA256))
+    # The encoded-byte verdict was already decided inside build() by the
+    # encoder-aware policy. A noncanonical stack that reproduced the exact
+    # pixels is a SUCCESS with an explicit status - not a silent pass, and not
+    # a failure for something the figure has no control over.
+    if log['encoded_identity_status'] == 'noncanonical-byte-encoding':
+        print('NOTE: this encoder stack (Pillow %s / zlib %s) is not the '
+              'canonical one (Pillow %s.x / zlib %s). The pixels are exact; '
+              'the PNG BYTES differ and are not claimed to be canonical.'
+              % (log['encoder']['pillow'], log['encoder']['zlib_runtime'],
+                 CANONICAL_PILLOW_MAJOR_MINOR, CANONICAL_ZLIB_RUNTIME))
 
 
 if __name__ == '__main__':

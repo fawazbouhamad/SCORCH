@@ -36,11 +36,18 @@ wrong root is an error, not a pass.
 
 HONEST REPRODUCTION CLASSES
 ---------------------------
-The four classes are carried through to every PROVENANCE.txt and manifest
-row unchanged. In particular this builder never claims that frozen artwork
-(Figs. 1, 4) was regenerated from data, and never presents the data-derived
-pre-post-processing render of Fig. 8 as the publication figure -- it
-ships only under ``source_components/`` under a name that says so.
+Each figure's class is read from ``docs/MANUSCRIPT_FIGURE_IDENTITY.csv`` and
+carried through to every PROVENANCE.txt and manifest row unchanged. The class
+list and its count are DERIVED from those records rather than written here as
+a literal, because a hand-written count goes stale the moment a class is added
+-- which is what happened when ``deterministic_producer`` appeared and this
+text still said "four classes" while the generated list omitted it entirely.
+
+In particular this builder never claims that Figs. 1 and 4 were regenerated
+from deposited data -- they are donor-based schematic producers, not
+data-driven ones -- and never presents the data-derived pre-post-processing
+render of Fig. 8 as the publication figure: it ships only under
+``source_components/`` under a name that says so.
 
 SAFETY
 ------
@@ -108,6 +115,12 @@ REPRODUCTION_CLASSES = {
         "Script output is BYTE-IDENTICAL to the raster embedded in the "
         "manuscript. This figure is fully regenerated from the deposited "
         "data by the producing script.",
+    # CURRENTLY UNUSED: no figure carries this class since the 2026-08
+    # correction round moved Figures 1 and 4 to `deterministic_producer`.
+    # The definition is retained so the vocabulary stays complete, but the
+    # generated documents derive their class list from the identity records,
+    # so a class with zero members is never listed as if it described a
+    # shipped figure.
     "frozen_approved_artwork":
         "Author-created slide export. NO runnable producer exists and none "
         "is claimed: this figure is NOT regenerated from data. The shipped "
@@ -121,11 +134,21 @@ REPRODUCTION_CLASSES = {
         "themselves are not a script output and are shipped as a "
         "hash-verified asset.",
     "deterministic_producer":
-        "Schematic figure with a deterministic runnable producer (2026-08 "
-        "correction round). The producing script regenerates the shipped "
-        "asset BYTE-IDENTICALLY without reading deposited data (Figure 1: "
-        "code-native vector schematic; Figure 4: localized deterministic "
-        "correction of the archived approved slide export). The shipped PNG "
+        "Schematic figure with a deterministic, donor-based runnable producer "
+        "(2026-08 correction round). Neither reads deposited data: each "
+        "applies a localized, lossless correction to an immutable "
+        "hash-pinned donor RASTER whose hash and canvas are verified before "
+        "anything is touched. Figure 1 restores the original approved slide "
+        "export (original/Figure_01_original.png, cc561b36...) with the one "
+        "authorized threshold-wording change, which is why it additionally "
+        "requires the pinned Aptos Regular face to re-render that text line; "
+        "Figure 4 squares the Type 4 lattice and levels the Type 3 rows on "
+        "the approved-horizontal donor (c35d9ed6...). Both reproduce their "
+        "shipped figure's raw RGB PIXELS exactly "
+        "on every supported platform. Exact PNG BYTE identity is a property "
+        "of the canonical encoder stack (Pillow 12.2.x with zlib 1.3.1), not "
+        "of the figure: a different Pillow or zlib build legitimately "
+        "serialises the identical pixels to different bytes. The shipped PNG "
         "is hash-verified against the manuscript embed.",
     "manually_postprocessed_approved_artwork":
         "The approved full-resolution original carries a MANUAL "
@@ -988,14 +1011,21 @@ def readme_text(identity, geom):
         "",
         "## Reproduction classes",
         "",
-        "Each figure carries one of four classes, stated verbatim in its",
+    ]
+    # Derived from the identity records, never hardcoded. A count written by
+    # hand goes stale the moment a class is added - which is exactly what
+    # happened when `deterministic_producer` appeared and the generated text
+    # still said "four classes" while omitting it from the loop below.
+    used_classes = [c for c in REPRODUCTION_CLASSES
+                    if any(r["reproduction_class"] == c for r in identity)]
+    lines += [
+        f"Each figure carries one of {len(used_classes)} classes, stated "
+        f"verbatim in its",
         "`PROVENANCE.txt`. They are not interchangeable and the distinction",
         "is deliberate:",
         "",
     ]
-    for cls in ("data_generated", "frozen_approved_artwork",
-                "deployment_export_of_reproduced_original",
-                "manually_postprocessed_approved_artwork"):
+    for cls in used_classes:
         members = [r["label"] for r in identity
                    if r["reproduction_class"] == cls]
         lines += [f"* **`{cls}`** ({', '.join(members)})",
@@ -1003,9 +1033,12 @@ def readme_text(identity, geom):
     lines += [
         "Two consequences worth stating plainly:",
         "",
-        "* Figures 1 and 4 are frozen author-created artwork with no runnable",
-        "  producer. They are **not** regenerated from data and no such claim",
-        "  is made anywhere in this tree.",
+        "* Figures 1 and 4 DO have runnable producers: deterministic,",
+        "  donor-based schematic producers that reproduce their raw RGB",
+        "  pixels exactly on every supported platform. They are not",
+        "  regenerated from deposited data, and exact PNG byte identity is",
+        "  claimed only on the canonical encoder stack (Pillow 12.2.x with",
+        "  zlib 1.3.1) -- pixel identity is the portable guarantee.",
         "* Figure 8 carries a manual post-processing pass that the",
         "  producing script does not reproduce. The script's data-derived",
         "  render ships under `source_components/`, named so it cannot be",
@@ -1065,10 +1098,21 @@ def readme_text(identity, geom):
         "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 PENDING --"
         " not yet in force; requires written authorization from coauthor"
         " Dr. Nasser Najibi |",
-        "| `reproduced/**` (Fig. 2, 3, 12, B, D, S.1 and both table sets) |"
+        "| `reproduced/**` (Fig. 2, 3, 12, B, D and both table sets) |"
         " CC BY 4.0 for the authors' contributions + current Copernicus ERA5"
         " terms and required attribution for the depicted ERA5-derived"
         " values |",
+        # Fig. S.1 gets its OWN row. It is the only figure here that depicts
+        # GHCN-Daily station observations, and folding it into the generic
+        # ERA5 row silently dropped the NOAA/NCEI attribution it owes.
+        "| `reproduced/**` (Fig. S.1 -- station validation) | CC BY 4.0 for"
+        " the authors' contribution only. The depicted station observations"
+        " are from **GHCN-Daily** (NOAA National Centers for Environmental"
+        " Information), used under the GHCN-Daily terms of use and requiring"
+        " NOAA/NCEI attribution: cite Menne et al. (2012) and the GHCN-Daily"
+        " dataset. Where ERA5-derived values are shown alongside them, the"
+        " current Copernicus ERA5 terms and required attribution also apply."
+        " Neither source is CC BY licensed by this tree |",
         "",
         "Panels and source components inherit from the figure they were cut",
         "from. The ERA5 attribution requirement therefore reaches every",

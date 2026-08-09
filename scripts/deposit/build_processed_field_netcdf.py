@@ -43,6 +43,21 @@ import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, date2num
 
+# The legal strings live in exactly one place, next to this script, so the
+# producer and the release-gate validators cannot drift apart. This script is
+# run directly rather than as part of an installed package, so its own
+# directory goes on sys.path instead of relying on an install.
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from deposit_contract import (  # noqa: E402  (path set up immediately above)
+    AUTHORS_RIGHTS_CLAUSE,
+    COVERAGE_INTERVAL,
+    CURRENT_LICENCE_URL,
+    MANUSCRIPT_STATUS,
+    REQUIRED_DISCLAIMER,
+    REQUIRED_NOTICE,
+)
+
 N_TIME_EXPECTED = 15_738
 N_LAT_EXPECTED = 36
 N_LON_EXPECTED = 50
@@ -256,25 +271,24 @@ def build(master_csv: Path, out_nc: Path) -> dict:
                      "from the ARCO-ERA5 analysis-ready public mirror "
                      "(gs://gcp-public-data-arco-era5); dataset of record: Copernicus "
                      "Climate Data Store, DOI 10.24381/cds.adbb2d47. ERA5 coverage "
-                     "used: 1940-2025 (warm seasons, April-September). Required "
-                     "Copernicus attribution: see the `license` attribute.")
+                     f"used: {COVERAGE_INTERVAL} (warm seasons, April-September). "
+                     "Required Copernicus attribution: see the `license` attribute.")
+        # Pre-submission. This must stay truthful until the manuscript is
+        # actually submitted; "in review" would overstate its status.
         ds.references = ("Bouhamad and Najibi, Understanding the Spatiotemporal "
                          "Organization of Regionally Extensive Heatwaves Using the "
-                         "SCORCH Framework (in review). SCORCH: Spatiotemporal "
-                         "Classification of Regional Compound Heatwaves.")
+                         f"SCORCH Framework (manuscript {MANUSCRIPT_STATUS}). "
+                         "SCORCH: Spatiotemporal Classification of Regional "
+                         "Compound Heatwaves.")
         ds.license = ("CC BY 4.0 for the value added by the authors "
                       "(https://creativecommons.org/licenses/by/4.0/), which "
-                      "covers only the authors' contribution; the underlying "
+                      f"{AUTHORS_RIGHTS_CLAUSE}; the underlying "
                       "ERA5 information is provided under the licence to use "
-                      "Copernicus products, https://ecds.ecmwf.int/licences/"
-                      "licence-to-use-copernicus-products, and is not CC "
-                      "BY licensed by this deposit. ERA5 coverage used: "
-                      "1940-2025 (warm seasons, April-September). Required "
-                      "attribution: Contains modified Copernicus Climate "
-                      "Change Service information 2026. Neither the European "
-                      "Commission nor ECMWF is responsible for any use that "
-                      "may be made of the Copernicus information or data it "
-                      "contains.")
+                      f"Copernicus products, {CURRENT_LICENCE_URL}, and is not "
+                      "CC BY licensed by this deposit. ERA5 coverage used: "
+                      f"{COVERAGE_INTERVAL} (warm seasons, April-September). "
+                      f"Required attribution: {REQUIRED_NOTICE} "
+                      f"{REQUIRED_DISCLAIMER}")
         ds.comment = ("Dense field: 15,738 warm-season days x 1,800 one-degree cells "
                       "(lat 10.5..45.5N, lon 20.5..69.5E, cell centers). No missing "
                       "data; _FillValue conventions declared for completeness.")

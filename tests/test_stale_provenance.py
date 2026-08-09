@@ -297,7 +297,10 @@ def test_science_contract_paths_exist():
 
 def test_key_active_paths_exist():
     # The two legacy Figure 9 rasters are deliberately absent: they were
-    # relocated to the processed-data deposit. Their identities are verified
+    # relocated into the LOCAL, UNPUBLISHED processed-data archive candidate
+    # (not a deposit - nothing has been uploaded or published; saying
+    # "deposit" here is the very claim FORBIDDEN_DEPOSIT_CLAIM rejects in
+    # tests/test_public_consistency_guards.py). Their identities are verified
     # against the relocation manifest and the archive crosswalk by
     # test_relocated_legacy_figure9_rasters_are_accounted_for below, not by an
     # existence assertion here.
@@ -510,20 +513,107 @@ def test_publication_builder_table1_prose_consistent():
 
 # --- R3: no S.1 producer contradiction ---------------------------------------
 
+# The first version of this guard searched each LINE for the literal string
+# "no runnable producer". Three things were wrong with that:
+#
+#   1. It pinned the guard to one phrasing. The 2026-08 correction round
+#      removed that exact sentence from the generated publication text (and
+#      tests/test_publication_builder_contracts.py now forbids it there), so
+#      the literal is on its way out of the tree entirely. Any reworded claim
+#      - "lacks a producer", "producerless", "not reproducible from code" -
+#      walked straight past it.
+#   2. It was line-scoped, so a hard wrap between the figure reference and the
+#      claim defeated it. That was not hypothetical: in
+#      assets/frozen_figures/README.md the claim sits on a line carrying
+#      neither "s.1" nor "station", so the old guard skipped the one place in
+#      the tree where the sentence still appears.
+#   3. With no match anywhere it asserted nothing and still went green.
+#
+# The replacement asserts the STRUCTURED truth first - S.1 has runnable
+# producers and the identity CSV classifies it accordingly - and only then
+# sweeps the prose, whole-document-normalized, over a family of producerless
+# phrasings, requiring a superseded/fallback label. Coverage is asserted, so
+# an inspection that matched nothing is a failure rather than a pass.
+
+_PRODUCERLESS_RX = re.compile(
+    r"no runnable producer|had no producer|lacks? a(?: runnable)? producer|"
+    r"producerless|without a(?: runnable)? producer|"
+    r"no(?:t)? reproducible from code|no code[ -]native producer|"
+    r"cannot be regenerated", re.I)
+
+# "S.1" survives normalization as "s.1"; "s 1" covers a hyphen/space variant.
+_S1_REF_RX = re.compile(r"s\.? ?1\b|station", re.I)
+
+_S1_FALLBACK_MARKERS = (
+    "fallback", "supersed", "historical", "legacy", "donor", "hand-drawn",
+    "pre-correction", "provisional", "figures 1 and 4", "fig. 1",
+)
+
+_S1_PRODUCERS = (
+    "scripts/figures/figS1/make_figS1_station_panels.py",
+    "scripts/figures/figS1/make_figS1_station_strip.py",
+    "scripts/figures/figS1/make_new_figS1_candidate.py",
+)
+
+
+def test_canonical_s1_has_runnable_producers_of_record():
+    """The structured truth the prose guard exists to protect."""
+    for rel in _S1_PRODUCERS:
+        assert (ROOT / rel).is_file(), (
+            f"{rel} is missing; the canonical Fig. S.1 is declared "
+            f"data_generated, which requires its producers to be present")
+    rows = {r["label"].strip(): r
+            for r in _csv_rows(ROOT / "docs" /
+                               "MANUSCRIPT_FIGURE_IDENTITY.csv")}
+    s1 = rows["Fig. S.1."]
+    assert s1["reproduction_class"] == "data_generated", (
+        "Fig. S.1 is no longer classified data_generated; the canonical "
+        "station panels are regenerated from deposited GHCN-Daily and ERA5 "
+        "series, not transcribed from the frozen donor drawing")
+    # shipped_asset is legitimately empty for S.1 (the reproduced output IS
+    # the manuscript embed), so the producer evidence is the render hash.
+    assert re.fullmatch(r"[0-9a-f]{64}", s1["script_render_sha256"]), (
+        "Fig. S.1 carries no script_render_sha256; a data_generated figure "
+        "must have a recorded producer render")
+    assert s1["script_render_sha256"] == FIGS1_CANONICAL_SHA, (
+        "Fig. S.1's producer render no longer matches the pinned canonical "
+        "composite")
+
+
+# The subject and the claim routinely sit in ADJACENT sentences - "...the
+# superseded provisional station comparison drawing... It was transcribed from
+# approved slide artwork and had no runnable producer." - so a sentence-scoped
+# association finds nothing. The claim is therefore judged on a character
+# window around the match, which is what a reader actually takes in.
+_S1_CONTEXT_CHARS = 320
+
+
 def test_canonical_s1_never_described_as_producerless():
-    marker_ok = ("fallback", "superseded", "historical", "legacy",
-                 "figures 1 and 4", "fig. 1", "hand-drawn")
+    inspected = 0
+    problems = []
     for doc in _active_docs():
-        for lineno, line in enumerate(_read(doc).splitlines(), start=1):
-            low = line.lower()
-            if "no runnable producer" not in low:
+        flat = _normalize_lifecycle(_read(doc))
+        for m in _PRODUCERLESS_RX.finditer(flat):
+            lo = max(0, m.start() - _S1_CONTEXT_CHARS)
+            window = flat[lo:m.end() + _S1_CONTEXT_CHARS]
+            if not _S1_REF_RX.search(window):
                 continue
-            if "s.1" in low or "station" in low:
-                assert any(m in low for m in marker_ok), (
-                    f"{doc.relative_to(ROOT)}:{lineno}: claims S.1/station "
-                    "material lacks a producer without labelling it as the "
-                    "superseded legacy fallback; the canonical S.1 station "
-                    "panels ARE regenerated by shipped producers")
+            inspected += 1
+            if not any(mark in window for mark in _S1_FALLBACK_MARKERS):
+                problems.append(
+                    f"{doc.relative_to(ROOT)}: {window.strip()[:180]}")
+    assert not problems, (
+        "an active record claims S.1/station material lacks a producer "
+        "without labelling it as the superseded donor fallback; the canonical "
+        "S.1 station panels ARE regenerated by shipped producers: "
+        + " ;; ".join(problems))
+    assert inspected, (
+        "this guard inspected ZERO sentences. The superseded station-donor "
+        "drawing is still described in assets/frozen_figures/README.md, so a "
+        "producerless claim about station material should have been found and "
+        "checked for its fallback label. Zero matches means the phrasing "
+        "moved outside _PRODUCERLESS_RX / _S1_REF_RX and the guard has gone "
+        "blind - extend the pattern rather than deleting the assertion")
 
 
 # --- R4: hardened lifecycle-language guard -----------------------------------

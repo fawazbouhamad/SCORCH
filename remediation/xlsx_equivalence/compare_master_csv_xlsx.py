@@ -34,8 +34,14 @@ Equivalence PASSES iff all of the following hold:
   positional row-order check would not prove row identity);
 * identical row keys and row order;
 * every non-numeric cell equal exactly;
-* every integer-valued column equal exactly;
-* identical NaN and Inf masks;
+* every column of the PINNED canonical integer schema present, integral in the
+  canonical CSV, and numeric, integral and exactly equal in the XLSX. Semantic
+  type is decided by the canonical CSV alone: letting the XLSX vote lets a
+  perturbed integer demote its own column to "float" and hide under the
+  relative tolerance;
+* identical NaN masks, and identical POSITIVE- and NEGATIVE-infinity masks
+  compared separately, so ``+inf`` against ``-inf`` cannot pass a sign-blind
+  ``isinf`` check;
 * for every pair of corresponding finite float64 values, the **relative**
   difference ``|a-b| / max(|a|,|b|)`` is <= ``REL_TOL`` (1e-12);
 * the workbook is inert with respect to an ENUMERATED list of properties: no
@@ -43,7 +49,12 @@ Equivalence PASSES iff all of the following hold:
   no VBA archive or macro parts, no charts, images or cell comments, no merged
   cell ranges, no conditional formatting, no data validations, no hyperlinks,
   no worksheet tables, no auto filters, no frozen panes, no pivot caches, and
-  exactly one visible sheet.
+  exactly one visible sheet. EVERY ``.rels`` member is enumerated and parsed as
+  XML - not just ``xl/_rels/workbook.xml.rels`` - and an unparseable one fails
+  closed, because absence of evidence is not evidence of absence. Pivot content
+  is judged on the raw ZIP member names as well as the object model, since
+  openpyxl can report zero pivot objects for a workbook that still ships
+  ``xl/pivotCache/`` or ``xl/pivotTables/`` parts.
 
 The inertness claim is scoped to that list, which the run emits as
 ``inertness_properties_checked``. It is NOT a claim that the workbook carries no
@@ -87,6 +98,38 @@ SHEET_NAME = "master_cluster_ellipse"
 KEY_COLUMNS = ("new_event_id", "date", "cluster_id")
 REL_TOL = 1e-12
 
+# The canonical integer schema, PINNED. Semantic type is a property of the
+# canonical CSV, never something negotiated with the XLSX at runtime.
+#
+# The previous rule classified a column as integer-valued only when BOTH sides
+# happened to look integral, which is a bypass: perturb an XLSX integer to
+# 1.0000000000005 and the column silently demotes itself to "float", where a
+# relative difference of 5e-13 sails under REL_TOL and the run reports PASS.
+# These 20 columns are integers by definition of the product; the XLSX must
+# match exactly or fail.
+INTEGER_SCHEMA_COLUMNS = (
+    "new_event_id",
+    "event_id",
+    "v3_type",
+    "duration_days",
+    "day_index_in_event",
+    "canonical_daily_minpts_used",
+    "event_global_minpts_max_rounded",
+    "event_global_minpts_used",
+    "dbscan_rounded_minpts",
+    "day_final_n_clusters",
+    "day_n_noise_cells",
+    "day_n_clustered_cells",
+    "cluster_id",
+    "H_component_cells",
+    "E_ellipse_cells",
+    "interH_intersection_cells",
+    "union_cells",
+    "E_ellipse_cells_translated",
+    "interH_intersection_cells_translated",
+    "union_cells_translated",
+)
+
 
 def _resolve(repo_rel: str, deposit_rel: str) -> Path | None:
     """Repository copy first, then an extracted deposit via SCORCH_DATA_DIR."""
@@ -105,13 +148,70 @@ def workbook_structure(xlsx_path: Path) -> dict:
     """Structural inertness of the workbook, from a fresh open of the file."""
     import openpyxl
 
+    import xml.etree.ElementTree as ET
+
     with zipfile.ZipFile(xlsx_path) as zf:
         parts = sorted(zf.namelist())
-        rels = ""
-        if "xl/_rels/workbook.xml.rels" in parts:
-            rels = zf.read("xl/_rels/workbook.xml.rels").decode("utf-8", "replace")
 
-    wb = openpyxl.load_workbook(xlsx_path, data_only=False)
+        # EVERY relationship part, not just the workbook's. An external target
+        # planted in `_rels/.rels` or a worksheet's own rels part is just as
+        # much a live link, and reading only xl/_rels/workbook.xml.rels missed
+        # both. Parsed as XML rather than string-counted, so a malformed part
+        # fails closed instead of quietly counting zero.
+        rel_parts = sorted(p for p in parts if p.lower().endswith(".rels"))
+        relationships = []
+        rel_parse_errors = []
+        for part in rel_parts:
+            try:
+                root = ET.fromstring(zf.read(part))
+            except (ET.ParseError, UnicodeDecodeError) as exc:
+                rel_parse_errors.append({"part": part, "error": str(exc)})
+                continue
+            for node in root.iter():
+                if not node.tag.endswith("Relationship"):
+                    continue
+                relationships.append({
+                    "part": part,
+                    "id": node.get("Id", ""),
+                    "type": node.get("Type", ""),
+                    "target": node.get("Target", ""),
+                    "target_mode": node.get("TargetMode", ""),
+                })
+        external_relationships = [r for r in relationships
+                                  if r["target_mode"].strip().lower()
+                                  == "external"]
+
+        # Raw pivot payload, independent of what the object model exposes.
+        # openpyxl can report zero pivot objects for a workbook that still
+        # ships pivot parts, so the bytes get the final say.
+        pivot_zip_parts = sorted(
+            p for p in parts
+            if p.lower().startswith(("xl/pivotcache/", "xl/pivottables/")))
+
+    # A workbook that openpyxl cannot open is NOT inert - it is unreadable,
+    # which is a stronger objection, not a weaker one. Reporting it as a
+    # structured FAIL keeps the JSON contract intact instead of crashing the
+    # run and leaving the caller to interpret a traceback.
+    try:
+        wb = openpyxl.load_workbook(xlsx_path, data_only=False)
+    except Exception as exc:                        # noqa: BLE001 - fail closed
+        return {
+            "workbook_load_error": f"{type(exc).__name__}: {exc}",
+            "zip_parts": parts,
+            "pivot_zip_parts": pivot_zip_parts,
+            "relationship_parts_scanned": rel_parts,
+            "relationship_parts_scanned_count": len(rel_parts),
+            "relationships": relationships,
+            "relationship_count": len(relationships),
+            "relationship_parse_errors": rel_parse_errors,
+            "external_relationships": external_relationships,
+            "external_relationship_parts": sorted(
+                {r["part"] for r in external_relationships}),
+            "external_relationship_targets_detail": sorted(
+                {r["target"] for r in external_relationships}),
+            "external_rel_targets": len(external_relationships),
+            "inert": False,
+        }
     try:
         formulas = 0
         comments = 0
@@ -125,7 +225,9 @@ def workbook_structure(xlsx_path: Path) -> dict:
         autofilters = 0
         frozen = 0
         number_formats = set()
+        worksheet_pivots = 0
         for ws in wb.worksheets:
+            worksheet_pivots += len(getattr(ws, "_pivots", []) or [])
             images += len(getattr(ws, "_images", []) or [])
             charts += len(getattr(ws, "_charts", []) or [])
             merged += len(getattr(ws, "merged_cells", ()) and
@@ -160,6 +262,18 @@ def workbook_structure(xlsx_path: Path) -> dict:
             "auto_filters": autofilters,
             "frozen_panes": frozen,
             "pivot_caches": len(getattr(wb, "_pivots", []) or []),
+            "worksheet_pivots": worksheet_pivots,
+            "pivot_zip_parts": pivot_zip_parts,
+            "relationship_parts_scanned": rel_parts,
+            "relationship_parts_scanned_count": len(rel_parts),
+            "relationships": relationships,
+            "relationship_count": len(relationships),
+            "relationship_parse_errors": rel_parse_errors,
+            "external_relationships": external_relationships,
+            "external_relationship_parts": sorted(
+                {r["part"] for r in external_relationships}),
+            "external_relationship_targets_detail": sorted(
+                {r["target"] for r in external_relationships}),
             # Reported, NOT part of the inertness claim - see the note below.
             "number_formats_observed": sorted(number_formats),
             "zip_parts": parts,
@@ -175,7 +289,7 @@ def workbook_structure(xlsx_path: Path) -> dict:
             "defined_names": list(wb.defined_names),
             "external_link_parts": [p for p in parts
                                     if p.startswith("xl/externalLink")],
-            "external_rel_targets": rels.count('TargetMode="External"'),
+            "external_rel_targets": len(external_relationships),
             "vba_archive": wb.vba_archive is not None,
             "macro_parts": [p for p in parts if p.endswith(".bin")],
         }
@@ -197,7 +311,10 @@ def workbook_structure(xlsx_path: Path) -> dict:
         "no VBA archive", "no macro parts", "no merged cell ranges",
         "no conditional formatting", "no data validations", "no hyperlinks",
         "no worksheet tables", "no auto filters", "no frozen panes",
-        "no pivot caches",
+        "no pivot caches", "no worksheet pivots",
+        "no raw pivotCache/pivotTable ZIP parts",
+        "every .rels part parses as XML",
+        "no external relationship in ANY .rels part",
     ]
     info["inertness_properties_not_checked"] = [
         "cell number formats (reported, not constrained)",
@@ -226,6 +343,14 @@ def workbook_structure(xlsx_path: Path) -> dict:
         and info["auto_filters"] == 0
         and info["frozen_panes"] == 0
         and info["pivot_caches"] == 0
+        and info["worksheet_pivots"] == 0
+        # The bytes get the final say: a workbook shipping pivot parts is not
+        # inert even when the object model reports zero pivot objects.
+        and not info["pivot_zip_parts"]
+        # Fail closed: an unparseable relationship part is not evidence of
+        # absence, it is absence of evidence.
+        and not info["relationship_parse_errors"]
+        and not info["external_relationships"]
     )
     return info
 
@@ -332,22 +457,65 @@ def compare(csv_path: Path, xlsx_path: Path) -> dict:
     if string_diff:
         result["failures"].append("non-numeric cells differ")
 
+    # ---- semantic type comes from the CANONICAL CSV, never from the XLSX ----
+    schema_missing = [c for c in INTEGER_SCHEMA_COLUMNS
+                      if c not in csv_df.columns]
+    result["integer_schema_columns_declared"] = list(INTEGER_SCHEMA_COLUMNS)
+    result["integer_schema_columns_missing"] = schema_missing
+    if schema_missing:
+        result["failures"].append(
+            f"declared integer-schema columns absent from the canonical CSV: "
+            f"{schema_missing}")
+        return result
+
+    # The canonical CSV must itself satisfy the schema it declares; if it does
+    # not, the schema is wrong and no XLSX comparison against it is meaningful.
+    schema_violations = {}
+    for col in INTEGER_SCHEMA_COLUMNS:
+        a = csv_df[col].to_numpy(dtype=np.float64, na_value=np.nan)
+        fin = np.isfinite(a)
+        n = int((a[fin] != np.floor(a[fin])).sum())
+        if n:
+            schema_violations[col] = n
+    result["canonical_csv_schema_violations"] = schema_violations
+    if schema_violations:
+        result["failures"].append(
+            f"canonical CSV violates its own integer schema: "
+            f"{sorted(schema_violations)}")
+
     nan_mismatch, inf_mismatch = [], []
+    posinf_mismatch, neginf_mismatch = [], []
     integer_cols, float_cols = [], []
     integer_diff = {}
+    integer_non_integral = {}
+    integer_non_numeric = []
     for col in numeric_cols:
         a = csv_df[col].to_numpy(dtype=np.float64, na_value=np.nan)
         b = xlsx_df[col].to_numpy(dtype=np.float64, na_value=np.nan)
         if not np.array_equal(np.isnan(a), np.isnan(b)):
             nan_mismatch.append(col)
+        # Signed infinities compared SEPARATELY. np.isinf() is sign-blind, so
+        # +inf against -inf at the same cell produced identical masks and slid
+        # through as equivalent. It is not.
+        if not np.array_equal(a == np.inf, b == np.inf):
+            posinf_mismatch.append(col)
+        if not np.array_equal(a == -np.inf, b == -np.inf):
+            neginf_mismatch.append(col)
         if not np.array_equal(np.isinf(a), np.isinf(b)):
             inf_mismatch.append(col)
-        finite = np.isfinite(a) & np.isfinite(b)
-        both_int = (np.all(a[finite] == np.floor(a[finite]))
-                    and np.all(b[finite] == np.floor(b[finite])))
-        if both_int:
+
+        csv_fin = np.isfinite(a)
+        csv_integral = bool(np.all(a[csv_fin] == np.floor(a[csv_fin])))
+        if col in INTEGER_SCHEMA_COLUMNS or csv_integral:
             integer_cols.append(col)
-            n = int((a[finite] != b[finite]).sum())
+            if not pd.api.types.is_numeric_dtype(xlsx_df[col]):
+                integer_non_numeric.append(col)
+            b_fin = np.isfinite(b)
+            nfrac = int((b[b_fin] != np.floor(b[b_fin])).sum())
+            if nfrac:
+                integer_non_integral[col] = nfrac
+            both = csv_fin & np.isfinite(b)
+            n = int((a[both] != b[both]).sum())
             if n:
                 integer_diff[col] = n
         else:
@@ -355,17 +523,42 @@ def compare(csv_path: Path, xlsx_path: Path) -> dict:
 
     result["numeric_columns"] = len(numeric_cols)
     result["integer_valued_columns"] = len(integer_cols)
+    result["integer_valued_column_names"] = integer_cols
     result["float_columns"] = len(float_cols)
     result["nan_mask_identical"] = not nan_mismatch
     result["inf_mask_identical"] = not inf_mismatch
+    result["posinf_mask_identical"] = not posinf_mismatch
+    result["neginf_mask_identical"] = not neginf_mismatch
+    result["signed_inf_mask_identical"] = not (posinf_mismatch
+                                               or neginf_mismatch)
     result["nan_mask_mismatch_columns"] = nan_mismatch
     result["inf_mask_mismatch_columns"] = inf_mismatch
+    result["posinf_mask_mismatch_columns"] = posinf_mismatch
+    result["neginf_mask_mismatch_columns"] = neginf_mismatch
     result["integer_differing_cells"] = int(sum(integer_diff.values()))
     result["integer_differing_columns"] = integer_diff
+    result["integer_non_integral_cells"] = int(
+        sum(integer_non_integral.values()))
+    result["integer_non_integral_columns"] = integer_non_integral
+    result["integer_non_numeric_columns"] = integer_non_numeric
     if nan_mismatch:
         result["failures"].append("NaN masks differ")
-    if inf_mismatch:
+    if posinf_mismatch:
+        result["failures"].append(
+            f"positive-infinity masks differ: {posinf_mismatch}")
+    if neginf_mismatch:
+        result["failures"].append(
+            f"negative-infinity masks differ: {neginf_mismatch}")
+    if inf_mismatch and not (posinf_mismatch or neginf_mismatch):
         result["failures"].append("Inf masks differ")
+    if integer_non_numeric:
+        result["failures"].append(
+            f"integer-schema columns are non-numeric in the XLSX: "
+            f"{integer_non_numeric}")
+    if integer_non_integral:
+        result["failures"].append(
+            f"integer-valued cells are fractional in the XLSX: "
+            f"{sorted(integer_non_integral)}")
     if integer_diff:
         result["failures"].append("integer-valued cells differ")
 
@@ -468,9 +661,27 @@ def main() -> int:
                            "sha256": hashlib.sha256(data).hexdigest()}
 
     structure = workbook_structure(xlsx_path)
-    result = compare(csv_path, xlsx_path)
+    try:
+        result = compare(csv_path, xlsx_path)
+    except Exception as exc:                        # noqa: BLE001 - fail closed
+        # A workbook the reader cannot open is a FAILURE with a report, not a
+        # traceback. Crashing here would still exit nonzero, but it would emit
+        # no JSON, leaving the caller nothing structured to act on.
+        result = {"failures": [f"workbook could not be read: "
+                               f"{type(exc).__name__}: {exc}"],
+                  "comparison_ran": False}
+    result.setdefault("comparison_ran", True)
+    # Recorded separately from the cell-value findings so a caller can tell a
+    # structural objection from a data disagreement.
+    result["structural_failures"] = []
     if not structure["inert"]:
-        result["failures"].append("workbook carries logic or linkage")
+        reason = ("workbook is unreadable"
+                  if structure.get("workbook_load_error")
+                  else "workbook carries logic or linkage")
+        result["structural_failures"].append(reason)
+        result["failures"].append(reason)
+    result["cell_equivalence_ok"] = not [
+        f for f in result["failures"] if f not in result["structural_failures"]]
 
     passed = not result["failures"]
     report = {

@@ -8,8 +8,15 @@ six Type 3 time labels horizontally onto their circle columns. These guards
 prove, from the artifacts themselves rather than from recorded expectations,
 that:
 
-* the canonical producer regenerates the shipped PNG byte-identically from
-  the immutable donor, in one pass, without reading its own output;
+* the canonical producer regenerates the shipped figure from the immutable
+  donor, in one pass, without reading its own output. Two DISTINCT claims are
+  kept apart here: the raw-RGB **pixels** are reproduced on every platform and
+  that is asserted unconditionally, whereas exact PNG **byte** identity
+  (SHA-256 ``74ea37f0...``) is a property of the canonical encoder stack
+  (Pillow 12.2.x with zlib 1.3.1) and is asserted only there. A Linux audit
+  once reproduced the pixels exactly while emitting different PNG bytes; both
+  observations were correct, and claiming byte identity unconditionally was
+  the error;
 * Type 4 still reads horizontally two -> one -> two;
 * the Type 4 lattice is symmetric within the approved 1 px tolerance;
 * all six Type 3 labels are centred on their columns within 1 px;
@@ -60,9 +67,14 @@ LABEL_MOVES = {(1100, 0): -9, (1100, 1): 8, (1100, 2): 7,
                (1930, 0): -15, (1930, 1): 1, (1930, 2): 1}
 LABEL_GROUP_GAP = 80
 
-pytestmark = pytest.mark.skipif(
-    not FIG04.exists() or not DONOR.exists(),
-    reason="Figure 4 canonical asset or immutable donor missing")
+# No module-wide skip. The canonical asset, the immutable donor and the active
+# producer are TRACKED files: a checkout missing any of them is broken, and a
+# broken checkout must go red rather than quietly green.
+def test_required_figure04_inputs_are_present():
+    missing = [str(p.relative_to(REPO)) for p in (FIG04, DONOR, PRODUCER)
+               if not p.is_file()]
+    assert not missing, (
+        f"tracked Figure 4 inputs are missing from this checkout: {missing}")
 
 
 def _sha(p: Path) -> str:
@@ -146,7 +158,6 @@ def test_canonical_asset_matches_approved_hash():
     assert _sha(DONOR) == DONOR_SHA
 
 
-@pytest.mark.skipif(not PRODUCER.exists(), reason="producer missing")
 def test_producer_regenerates_pixel_identically(tmp_path):
     """One deterministic pass from the immutable donor.
 

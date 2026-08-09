@@ -6,22 +6,33 @@ can tell which terms apply to it.
 
 ## Summary
 
+The repository is public. Every row below therefore describes bytes that are
+already retrievable by anyone, not an internal plan.
+
 | Revisions | Software licence | Status |
 |---|---|---|
-| Public pre-release repository snapshots up to and including the `v1.0.0` tag target (commit `184f15c6`) and the subsequent `main` commit `bd6e4608` | **MIT** | Historical. Still in force for those revisions. |
-| The forthcoming formal v1.0.0 release onward | **GPL-3.0-only** | Current. |
+| Public snapshots up to and including the `v1.0.0` tag target (commit `184f15c6`) and the `main` commit `bd6e4608` | **MIT** | In force for those revisions. `bd6e4608` is the present head of the public default branch, so MIT is still what a default-branch clone receives today. |
+| The unmerged pre-release candidate branch `chore/final-repository-cleanup` (head `6d483cf9`) and the draft pull request #1 that carries it | **GPL-3.0-only** | Publicly readable now. The GPL text is already distributed on these bytes — but they are a **candidate**, not a release: not merged, not tagged, not released. |
+| The forthcoming formal v1.0.0 release onward | **GPL-3.0-only** | The intended licence of the release. Not yet in force *as a release*, because the release has not been made. |
 
-> The existing `v1.0.0` tag currently points at a **pre-release repository
-> snapshot**, not the completed formal release. Final tag alignment is a
-> separate release stop gate; the tag object and its commit are preserved
-> as provenance and are not moved in this round.
+> **"Current" is deliberately not used as a label above.** Two licences are
+> simultaneously retrievable from this public repository right now — MIT from
+> `main`, GPL-3.0-only from the candidate branch — so a single row marked
+> "current" would misdescribe the repository rather than summarise it. Which
+> terms apply depends on which revision a reader actually obtained.
+
+> The existing `v1.0.0` tag (annotated object `47d0c06d`) points at commit
+> `184f15c6`, a **pre-release repository snapshot** carrying MIT — not the
+> completed formal release. Final tag alignment is a separate release stop
+> gate; the tag object and its commit are preserved as provenance and are not
+> moved in this round.
 
 ## What the change does and does not do
 
-The SCORCH software in **this** release and all later releases is licensed
-under the GNU General Public License, version 3 only (`GPL-3.0-only`). The
-complete, unmodified licence text is in the repository's root `LICENSE`
-file.
+The SCORCH software in **this candidate revision**, in the forthcoming
+release, and in all later releases is licensed under the GNU General Public
+License, version 3 only (`GPL-3.0-only`). The complete, unmodified licence
+text is in the repository's root `LICENSE` file.
 
 **Earlier public revisions remain under the licence that was included with
 those revisions.** A permissive licence grant, once made publicly, cannot be
@@ -33,8 +44,18 @@ file, or in the repository history revokes, disclaims, or attempts to
 reinterpret that grant. No git history has been rewritten to conceal it, and
 the MIT text remains readable at those commits.
 
-The relicensing applies going forward, to the code as distributed from this
-release.
+The relicensing applies going forward, to the code as distributed from the
+candidate branch onward.
+
+**The same reasoning runs in the other direction, and is stated here rather
+than left implicit.** Because the repository is public, the GPL-3.0-only
+`LICENSE` on the candidate branch `chore/final-repository-cleanup` is already
+publicly distributed. Anyone who has taken those bytes holds them under
+GPL-3.0-only, and a later decision to abandon, rewrite, or re-scope the
+candidate would not retract that grant on the copies already taken, any more
+than the MIT grant on `bd6e4608` can be retracted. Neither branch's terms are
+provisional for a reader who already has the bytes; what remains provisional
+is only which revision becomes the formal release.
 
 ## Authority to relicense
 

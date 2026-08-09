@@ -105,8 +105,13 @@ pre-release candidates, never published.
   wrapped to the manuscript's north-referenced (-90, 90] convention. The
   superseded chain averaged 180-degree-periodic axial angles arithmetically
   (Event 4: -21.101 deg instead of the correct +68.98532754765856 deg).
-  Panels 9(a)/(b), event areas and axis ratios are unchanged; superseded
-  artifacts are archived under `legacy_defective_figure09/`.
+  Panels 9(a)/(b), event areas and axis ratios are unchanged. The two
+  superseded rasters have since been relocated out of the repository:
+  `legacy_defective_figure09/` now holds only its explanatory pointer
+  README, and the rasters themselves are staged at
+  `provenance_evidence/legacy_defective_figure09/` inside the LOCAL,
+  UNPUBLISHED processed-data archive candidate. They are not deposited,
+  not published and not publicly retrievable.
 * **Frequency inference removed.** Annual Type 3/Type 4 event counts are
   descriptive only and are not trend-tested; frequency Mann-Kendall/Sen
   rows were removed from the table producer, the Figure 10 console output
@@ -186,7 +191,7 @@ pre-release candidates, never published.
   direct pins are the EXACT versions of the CPython 3.12.10 environment
   that produced the paper outputs - the same pins as environment.yml) and
   `environment/renv.lock` (R 4.5.1 + spatstat).
-* Test suite (396 collected; 373 passed / 22 skipped / 1 xfailed with the archive candidate configured, and 350 passed / 46 skipped source-only): unit + schema + CLI/fetch behaviour +
+* Test suite (496 collected; source-only 450 passed / 46 skipped, exit 0, PASS; required-archive 473 passed / 1 EXPECTED failure / 22 skipped, exit 1, that failure being the unchanged archive's stale NetCDF metadata reported through all nine contract codes): unit + schema + CLI/fetch behaviour +
   stale-provenance release-alignment guards (added in the v1.0.0 final
   remediation: false Figure A account, stale Table 1 checksums,
   defective-Figure-9-as-published wording, retired staging paths,
@@ -212,10 +217,21 @@ pre-release candidates, never published.
   source tree) + canonical regression tests (the latter run when the
   deposit or the frozen catalog is present, and skip with a clear message
   otherwise). Measured in the hash-locked clean-room environment:
-  373 passed, 22 skipped, 1 xfailed with the deposit and archive candidate configured (21 FINAL-DOCX skips + 1 non-redistributable Aptos-font skip). A zero-skip acceptance run is PENDING the final release gate. At the PRIOR HEAD `44a54a05`, historical only, this was 363 passed, 0 failed, 0 errors, 0 skipped with the deposit and fixtures
-  (fully configured acceptance run); a source-only checkout measures
-  350 passed, 46 skipped without the deposit. At the PRIOR HEAD `44a54a05`, historical only, this was 327 passed, 36 skipped
-  (current). HISTORICAL, not current: 212 passed + 34 skipped without the
+  473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed with the deposit and
+  archive candidate configured and `SCORCH_REQUIRE_ARCHIVE=1`, exit 1 (21
+  FINAL-DOCX skips + 1 non-redistributable Aptos-font skip). That single failure
+  is EXPECTED and is a verified release blocker rather than a regression: the
+  release gate reports the unchanged archive's stale NetCDF metadata through all
+  nine contract codes, and it exits nonzero by design after the unconditional
+  xfail that used to absorb it was removed. A source-only checkout measures
+  450 passed, 46 skipped, 0 failed, exit 0 - PASS. A zero-skip acceptance run,
+  and final release acceptance itself, are both PENDING the final release gate.
+  Superseded and quoted as provenance only: at the committed head `6d483cf9`
+  before the uncommitted Phase 2.2A2 changes this was 396 collected with 350
+  passed / 46 skipped source-only and 373 passed / 22 skipped / 1 xfailed
+  configured; at the PRIOR HEAD `44a54a05`, historical only, 363 passed, 0
+  failed, 0 errors, 0 skipped with the deposit and fixtures (fully configured
+  acceptance run) and 327 passed, 36 skipped source-only. HISTORICAL, not current: 212 passed + 34 skipped without the
   deposit and 244 passed + 2 skipped with it were pre-remediation
   measurements (their two skips were the
   publication-outputs isolation cases, which need a materialized

@@ -48,8 +48,12 @@ arithmetic mean) regenerated its approved original end-to-end from the
 deposit, and the shipped `Figure_09.png` is the deterministic width-1950
 LANCZOS downscale produced by
 `scripts/figures/common/make_manuscript_artwork.py`. The superseded
-arithmetic-mean artifacts are archived under `legacy_defective_figure09/`
-and are historical only.
+arithmetic-mean rasters are historical only and no longer sit in this
+repository: `legacy_defective_figure09/` retains only its explanatory
+pointer README, and the rasters themselves are staged at
+`provenance_evidence/legacy_defective_figure09/` inside the LOCAL,
+UNPUBLISHED processed-data archive candidate. They are not deposited,
+not published and not publicly retrievable.
 
 ## `manually_postprocessed_approved_artwork` - Fig. 8
 

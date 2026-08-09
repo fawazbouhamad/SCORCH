@@ -11,29 +11,45 @@ things must never be confused, and an earlier revision confused them:
 Service information (1940-2025)", which is neither: it is the notice wording
 carrying a parenthesised coverage range where the year token belongs. It was a
 second, drifting copy of a notice that has exactly one authoritative home,
-``ds.license``. These guards inspect metadata on a **newly generated** file, so
-they fail on the generator rather than on a stale artifact.
+``ds.license``.
 
-Generation uses a 2x2x2 synthetic grid with the dimension expectations
-monkeypatched down; the attribute-writing code path exercised is the real one.
+This module validates the **generator**: a newly written file, so a defect
+fails on the code that produces it rather than on a stale artifact.
+
+The **shipped member** of the archive candidate is validated by the single
+explicit release gate in ``tests/test_archive_backed_verification.py``, using
+this same contract (``scripts/deposit/deposit_contract.py``), so a defect
+cannot be acceptable in one population and not the other.
+
+That gate previously lived here under an unconditional ``xfail(strict=True)``,
+which meant a stale archive was absorbed as an expected failure and ``pytest``
+still exited 0 even under ``SCORCH_REQUIRE_ARCHIVE=1``. The marker is gone and
+the check now has exactly one home.
+
+Generation uses a 2x2 grid with the dimension expectations monkeypatched down;
+the attribute-writing code path exercised is the real one.
 """
 from __future__ import annotations
 
 import importlib.util
-import os
-import zipfile
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 BUILDER = REPO / "scripts" / "deposit" / "build_processed_field_netcdf.py"
+_DEPOSIT_DIR = REPO / "scripts" / "deposit"
+if str(_DEPOSIT_DIR) not in sys.path:
+    sys.path.insert(0, str(_DEPOSIT_DIR))
 
-# The required notice, verbatim and without brackets.
-REQUIRED_NOTICE = (
-    "Contains modified Copernicus Climate Change Service information 2026.")
-NOTICE_STEM = "Copernicus Climate Change Service information"
-COVERAGE = "1940-2025"
+from deposit_contract import (  # noqa: E402  (sys.path set up just above)
+    COVERAGE_INTERVAL,
+    NOTICE_STEM,
+    REQUIRED_NOTICE,
+    check_netcdf_metadata,
+    netcdf_metadata_issues,
+)
 
 
 def _load_builder():
@@ -92,108 +108,69 @@ def generated_attrs(builder, tmp_path_factory):
         ds.close()
 
 
+# ---------------------------------------------------------------------------
+# 1. The generator satisfies the whole contract.
+# ---------------------------------------------------------------------------
+def test_generated_metadata_satisfies_the_full_contract(generated_attrs):
+    """Every one of the nine predicates, on freshly generated attributes."""
+    check_netcdf_metadata(generated_attrs)
+
+
 def test_generated_source_carries_no_copernicus_notice(generated_attrs):
     """The faux notice must be gone from ds.source - the actual regression."""
     src = generated_attrs["source"]
     assert NOTICE_STEM not in src, (
         "ds.source still carries a Copernicus attribution notice; the notice "
         f"belongs only in ds.license. Got: {src!r}")
-    assert f"{NOTICE_STEM} ({COVERAGE})" not in src
-    assert "(1940-2025)." not in src
+    assert "NETCDF_SOURCE_CONTRACT" not in netcdf_metadata_issues(
+        generated_attrs)
 
 
 def test_generated_source_keeps_coverage_only_as_coverage(generated_attrs):
     src = generated_attrs["source"]
-    assert COVERAGE in src, "ds.source no longer records the coverage interval"
-    # the span must be introduced AS coverage, not as a notice year token
+    assert COVERAGE_INTERVAL in src, (
+        "ds.source no longer records the coverage interval")
     assert "coverage" in src.lower(), (
-        f"ds.source mentions {COVERAGE} without labelling it as coverage: {src!r}")
+        f"ds.source mentions {COVERAGE_INTERVAL} without labelling it as "
+        f"coverage: {src!r}")
 
 
 def test_generated_license_carries_the_verbatim_notice(generated_attrs):
     lic = generated_attrs["license"]
     assert REQUIRED_NOTICE in lic, (
-        f"ds.license does not carry the verbatim 2026 notice. Got: {lic!r}")
-    assert f"{NOTICE_STEM} {COVERAGE}" not in lic, (
-        "ds.license states the coverage span where the notice year token "
-        "belongs - this is the year-token defect")
-    assert f"{NOTICE_STEM} ({COVERAGE})" not in lic
-    assert "ecds.ecmwf.int/licences/licence-to-use-copernicus-products" in lic, (
-        "ds.license does not cite the current Copernicus licence URL")
-    assert COVERAGE in lic, "ds.license omits the coverage interval"
+        f"ds.license does not carry the verbatim notice. Got: {lic!r}")
 
 
-def test_no_generated_attribute_uses_a_year_range_as_the_notice_token(
-        generated_attrs):
-    """Sweep EVERY global attribute, not just the two we expect to carry it."""
-    inspected = 0
-    for name, value in generated_attrs.items():
-        if not isinstance(value, str) or NOTICE_STEM not in value:
-            continue
-        inspected += 1
-        assert f"{NOTICE_STEM} {COVERAGE}" not in value, (
-            f"ds.{name} uses the coverage span as the notice year token")
-        assert f"{NOTICE_STEM} ({COVERAGE})" not in value, (
-            f"ds.{name} brackets a coverage span where the year token belongs")
-        assert f"{NOTICE_STEM} 2026" in value, (
-            f"ds.{name} carries a Copernicus notice with a wrong year token")
-    assert inspected == 1, (
-        f"expected exactly ONE attribute to carry the notice (license), "
-        f"found {inspected}")
+def test_the_contract_is_not_vacuous():
+    """A validator that never fires would make every gate above meaningless."""
+    stale = {
+        "source": "ERA5 1940-2025 coverage. Contains modified Copernicus "
+                  "Climate Change Service information (1940-2025).",
+        "license": "CC BY 4.0. See https://cds.climate.copernicus.eu/x. "
+                   "Contains modified Copernicus Climate Change Service "
+                   "information 1940-2025.",
+        "references": "SCORCH Framework (in review).",
+    }
+    issues = netcdf_metadata_issues(stale)
+    for expected in ("NETCDF_SOURCE_CONTRACT", "NETCDF_NOTICE_EXACT",
+                     "NETCDF_RETIRED_CDS_URL", "NETCDF_CURRENT_ECDS_URL",
+                     "NETCDF_AUTHORS_RIGHTS_SCOPE",
+                     "NETCDF_NOTICE_COVERAGE_YEAR",
+                     "NETCDF_REFERENCES_STATUS"):
+        assert expected in issues, f"{expected} not detected on stale metadata"
+    assert list(issues) == sorted(set(issues)), (
+        "issue codes must be sorted and unique")
 
 
 # ---------------------------------------------------------------------------
-# The candidate archive's shipped NetCDF.
+# 2. The SHIPPED archive member is not checked here.
+#
+# It is checked by the single explicit release gate,
+# ``tests/test_archive_backed_verification.py::
+#   test_release_gate_archive_is_available_and_valid``,
+# which validates availability, structure and shipped metadata together using
+# this same contract. Keeping a second, independent archive assertion here
+# would report the identical defect twice and make a release run ambiguous
+# about how many things are actually wrong. This module now covers exactly one
+# thing: that the GENERATOR emits compliant metadata.
 # ---------------------------------------------------------------------------
-NC_MEMBER = "gridded/scorch_processed_daily_tmax_field_v1.0.0.nc"
-
-
-def _archive_nc_attrs():
-    """Global attributes of the NetCDF inside the candidate archive, or None."""
-    archive = os.environ.get("SCORCH_DATA_ARCHIVE")
-    if not archive:
-        return None
-    path = Path(archive).expanduser()
-    if not path.is_file():
-        return None
-    import tempfile
-
-    from netCDF4 import Dataset
-
-    with zipfile.ZipFile(path) as zf:
-        if NC_MEMBER not in zf.namelist():
-            return None
-        with tempfile.TemporaryDirectory() as td:
-            local = Path(td) / "field.nc"
-            with zf.open(NC_MEMBER) as src, open(local, "wb") as dst:
-                while True:
-                    buf = src.read(1 << 20)
-                    if not buf:
-                        break
-                    dst.write(buf)
-            ds = Dataset(local, "r")
-            try:
-                return {n: ds.getncattr(n) for n in ds.ncattrs()}
-            finally:
-                ds.close()
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN RELEASE BLOCKER: the local v1.0.0 archive candidate was "
-           "built BEFORE the ds.source/ds.license Copernicus corrections, so "
-           "its shipped NetCDF still carries the stale notice. Regenerating "
-           "that member and rebuilding the archive is gated on the Figure 1/4 "
-           "artwork authorization (D6) and is a section 9 step. An XPASS here "
-           "means the archive was rebuilt - delete this marker and the "
-           "blocker record when that happens.")
-def test_candidate_archive_netcdf_metadata_is_current():
-    pytest.importorskip("netCDF4")
-    attrs = _archive_nc_attrs()
-    if attrs is None:
-        pytest.skip("SCORCH_DATA_ARCHIVE not set or archive lacks the NetCDF "
-                    "member - cannot inspect the shipped metadata")
-    assert NOTICE_STEM not in attrs["source"], (
-        "archive ds.source still carries a Copernicus notice")
-    assert REQUIRED_NOTICE in attrs["license"], (
-        "archive ds.license lacks the verbatim 2026 notice")
