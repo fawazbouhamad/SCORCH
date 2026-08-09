@@ -1,0 +1,122 @@
+{
+  "contract_version": "1.0.0",
+  "purpose": "Stable machine-readable invariants for the post-D6 release finalizer. Values here are CURRENT REPOSITORY FACTS and expected counts only. No provisional archive identity is recorded: the finalizer derives the values it replaces from the tracked package record and recomputes the values it writes from the final archive bytes.",
+  "repository": {
+    "owner": "fawazbouhamad",
+    "name": "SCORCH",
+    "pull_request": 1,
+    "base_branch": "main",
+    "head_branch": "chore/final-repository-cleanup",
+    "expected_main_commit": "bd6e4608c5a56a435307954dd74141dc5348c560",
+    "expected_tag": "v1.0.0",
+    "expected_tag_object": "47d0c06dbe28b2b9347d979689205195512b332c",
+    "expected_tag_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5"
+  },
+  "authorization": {
+    "required_login": "nassernajibi",
+    "source": "top-level issue comment on the pull request named above, fetched live from the GitHub API",
+    "text": "I, Nasser Najibi, confirm that I am a copyright holder of the author-created SCORCH Figure 1 and Figure 4 schematic artwork and authorize the SCORCH project to distribute the approved Figure 1 and Figure 4 source/donor PNGs and PNG/PDF exports under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). This authorization covers the threshold-text correction to Figure 1 and the arrow-direction and symmetry corrections to Figure 4. It does not alter the rights or licences of any underlying third-party data."
+  },
+  "identity": {
+    "package_record": "remediation/corrected_outputs/SHA256_MANIFEST.json",
+    "package_id": "PKG-DATA-V1",
+    "final_archive_filename": "scorch_processed_data_v1.0.0.zip",
+    "expected_file_count": 8,
+    "expected_reference_count": 56,
+    "fields": [
+      "archive_filename",
+      "archive_sha256",
+      "archive_bytes",
+      "content_root_hash"
+    ],
+    "files": {
+      "remediation/corrected_outputs/SHA256_MANIFEST.json": {
+        "archive_filename": 1,
+        "archive_sha256": 1,
+        "archive_bytes": 1,
+        "content_root_hash": 1
+      },
+      "docs/RELOCATED_ARTIFACTS.csv": {
+        "archive_filename": 21,
+        "archive_sha256": 21
+      },
+      "docs/CANONICAL_SCIENCE.json": {
+        "archive_filename": 1,
+        "archive_sha256": 1,
+        "archive_bytes": 1
+      },
+      "legacy_defective_figure09/README.md": {
+        "archive_filename": 2,
+        "archive_sha256": 1
+      },
+      "assets/manuscript_final/README.md": {
+        "archive_filename": 1
+      },
+      "remediation/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md": {
+        "archive_filename": 1
+      },
+      "tests/test_public_consistency_guards.py": {
+        "archive_filename": 1
+      },
+      "tests/test_stale_provenance.py": {
+        "archive_filename": 1
+      }
+    }
+  },
+  "protected_historical_records": [
+    "remediation/corrected/event_global_max_algorithm/build_manifest.json",
+    "remediation/freeze/freeze_manifest_pre.json"
+  ],
+  "historical_netcdf_sha256": "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c",
+  "licence_records": [
+    "docs/LICENSES_AND_ATTRIBUTION.md",
+    "assets/frozen_figures/README.md",
+    "assets/manuscript_final/README.md",
+    ".zenodo.json"
+  ],
+  "expected_pending_marker_count": 4,
+  "figures": {
+    "assets/frozen_figures/fig01/Figure_01.png": "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "assets/frozen_figures/fig01/Figure_01.pdf": "fce1921839131e761cabe894e7b71f8226efafba654cd7f488539af78809917b",
+    "assets/frozen_figures/fig04/Figure_04.png": "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "assets/frozen_figures/fig04/Figure_04.pdf": "53a3f4fe6c15075ed956367712123cd9cc26290c4a09017b7beb87d06d5fc3e4",
+    "scripts/figures/fig01/original/Figure_01_original.png": "cc561b368f84b298b3ee38a39415799cc31d8ca932fa586a32bd7624831ec787",
+    "scripts/figures/fig04/original/Figure_04_original.png": "d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png": "c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2eefc829f"
+  },
+  "ccby_artwork_paths": [
+    "assets/frozen_figures/fig01/Figure_01.png",
+    "assets/frozen_figures/fig01/Figure_01.pdf",
+    "assets/frozen_figures/fig04/Figure_04.png",
+    "assets/frozen_figures/fig04/Figure_04.pdf",
+    "scripts/figures/fig01/original/Figure_01_original.png",
+    "scripts/figures/fig04/original/Figure_04_original.png",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png"
+  ],
+  "third_party_rights_tokens": [
+    "GPL-3.0-only",
+    "Contains modified Copernicus Climate Change Service information",
+    "Neither the European Commission nor ECMWF is responsible",
+    "GHCN-Daily",
+    "ERA5"
+  ],
+  "archive_topology": {
+    "member_count": 109,
+    "sums_entries": 108,
+    "manifest_rows": 107,
+    "relocation_rows": 21,
+    "sums_member": "SHA256SUMS",
+    "manifest_member": "FILE_MANIFEST.csv",
+    "validator_member": "validate_deposit.py"
+  },
+  "docx_fixtures": {
+    "SCORCH_Manuscript_FINAL_v1.0.0.docx": "9e140b9ea8927ae3b69c4e50afb8301006e8802dcf3e601f1c80c511ca3ca2e3",
+    "SCORCH_Supplementary_Material_FINAL_v1.0.0.docx": "fdd41f686e082f83c14816da21b121345259e1baea700275db8fab04b122f1ec"
+  },
+  "aptos_font_sha256": "95980114fcfd42f2f9c446dae429b70582bf2f03097d68433ea9e7d85a49da0b",
+  "ccby_activation_plan": {
+    "authored": false,
+    "note": "DELIBERATELY UNAUTHORED. Activating CC BY over the Figure 1 / Figure 4 artwork rewrites legal prose in the four licence records. That prose is the authors' to write, not the tooling's, so the finalizer refuses to invent it: with authored=false it stops with CCBY_ACTIVATION_PLAN_UNAUTHORED. To authorize activation, an author adds exact from/to pairs below (each naming the file it applies to and the exact occurrence count expected) and sets authored=true. The finalizer then applies them with the same structured, count-checked, transactional machinery it uses for the archive identity, and independently asserts that no third-party rights token changed.",
+    "replacements": []
+  }
+}
