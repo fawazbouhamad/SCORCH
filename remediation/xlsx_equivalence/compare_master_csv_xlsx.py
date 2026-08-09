@@ -28,15 +28,32 @@ Pass criterion (declared, not discovered)
 Equivalence PASSES iff all of the following hold:
 
 * identical shape, column names and column order;
+* ALL three declared key columns present (a missing key column is a FAILURE,
+  never a silently narrowed key);
+* the declared key unique in BOTH the CSV and the XLSX (without uniqueness the
+  positional row-order check would not prove row identity);
 * identical row keys and row order;
 * every non-numeric cell equal exactly;
 * every integer-valued column equal exactly;
 * identical NaN and Inf masks;
 * for every pair of corresponding finite float64 values, the **relative**
   difference ``|a-b| / max(|a|,|b|)`` is <= ``REL_TOL`` (1e-12);
-* the workbook carries no logic or linkage a CSV cannot represent (no formulas,
-  no external links, no charts, no images, no comments, no defined names, no
-  VBA, exactly one visible sheet).
+* the workbook is inert with respect to an ENUMERATED list of properties: no
+  formulas, external links or external relationship targets, no defined names,
+  no VBA archive or macro parts, no charts, images or cell comments, no merged
+  cell ranges, no conditional formatting, no data validations, no hyperlinks,
+  no worksheet tables, no auto filters, no frozen panes, no pivot caches, and
+  exactly one visible sheet.
+
+The inertness claim is scoped to that list, which the run emits as
+``inertness_properties_checked``. It is NOT a claim that the workbook carries no
+presentation information whatsoever: cell number formats, cell styles, column
+widths, print settings and sheet protection are NOT constrained, and the
+observed number formats are reported rather than required to be empty. A date
+column legitimately carries a display format that a CSV cannot represent, so
+demanding zero formats would be a false criterion. None of the unchecked
+properties can affect semantic equivalence here, because every cell VALUE is
+compared directly and date columns are normalized to ISO strings first.
 
 An *absolute* tolerance is deliberately not used.  The numeric columns span
 about nine orders of magnitude, so a fixed absolute bound would demand
@@ -100,9 +117,29 @@ def workbook_structure(xlsx_path: Path) -> dict:
         comments = 0
         images = 0
         charts = 0
+        merged = 0
+        cond_fmt = 0
+        validations = 0
+        hyperlinks = 0
+        tables = 0
+        autofilters = 0
+        frozen = 0
+        number_formats = set()
         for ws in wb.worksheets:
             images += len(getattr(ws, "_images", []) or [])
             charts += len(getattr(ws, "_charts", []) or [])
+            merged += len(getattr(ws, "merged_cells", ()) and
+                          ws.merged_cells.ranges or ())
+            cond_fmt += sum(1 for _ in (getattr(ws, "conditional_formatting", ())
+                                        or ()))
+            dv = getattr(ws, "data_validations", None)
+            validations += len(getattr(dv, "dataValidation", []) or [])
+            tables += len(getattr(ws, "tables", {}) or {})
+            af = getattr(ws, "auto_filter", None)
+            if af is not None and getattr(af, "ref", None):
+                autofilters += 1
+            if getattr(ws, "freeze_panes", None):
+                frozen += 1
             for row in ws.iter_rows():
                 for cell in row:
                     if cell.data_type == "f" or (
@@ -111,7 +148,20 @@ def workbook_structure(xlsx_path: Path) -> dict:
                         formulas += 1
                     if getattr(cell, "comment", None) is not None:
                         comments += 1
+                    if getattr(cell, "hyperlink", None) is not None:
+                        hyperlinks += 1
+                    number_formats.add(cell.number_format)
         info = {
+            "merged_cell_ranges": merged,
+            "conditional_formatting_ranges": cond_fmt,
+            "data_validations": validations,
+            "hyperlinks": hyperlinks,
+            "worksheet_tables": tables,
+            "auto_filters": autofilters,
+            "frozen_panes": frozen,
+            "pivot_caches": len(getattr(wb, "_pivots", []) or []),
+            # Reported, NOT part of the inertness claim - see the note below.
+            "number_formats_observed": sorted(number_formats),
             "zip_parts": parts,
             "sheet_names": list(wb.sheetnames),
             "sheet_count": len(wb.sheetnames),
@@ -132,6 +182,30 @@ def workbook_structure(xlsx_path: Path) -> dict:
     finally:
         wb.close()
 
+    # The inertness claim is EXACTLY this enumerated list of properties and no
+    # more. Cell number formats and cell styles are deliberately NOT in it:
+    # a date column legitimately carries a display format, which a CSV cannot
+    # represent, so requiring zero number formats would be false. Formats are
+    # reported in `number_formats_observed` instead. They cannot affect semantic
+    # equivalence here because every cell VALUE is compared directly, and dates
+    # are normalized to ISO strings before comparison. Any claim of "no
+    # presentation information" must be read as scoped to the checked list.
+    info["inertness_properties_checked"] = [
+        "exactly one sheet", "no hidden sheets", "no formula cells",
+        "no cell comments", "no images", "no charts", "no defined names",
+        "no external link parts", "no external relationship targets",
+        "no VBA archive", "no macro parts", "no merged cell ranges",
+        "no conditional formatting", "no data validations", "no hyperlinks",
+        "no worksheet tables", "no auto filters", "no frozen panes",
+        "no pivot caches",
+    ]
+    info["inertness_properties_not_checked"] = [
+        "cell number formats (reported, not constrained)",
+        "cell styles: fonts, fills, borders, alignment",
+        "column widths and row heights",
+        "print settings and page setup",
+        "sheet protection",
+    ]
     info["inert"] = (
         info["sheet_count"] == 1
         and not info["hidden_sheets"]
@@ -144,6 +218,14 @@ def workbook_structure(xlsx_path: Path) -> dict:
         and info["external_rel_targets"] == 0
         and not info["vba_archive"]
         and not info["macro_parts"]
+        and info["merged_cell_ranges"] == 0
+        and info["conditional_formatting_ranges"] == 0
+        and info["data_validations"] == 0
+        and info["hyperlinks"] == 0
+        and info["worksheet_tables"] == 0
+        and info["auto_filters"] == 0
+        and info["frozen_panes"] == 0
+        and info["pivot_caches"] == 0
     )
     return info
 
@@ -190,7 +272,17 @@ def compare(csv_path: Path, xlsx_path: Path) -> dict:
             if "datetime" in str(frame[col].dtype):
                 frame[col] = frame[col].dt.strftime("%Y-%m-%d")
 
-    keys = [c for c in KEY_COLUMNS if c in csv_df.columns]
+    # The declared key must be REAL and it must be a key. Silently narrowing it
+    # to whichever declared columns happen to exist would let the row-identity
+    # check degrade to nothing (in the limit, an empty key makes every row
+    # identical and the order check vacuously true).
+    keys = list(KEY_COLUMNS)
+    missing_keys = [c for c in keys if c not in csv_df.columns]
+    result["key_columns_declared"] = keys
+    result["key_columns_missing"] = missing_keys
+    if missing_keys:
+        result["failures"].append(f"declared key columns absent: {missing_keys}")
+        return result
     result["key_columns"] = keys
     csv_key = csv_df[keys].astype(str).agg("|".join, axis=1)
     xlsx_key = xlsx_df[keys].astype(str).agg("|".join, axis=1)
@@ -199,6 +291,21 @@ def compare(csv_path: Path, xlsx_path: Path) -> dict:
     result["key_order_identical"] = bool((csv_key.values == xlsx_key.values).all())
     result["first_key"] = str(csv_key.iloc[0])
     result["last_key"] = str(csv_key.iloc[-1])
+
+    # Uniqueness is a PASS CONDITION, not a diagnostic. A duplicated key means
+    # the positional row-order comparison below is not proof of row identity.
+    if not result["key_unique_csv"]:
+        dupes = sorted(csv_key[csv_key.duplicated()].unique())[:5]
+        result["failures"].append(
+            f"key {keys} is not unique in the CSV (e.g. {dupes})")
+    if not result["key_unique_xlsx"]:
+        dupes = sorted(xlsx_key[xlsx_key.duplicated()].unique())[:5]
+        result["failures"].append(
+            f"key {keys} is not unique in the XLSX (e.g. {dupes})")
+    if not (result["key_unique_csv"] and result["key_unique_xlsx"]):
+        return result
+
+    # Exact row order, positionally - unchanged.
     if not result["key_order_identical"]:
         result["failures"].append("row keys or row order differ")
         return result

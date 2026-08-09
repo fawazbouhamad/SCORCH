@@ -244,11 +244,20 @@ def build(master_csv: Path, out_nc: Path) -> dict:
                     "95th-percentile thresholds, exceedance indicator, and grid-level "
                     "heatwave episode identifiers (1940-2025 warm seasons)")
         ds.institution = "University of Florida"
+        # NOTE: no Copernicus attribution notice belongs in `source`. Earlier
+        # revisions appended "Contains modified Copernicus Climate Change
+        # Service information (1940-2025)" here, which is NOT the required
+        # notice: the notice's year token is the year of use (2026), never the
+        # data's coverage span, and a parenthesised range is not the verbatim
+        # wording. The one authoritative, verbatim notice lives in `license`
+        # below; 1940-2025 appears here only as the coverage interval. Keeping a
+        # second, differently worded copy in `source` is what let it drift.
         ds.source = ("ERA5 hourly 2-m temperature (Hersbach et al., 2020), retrieved "
                      "from the ARCO-ERA5 analysis-ready public mirror "
                      "(gs://gcp-public-data-arco-era5); dataset of record: Copernicus "
-                     "Climate Data Store, DOI 10.24381/cds.adbb2d47. Contains modified "
-                     "Copernicus Climate Change Service information (1940-2025).")
+                     "Climate Data Store, DOI 10.24381/cds.adbb2d47. ERA5 coverage "
+                     "used: 1940-2025 (warm seasons, April-September). Required "
+                     "Copernicus attribution: see the `license` attribute.")
         ds.references = ("Bouhamad and Najibi, Understanding the Spatiotemporal "
                          "Organization of Regionally Extensive Heatwaves Using the "
                          "SCORCH Framework (in review). SCORCH: Spatiotemporal "

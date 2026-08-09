@@ -214,7 +214,7 @@ manuscript-reported values.
 |---|---|
 | Fast route | **33/33 stages PASS**, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages, weighted-centroid stage executing 760/760 |
-| Test suite | 363 passed, 0 failed, 0 errors, 0 skipped (fully configured acceptance run). A source-only checkout without the deposit or fixtures measures 327 passed, 36 skipped - see [docs/REPRODUCIBILITY_REPORT.md](docs/REPRODUCIBILITY_REPORT.md) |
+| Test suite | 373 passed, 22 skipped, 1 xfailed with the processed-data archive candidate configured; a source-only checkout measures 350 passed, 46 skipped. Both separately measured at the current head, 396 collected either way. The 22 skips are 21 FINAL-DOCX-dependent guards and 1 pinned-Aptos-font guard (a non-redistributable Microsoft 365 cloud font). A fully configured zero-skip acceptance run is **PENDING** the final release gate and is not claimed here. Prior head `44a54a05`, historical only: 363 passed / 0 skipped configured, 327 passed / 36 skipped source-only - see [docs/REPRODUCIBILITY_REPORT.md](docs/REPRODUCIBILITY_REPORT.md) |
 | Valid grid boxes | 1,800 |
 | Warm-season days | 15,738 |
 | Regional threshold | *N*<sub>HW</sub>(*t*) ≥ 371 |

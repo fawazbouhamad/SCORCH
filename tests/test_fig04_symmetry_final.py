@@ -147,12 +147,26 @@ def test_canonical_asset_matches_approved_hash():
 
 
 @pytest.mark.skipif(not PRODUCER.exists(), reason="producer missing")
-def test_producer_regenerates_byte_identically(tmp_path):
-    """One deterministic pass from the immutable donor."""
+def test_producer_regenerates_pixel_identically(tmp_path):
+    """One deterministic pass from the immutable donor.
+
+    PIXEL identity is the portable guarantee and is required unconditionally.
+    PNG BYTE identity is a property of the canonical encoder toolchain, not of
+    the figure: a Linux audit reproduced this figure pixel-for-pixel while
+    emitting different PNG bytes, because the byte stream depends on the
+    Pillow/zlib build. Byte identity is asserted separately, and only where the
+    canonical toolchain is present - see
+    tests/test_fig04_cross_platform_determinism.py.
+    """
     subprocess.run([sys.executable, str(PRODUCER), "--out", str(tmp_path),
                     "--src", str(DONOR)], check=True, cwd=REPO)
-    assert _sha(tmp_path / "Figure_04.png") == APPROVED_SHA
-    assert _sha(tmp_path / "Figure_04.png") == _sha(FIG04)
+    generated = _rgb(tmp_path / "Figure_04.png")
+    shipped = _rgb(FIG04)
+    assert generated.shape == shipped.shape, (
+        f"regenerated canvas {generated.shape} != shipped {shipped.shape}")
+    assert np.array_equal(generated, shipped), (
+        "regenerated Figure 4 is not pixel-identical to the shipped asset: "
+        f"{int((generated != shipped).any(axis=-1).sum())} differing pixels")
 
 
 def test_type4_reads_horizontally_two_one_two():

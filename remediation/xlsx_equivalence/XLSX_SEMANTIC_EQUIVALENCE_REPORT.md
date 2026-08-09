@@ -72,8 +72,32 @@ Complete ZIP member list (9 parts, no macro and no external-link part):
 `xl/_rels/workbook.xml.rels`, `xl/styles.xml`, `xl/theme/theme1.xml`,
 `xl/workbook.xml`, `xl/worksheets/sheet1.xml`.
 
-The workbook therefore carries no logic, presentation or linkage a CSV cannot
-represent.
+### Scope of the inertness claim
+
+The reproducer checks **19 enumerated properties** and emits them as
+`workbook_structure.inertness_properties_checked`. Beyond the table above it
+also verifies, all measured **0**: merged cell ranges, conditional-formatting
+ranges, data validations, hyperlinks, worksheet tables, auto filters, frozen
+panes, and pivot caches.
+
+The claim is **scoped to that enumerated list** and is stated as such. It is NOT
+a blanket claim that the workbook carries no presentation information
+whatsoever. Five property groups are deliberately **not constrained** and are
+listed in `inertness_properties_not_checked`: cell number formats (reported, not
+required to be empty), cell styles (fonts, fills, borders, alignment), column
+widths and row heights, print settings and page setup, and sheet protection.
+Requiring zero number formats would be a false criterion, since a date column
+may legitimately carry a display format a CSV cannot represent.
+
+None of the unchecked properties can affect semantic equivalence here, because
+every cell **value** is compared directly and date columns are normalized to ISO
+strings before comparison. As it happens the measured `number_formats_observed`
+for this workbook is exactly `['General']` - the default and nothing else - so
+no non-default format is present either, but that is a measurement, not part of
+the pass criterion.
+
+The workbook therefore carries no logic or linkage a CSV cannot represent, and
+no presentation information among the 19 checked properties.
 
 ## 4. Shape, columns, row keys, exact fields
 

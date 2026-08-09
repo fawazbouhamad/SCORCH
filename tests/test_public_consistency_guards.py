@@ -438,25 +438,34 @@ COUNT_RX = re.compile(r"(\d{2,4})\s+passed")
 CFG_RX = re.compile(r"(\d{2,4})\s+passed[^.]*?(\d{1,3})\s+skipped", re.I)
 
 
+XFAIL_RX = re.compile(r"(\d{1,3})\s+xfailed", re.I)
+
+
+def _pair(text, label):
+    """(passed, skipped, xfailed) parsed from one measured configuration."""
+    m = CFG_RX.search(text)
+    assert m, f"{label} states no passed/skipped pair"
+    xf = XFAIL_RX.search(text)
+    return {"passed": int(m.group(1)), "skipped": int(m.group(2)),
+            "xfailed": int(xf.group(1)) if xf else 0}
+
+
 def _measured(canonical):
-    """Structured, configuration-bound acceptance counts.
+    """Structured, configuration-bound acceptance counts at the CURRENT head.
 
     Deliberately NOT reduced to an unordered set of numbers: each measured
-    configuration keeps its own passed/skipped pair and label.
+    configuration keeps its own passed/skipped pair and label. Prior-head
+    results live under their own explicitly labelled keys and are never read
+    here, so a superseded count cannot be mistaken for a current one.
     """
-    acc = canonical["acceptance"]
-    out = {}
-    m = COUNT_RX.search(acc["test_suite"])
-    assert m, "acceptance.test_suite states no passed count"
-    sk = re.search(r"(\d{1,3})\s+skipped", acc["test_suite"])
-    out["with_deposit"] = {"passed": int(m.group(1)),
-                           "skipped": int(sk.group(1)) if sk else None}
-    src = acc.get("test_suite_source_only")
-    assert src, "acceptance.test_suite_source_only is missing"
-    m2 = CFG_RX.search(src)
-    assert m2, "acceptance.test_suite_source_only states no passed/skipped pair"
-    out["source_only"] = {"passed": int(m2.group(1)), "skipped": int(m2.group(2))}
-    return out
+    cur = canonical["acceptance"]["test_suite_current_head"]
+    return {
+        "with_deposit": _pair(cur["deposit_and_archive_configured"],
+                              "test_suite_current_head."
+                              "deposit_and_archive_configured"),
+        "source_only": _pair(cur["source_only"],
+                             "test_suite_current_head.source_only"),
+    }
 
 
 def test_acceptance_counts_are_configuration_bound(canonical):
@@ -468,29 +477,80 @@ def test_acceptance_counts_are_configuration_bound(canonical):
     for cfg, v in m.items():
         assert isinstance(v["passed"], int) and v["passed"] > 0, cfg
         assert isinstance(v["skipped"], int) and v["skipped"] >= 0, cfg
-    assert m["with_deposit"]["skipped"] == 0, "fully configured run must not skip"
     assert m["source_only"]["skipped"] > 0, "source-only run must record its skips"
     assert m["source_only"]["passed"] < m["with_deposit"]["passed"], (
-        "source-only cannot pass more tests than the fully configured run")
-    assert (m["source_only"]["passed"] + m["source_only"]["skipped"]
-            == m["with_deposit"]["passed"]), (
-        "collected totals must agree across configurations")
+        "source-only cannot pass more tests than the configured run")
+
+    cur = canonical["acceptance"]["test_suite_current_head"]
+    total = cur["collected_total"]
+    for cfg, v in m.items():
+        got = v["passed"] + v["skipped"] + v["xfailed"]
+        assert got == total, (
+            f"{cfg} accounts for {got} tests but the collected total is "
+            f"{total}: passed+skipped+xfailed must cover every collected test")
+
+    # This head does NOT claim a 0-skip fully configured acceptance run; the
+    # non-redistributable Aptos face makes one unachievable here, so acceptance
+    # is explicitly deferred rather than asserted.
+    assert m["with_deposit"]["skipped"] > 0, (
+        "the configured run at this head really does skip - do not record it "
+        "as a 0-skip acceptance run")
+    assert "PENDING" in cur["fully_configured_acceptance"].upper(), (
+        "fully configured acceptance must be recorded as PENDING until the "
+        "final section 9 gate")
+    assert "aptos" in cur["deposit_and_archive_configured"].lower(), (
+        "the current-head record must name the Aptos-font skip")
+    assert "archive" in cur["deposit_and_archive_configured"].lower(), (
+        "the configured-run record must name the configuration it measured")
+    assert "source-only" in cur["source_only"].lower()
+
+
+def test_prior_head_counts_are_labelled_as_prior_head(canonical):
+    """363/0 and 327+36 are PRIOR-head results and must say so."""
     acc = canonical["acceptance"]
-    assert "deposit" in acc["test_suite"].lower()
-    assert "source-only" in acc["test_suite_source_only"].lower()
+    assert "test_suite" not in acc, (
+        "the bare acceptance.test_suite key is gone on purpose: an unqualified "
+        "key is what let a prior-head count read as a current result")
+    assert "test_suite_source_only" not in acc
+    checked = 0
+    for key in ("test_suite_prior_head", "test_suite_source_only_prior_head"):
+        rec = acc[key]
+        assert "PRIOR HEAD" in rec["status"].upper(), key
+        assert "NOT A CURRENT-HEAD RESULT" in rec["status"].upper(), key
+        assert re.search(r"\b[0-9a-f]{40}\b", rec["status"]), (
+            f"{key} does not record which commit it was measured at")
+        checked += 1
+    assert checked == 2
+    # the superseded numbers must not appear as current-head figures
+    cur = json.dumps(acc["test_suite_current_head"])
+    for stale in ("363 passed", "327 passed"):
+        assert stale not in cur, f"{stale} recorded as a current-head result"
 
 
-def test_no_active_claim_of_remaining_with_deposit_skips(canonical):
-    """with_deposit skipped == 0, so no active prose may say skips remain."""
-    assert _measured(canonical)["with_deposit"]["skipped"] == 0
+NO_SKIPS_CLAIM = re.compile(
+    r"\bno\b[^.]{0,40}\bremaining skips\b|\b0 skipped\b|\bzero skips\b|"
+    r"\bno\b[^.]{0,20}\bskips\b", re.I)
+
+
+def test_no_active_claim_of_a_zero_skip_configured_run(canonical):
+    """The configured run at this head DOES skip, so no prose may deny it.
+
+    This inverts an earlier guard. At the prior head the fully configured run
+    reached 0 skipped and the risk was stale prose claiming skips remained. At
+    this head the pinned Aptos face is absent, the configured run skips, and the
+    risk is the opposite: prose claiming a 0-skip acceptance run that was not
+    measured here.
+    """
+    assert _measured(canonical)["with_deposit"]["skipped"] > 0
     for rel in ("docs/REPRODUCIBILITY_REPORT.md", "README.md", "CHANGELOG.md"):
         for sent in _sentences(_read(rel)):
             if HIST_CLAUSE.search(sent):
+                continue          # prior-head/historical sentences are exempt
+            if not NO_SKIPS_CLAIM.search(sent):
                 continue
-            low = sent.lower()
-            assert not ("remaining skips" in low and "deposit" in low), (
-                f"{rel} still claims remaining with-deposit skips: "
-                f"{sent.strip()[:110]}")
+            assert "prior head" in sent.lower() or "pending" in sent.lower(), (
+                f"{rel} asserts a zero-skip run as current, but the measured "
+                f"configured run at this head skips: {sent.strip()[:140]}")
 
 
 @pytest.mark.parametrize("rel", ["README.md", "CHANGELOG.md",
@@ -776,8 +836,16 @@ SIDECAR_COLUMNS = (
     "historical_identity_source", "archive_member_byte_form",
     "eol_relationship", "reserved_data_doi", "archive_filename",
     "archive_sha256", "archive_member_path", "member_sha256", "member_bytes",
-    "state", "recorded_in_sha256_manifest", "verification_status",
+    "state", "recorded_in_sha256_manifest", "archive_publication_state",
+    "verification_status",
 )
+
+# The archive candidate is built and verified LOCALLY and has not been
+# uploaded, deposited or published. A bare "VERIFIED" would read as public
+# availability, so both the state and the verification wording are pinned.
+ARCHIVE_PUBLICATION_STATE = (
+    "LOCAL_CANDIDATE_NOT_UPLOADED_NOT_DEPOSITED_NOT_PUBLISHED")
+ARCHIVE_VERIFICATION_STATUS = "VERIFIED_IN_LOCAL_ARCHIVE_CANDIDATE"
 
 
 @pytest.fixture(scope="module")
@@ -795,7 +863,17 @@ def test_relocation_sidecar_is_complete_and_well_formed(sidecar):
     assert len(set(members)) == TOTAL_RELOCATIONS, "duplicate archive member"
     for r in sidecar:
         assert r["state"] == "relocated", f"{r['old_repository_path']}: bad state"
-        assert r["verification_status"] == "VERIFIED"
+        assert r["archive_publication_state"] == ARCHIVE_PUBLICATION_STATE, (
+            f"{r['old_repository_path']}: archive_publication_state must record "
+            f"that the candidate is local-only, got "
+            f"{r['archive_publication_state']!r}")
+        # a bare "VERIFIED" could be read as "publicly available"
+        assert r["verification_status"] == ARCHIVE_VERIFICATION_STATUS, (
+            f"{r['old_repository_path']}: verification_status must scope the "
+            f"verification to the local archive candidate, got "
+            f"{r['verification_status']!r}")
+        assert r["verification_status"] != "VERIFIED", (
+            "bare VERIFIED implies public availability and is forbidden")
         assert r["reserved_data_doi"] == "10.5281/zenodo.21717752"
         assert r["archive_filename"] == "scorch_processed_data_v1.0.0.zip"
         for col in ("repository_sha256", "historical_byte_identity_sha256",
@@ -860,3 +938,165 @@ def test_frozen_manifest_scopes_were_not_widened_by_relocation(manifest):
             == EXPECTED_MANIFEST_ENTRIES)
     assert set(manifest["identical_binary_paths"]) <= expected
     assert set(manifest["eol_differing_text_paths"]) <= expected
+
+
+# ---------------------------------------------------------------------------
+# 9. Repository scope statistics are RECOMPUTED from Git, never asserted from
+#    prose. The recorded totals are bound to explicit commits so that a later
+#    commit adding files cannot silently falsify them.
+# ---------------------------------------------------------------------------
+def _tracked_totals(commit):
+    """(files, bytes) for every tracked blob at `commit`, or None if absent."""
+    if subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+                      cwd=REPO, capture_output=True).returncode != 0:
+        return None
+    out = subprocess.run(["git", "ls-tree", "-r", "-l", commit],
+                         cwd=REPO, capture_output=True, text=True, check=True).stdout
+    files = nbytes = 0
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        # "<mode> <type> <sha>\t<path>" with size in field 4 ("-" for submodules)
+        size = line.split("\t", 1)[0].split()[3]
+        if size == "-":
+            continue
+        files += 1
+        nbytes += int(size)
+    return files, nbytes
+
+
+def test_repository_scope_measurements_recompute_from_git(manifest):
+    scope = manifest["repository_scope_measurements"]
+    checked = 0
+    for key in ("baseline_before_scope_cleanup", "after_scope_cleanup"):
+        rec = scope[key]
+        actual = _tracked_totals(rec["commit"])
+        if actual is None:
+            pytest.skip(f"commit {rec['commit'][:8]} unavailable "
+                        f"(shallow clone) - cannot recompute {key}")
+        files, nbytes = actual
+        assert files == rec["tracked_files"], (
+            f"{key}: recorded {rec['tracked_files']} tracked files but "
+            f"{rec['commit'][:8]} really has {files}")
+        assert nbytes == rec["tracked_bytes"], (
+            f"{key}: recorded {rec['tracked_bytes']} tracked bytes but "
+            f"{rec['commit'][:8]} really has {nbytes}")
+        checked += 1
+    assert checked == 2, "both commits must be recomputed, not one"
+
+    before = scope["baseline_before_scope_cleanup"]["tracked_bytes"]
+    after = scope["after_scope_cleanup"]["tracked_bytes"]
+    pct = round(100.0 * (1.0 - after / before), 3)
+    assert pct == scope["reduction_percent"], (
+        f"recorded reduction {scope['reduction_percent']} != recomputed {pct}")
+    # the superseded wrong values must never reappear as current claims
+    assert "186" not in json.dumps(scope["after_scope_cleanup"])
+    assert scope["after_scope_cleanup"]["tracked_files"] == 189
+    assert scope["after_scope_cleanup"]["tracked_bytes"] == 9372392
+
+
+# ---------------------------------------------------------------------------
+# 10. Figure 1 / Figure 4 artwork licensing: PENDING must not coexist anywhere
+#     with an active CC BY 4.0 claim over the same artwork.
+# ---------------------------------------------------------------------------
+LICENCE_RECORDS = [
+    "docs/LICENSES_AND_ATTRIBUTION.md",
+    "assets/frozen_figures/README.md",
+    "assets/manuscript_final/README.md",
+    ".zenodo.json",
+]
+
+# "Figure 1"/"Fig. 4" but never "Figure 11"/"Fig. 10"; plus the path tokens.
+ARTWORK_RX = re.compile(
+    r"fig0[14]\b|Figure_0[14]|Figure [14](?!\d)|Fig\. [14](?!\d)", re.I)
+CCBY_RX = re.compile(r"CC BY 4\.0|Creative Commons Attribution 4\.0", re.I)
+# Any wording that withholds, excludes, defers or FORBIDS the grant. The
+# prohibition forms matter: a sentence saying "no record may assert CC BY over
+# Figure 1" is the opposite of a grant and must not be flagged as one.
+PENDING_RX = re.compile(
+    r"PENDING|not yet in force|EXCLUDED FROM THE CC BY|NOT Figure|"
+    r"no CC BY|never be read as licensing|no public licence|"
+    r"requires separate written authorization|has not been recorded|"
+    r"no record may|must not|may not|forbidden|prohibited", re.I)
+
+PENDING_SENTINEL = "CC BY 4.0 PENDING"
+
+
+def test_artwork_licence_pending_is_declared_in_the_authoritative_table():
+    """The gate must exist in the path table, not only in a figure README."""
+    text = _read("docs/LICENSES_AND_ATTRIBUTION.md")
+    assert PENDING_SENTINEL in text, (
+        "the authoritative path table does not declare the artwork gate")
+    assert "Najibi" in text and "has not been recorded" in text
+    # the three donor/original rasters must be carved out of the software row
+    for rel in ("scripts/figures/fig01/original/Figure_01_original.png",
+                "scripts/figures/fig04/original/Figure_04_original.png",
+                "scripts/figures/fig04/donor/"
+                "Figure_04_approved_horizontal.png"):
+        assert rel in text, f"{rel} is not classified in the path table"
+        assert (REPO / rel).is_file(), f"{rel} is missing from the tree"
+
+
+@pytest.mark.parametrize("rel", LICENCE_RECORDS)
+def test_no_active_cc_by_claim_over_figure_1_or_4_artwork(rel):
+    """Every sentence tying Fig. 1/4 artwork to CC BY must withhold the grant.
+
+    This is the contradiction guard: while the PENDING gate stands, no record
+    may assert an active CC BY 4.0 licence over that artwork.
+    """
+    text = _read(rel)
+    for sent in _sentences(text):
+        if not (ARTWORK_RX.search(sent) and CCBY_RX.search(sent)):
+            continue
+        assert PENDING_RX.search(sent), (
+            f"{rel} asserts an ACTIVE CC BY 4.0 grant over Figure 1/4 "
+            f"artwork while the licence is PENDING: {sent.strip()[:160]}")
+    # Coverage is asserted at DOCUMENT level, not per sentence: the artwork and
+    # the withholding wording legitimately live in adjacent sentences ("Figures
+    # 1 and 4 carry no such material. Their CC BY 4.0 licensing is PENDING."),
+    # so a co-occurrence requirement would be unsatisfiable rather than strict.
+    assert ARTWORK_RX.search(text), (
+        f"{rel} does not mention Figure 1/4 artwork at all - this record is in "
+        f"LICENCE_RECORDS because it is supposed to; the guard inspected "
+        f"nothing, which is a failure, not a pass")
+    assert PENDING_RX.search(text), (
+        f"{rel} mentions Figure 1/4 artwork but nowhere withholds the CC BY "
+        f"4.0 grant while the licence is PENDING")
+
+
+def test_gpl_software_row_does_not_swallow_the_artwork():
+    """The scripts/** GPL row must not classify the donor rasters as software."""
+    text = _read("docs/LICENSES_AND_ATTRIBUTION.md")
+    row = next(ln for ln in text.splitlines()
+               if ln.startswith("| `src/**`, `scripts/**`"))
+    low = row.lower()
+    assert "excluding" in low or "except" in low, (
+        "the GPL software row does not carve out the frozen artwork rasters: "
+        f"{row[:160]}")
+    assert "GPL-3.0-only" in row
+
+
+# ---------------------------------------------------------------------------
+# 11. The data-archive candidate is LOCAL. No record may imply otherwise.
+# ---------------------------------------------------------------------------
+POINTER_RECORDS = [
+    "legacy_defective_figure09/README.md",
+    "assets/manuscript_final/README.md",
+]
+
+FORBIDDEN_DEPOSIT_CLAIM = re.compile(
+    r"relocated to the (processed-data )?deposit|already (in|deposited)"
+    r" (a|the) (zenodo )?deposit", re.I)
+
+
+@pytest.mark.parametrize("rel", POINTER_RECORDS)
+def test_pointer_records_do_not_claim_a_published_deposit(rel):
+    text = _read(rel)
+    for sent in _sentences(text):
+        assert not FORBIDDEN_DEPOSIT_CLAIM.search(sent), (
+            f"{rel} describes the relocated artifacts as already deposited: "
+            f"{sent.strip()[:160]}")
+    low = " ".join(text.split()).lower()
+    assert "has not been uploaded, deposited, or published" in low, (
+        f"{rel} does not state the archive candidate's unpublished status")
+    assert "10.5281/zenodo.21717752" in text, f"{rel} omits the reserved DOI"

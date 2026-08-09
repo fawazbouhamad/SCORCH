@@ -5,14 +5,21 @@ from all canonical publication outputs.** They are archived so that the
 correction is auditable, exactly as referenced by
 `docs/FIGURE_PROVENANCE.csv` and `docs/REPRODUCIBILITY_MATRIX.csv`.
 
-**The two rasters are no longer in this repository.** They were relocated to
-the processed-data deposit to keep the source tree small; this file remains as
-the public pointer record. Both are members of
-`scorch_processed_data_v1.0.0.zip`, reserved data DOI
-[10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752) (reserved on
-an unpublished Zenodo draft, so it does not resolve yet). Their exact archive
-member paths and hashes are in the table below and in the machine-readable
-crosswalk `docs/RELOCATED_ARTIFACTS.csv`.
+**The two rasters were REMOVED FROM GIT** to keep the source tree small; this
+file remains as the public pointer record. They were **staged** as members of
+the **locally built, locally verified v1.0.0 data-archive candidate**
+`scorch_processed_data_v1.0.0.zip`, which is intended for the reserved data DOI
+[10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752).
+
+**That archive candidate has NOT been uploaded, deposited, or published**, and
+the DOI is reserved on an unpublished Zenodo draft, so it does not resolve. The
+verification behind the hashes below is **local archive verification only** and
+is NOT evidence of public availability: at present these two rasters are not
+retrievable from Zenodo or anywhere else public, and they exist only in this
+repository's Git history and in that local candidate. Their exact archive member
+paths and hashes are in the table below and in the machine-readable crosswalk
+`docs/RELOCATED_ARTIFACTS.csv`, whose `archive_publication_state` column records
+the same local-only status.
 
 The superseded pre-release Figure 9 chain aggregated per-event ellipse
 orientation with an ordinary arithmetic mean. Orientation is a

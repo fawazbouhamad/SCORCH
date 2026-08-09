@@ -79,6 +79,34 @@ band, and the output hashes above are otherwise fully pinned.
 Determinism of both producers is enforced by
 `tests/test_corrected_schematic_figures.py`.
 
+## Two determinism claims, deliberately kept apart
+
+The hashes in the table above are **PNG byte** hashes, and byte identity is a
+property of the *encoder*, not of the figure. A Linux audit regenerated Figure 4
+**pixel-identically** while emitting **different PNG bytes**, because Pillow
+chooses the filters and zlib emits the deflate stream. Both results were
+correct. Conflating them would be a false portability claim, so the two
+guarantees are stated separately and enforced separately by
+`tests/test_fig04_cross_platform_determinism.py`:
+
+* **Cross-platform pixel determinism - portable, always required.** A producer
+  run must match the shipped asset in **raw RGB, exactly**, on every supported
+  platform. A pixel difference is a real defect.
+* **Canonical-byte determinism - toolchain-bound, conditionally required.**
+  Exact PNG byte identity (and therefore the SHA-256 values tabulated above) is
+  claimed only for the declared canonical encoder stack, keyed on the encoder
+  rather than the operating system: **Pillow 12.2.x with zlib 1.3.1**. On any
+  other stack that assertion skips with an explicit reason and the pixel
+  assertion still runs, so a non-canonical platform cannot silently pass a
+  weaker gate.
+
+On non-canonical platforms the approved canonical PNG here is therefore
+**materialized (copied), not re-encoded**, after its pixels are verified against
+a fresh producer run. The shipped assets and their pixels are never altered, and
+the publication route copies approved bytes rather than re-encoding them, so
+`fig04/Figure_04.png` continues to ship as exactly
+`74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484`.
+
 ## Frozen station artwork (Figure S.1 panels c, d) - SUPERSEDED, fallback only
 
 **Since the v1.0.0 pre-release correction, the manuscript Fig. S.1 no longer

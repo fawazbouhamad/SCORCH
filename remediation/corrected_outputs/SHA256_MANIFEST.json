@@ -1,5 +1,21 @@
 {
   "created_utc": "2026-08-07T07:09:50Z",
+  "repository_scope_measurements": {
+    "measured_by": "git ls-tree -r -l <commit> (blob sizes of every tracked path)",
+    "why_commit_bound": "These totals are pinned to explicit commits, not to HEAD. A HEAD-relative figure goes stale the moment any later commit adds or removes a file, and a stale repository-size claim is exactly the defect this record exists to prevent.",
+    "baseline_before_scope_cleanup": {
+      "commit": "44a54a05678bbca0d0b19901a7fb9953f7f37d2c",
+      "tracked_files": 208,
+      "tracked_bytes": 43172897
+    },
+    "after_scope_cleanup": {
+      "commit": "4b3c9531a567c9cf901d6876370ce31960af0d02",
+      "tracked_files": 189,
+      "tracked_bytes": 9372392
+    },
+    "reduction_percent": 78.291,
+    "supersedes_incorrect_values": "An earlier working note reported 186 tracked files / 9,309,153 bytes / 78.4 percent for the after-cleanup commit. That was WRONG: it subtracted the 22 removed paths from the 208-file baseline but omitted the 3 files the same commit ADDED (docs/RELOCATED_ARTIFACTS.csv, remediation/xlsx_equivalence/compare_master_csv_xlsx.py, remediation/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md), a 63,239-byte shortfall. The measured values above are authoritative and are recomputed from Git by tests/test_public_consistency_guards.py."
+  },
   "scope_note": "This manifest declares TWO DISTINCT byte identities for the same 29 logical files. They are not interchangeable and must never be conflated. 'historical_windows_worktree_bytes' are the bytes as originally emitted on Windows (CRLF). 'repository_normalized_bytes' are the bytes Git stores and a fresh clone receives after .gitattributes normalization ('* text=auto eol=lf', '*.csv text eol=lf'). Exactly 21 of the 29 differ, solely by LF<->CRLF; the remaining 8 are binary and identical. A validator MUST select the scope matching what it is checking.",
   "scopes": {
     "historical_windows_worktree_bytes": {
