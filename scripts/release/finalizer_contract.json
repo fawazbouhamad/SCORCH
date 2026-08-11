@@ -1,6 +1,6 @@
 {
-  "contract_version": "1.0.0",
-  "purpose": "Stable machine-readable invariants for the post-D6 release finalizer. Values here are CURRENT REPOSITORY FACTS and expected counts only. No provisional archive identity is recorded: the finalizer derives the values it replaces from the tracked package record and recomputes the values it writes from the final archive bytes.",
+  "contract_version": "1.1.0",
+  "purpose": "Stable machine-readable invariants for the post-D6 release finalizer. Values here are CURRENT REPOSITORY FACTS and expected counts only. No provisional archive identity is recorded as the RELEASED identity: the finalizer derives the values it replaces from the tracked package record and recomputes the values it writes from the final archive bytes. The pre-D6 candidate is pinned only as a TECHNICAL SOURCE, explicitly labelled as such.",
   "repository": {
     "owner": "fawazbouhamad",
     "name": "SCORCH",
@@ -12,10 +12,73 @@
     "expected_tag_object": "47d0c06dbe28b2b9347d979689205195512b332c",
     "expected_tag_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5"
   },
+  "trusted_contract": {
+    "tracked_path": "scripts/release/finalizer_contract.json",
+    "note": "Production loads the contract from exactly this tracked path inside the verified worktree and requires the on-disk bytes to equal the git blob at the expected HEAD. The production CLI has NO --contract option: an operator cannot point the finalizer at an external file that redefines the required login, the authorization text, the licensed assets or the activation scope. Unit tests inject contracts by passing a dict to the Python functions, which is not a production surface. This block deliberately does NOT record the contract's own hash - a file cannot pin its own digest without circularity - so identity is verified against git, not against a constant stored here.",
+    "expected_head_note": "While the finalizer repair is uncommitted, the on-disk contract differs from the blob at HEAD and production preflight reports CONTRACT_NOT_AT_HEAD by design. Once the repair is committed the two agree and the code no longer fires."
+  },
   "authorization": {
     "required_login": "nassernajibi",
     "source": "top-level issue comment on the pull request named above, fetched live from the GitHub API",
+    "matching_rule": "EXACT EQUALITY of the whitespace-normalized body against the whitespace-normalized text below. Substring containment is forbidden: the required paragraph plus any prefix, suffix, qualification or revocation is NOT authorization.",
+    "live_fetches_required": 2,
+    "expected_issue_url": "https://api.github.com/repos/fawazbouhamad/SCORCH/issues/1",
+    "cross_read_agreement_fields": [
+      "id",
+      "body",
+      "created_at",
+      "updated_at",
+      "html_url",
+      "issue_url",
+      "user"
+    ],
     "text": "I, Nasser Najibi, confirm that I am a copyright holder of the author-created SCORCH Figure 1 and Figure 4 schematic artwork and authorize the SCORCH project to distribute the approved Figure 1 and Figure 4 source/donor PNGs and PNG/PDF exports under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). This authorization covers the threshold-text correction to Figure 1 and the arrow-direction and symmetry corrections to Figure 4. It does not alter the rights or licences of any underlying third-party data."
+  },
+  "authorization_receipt": {
+    "schema_version": "1.0.0",
+    "tracked_path": "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json",
+    "must_not_exist_before_authorization": true,
+    "note": "The durable machine-readable record of the D6 authorization. It MUST NOT exist in the real repository until a valid authorization has been fetched live during real finalization. It is built and validated inside the disposable validation copy and written atomically as part of the same transaction as the licence and identity edits; if any part of the transaction fails, the receipt is removed again. A stdout report is not a receipt.",
+    "required_fields": [
+      "schema_version",
+      "repository",
+      "pull_request",
+      "permalink",
+      "issue_url",
+      "comment_id",
+      "login",
+      "created_at",
+      "updated_at",
+      "body",
+      "body_sha256",
+      "licensed_artwork",
+      "activated_at",
+      "finalizer_version",
+      "starting_head"
+    ]
+  },
+  "finalizer_version": "4D-r3g",
+  "validation_copy": {
+    "_note": "The disposable validation tree is an INDEPENDENT CLONE at the expected head plus this allowlist, never a copy of the worktree. A shutil.copytree minus four names swept in every ignored artifact in the checkout - editor scratch, stale outputs, half-written downloads - and reproduced SYMLINKS as symlinks; copying tracked worktree BYTES then admitted any transient mutation the checkout happened to be holding while the copy was taken; and copying .git as a directory could not work at all in a linked worktree, where .git is a file, which is how this repository is checked out. The tree is therefore cloned with git from committed objects and checked out at the exact expected head, and the clone's head, tracked set and tree identity are verified before the planned activation and receipt edits are applied. Every entry here is an ignored artifact the suite genuinely needs, pinned by SHA-256; an entry without a pin is refused, and so is one whose bytes do not match. The list is EMPTY on purpose: publication_outputs/ is regenerated by the suite from the extracted final archive rather than inherited from the operator's working copy, which is what makes the validation run a test of the release instead of a test of the developer's desk.",
+    "ignored_allowlist": []
+  },
+  "trusted_interpreter": {
+    "_note": "DELIBERATELY UNPINNED. Production finalization runs sys.executable - the interpreter already running the finalizer - and the CLI has no --python option. The release is accepted on a validator verdict and a pytest summary, and both are simply the standard output of whichever executable was named; a wrapper that prints 'PASS' and a clean JSON summary is a two-line script. If a different interpreter ever has to be used, its realpath and/or sha256 go here and _pinned_interpreter_issues verifies them; with neither field present any non-default interpreter is refused as INTERPRETER_UNTRUSTED. Unit tests pass sys.executable, which is the default and needs no pin."
+  },
+  "isolation_probe_modules": [
+    "test_public_consistency_guards",
+    "test_stale_provenance",
+    "test_corrected_schematic_figures"
+  ],
+  "artwork_licence_markers": {
+    "_note": "EXACT artwork-rights markers. Classification used to scan whole documents for broad words - 'prohibited', 'must not', 'may not', 'no CC BY' - which matched legitimate unrelated text: a 'prohibited-region invariance' note, or a sentence saying the underlying ERA5 data carries no CC BY licence. That made the artwork look PENDING for reasons having nothing to do with the artwork, and would have made a correct activation impossible to complete. Only the exact strings below decide the artwork's state, and only within the five licence surfaces. Every unrelated ERA5, GHCN, Natural Earth, software and font restriction is untouched by this classification.",
+    "pending": [
+      "CC BY 4.0 PENDING",
+      "licensing is PENDING and not yet in force",
+      "EXCLUDED FROM THE CC BY 4.0 ENTRY",
+      "PENDING COAUTHOR AUTHORIZATION"
+    ],
+    "active": []
   },
   "identity": {
     "package_record": "remediation/corrected_outputs/SHA256_MANIFEST.json",
@@ -67,7 +130,66 @@
     "remediation/corrected/event_global_max_algorithm/build_manifest.json",
     "remediation/freeze/freeze_manifest_pre.json"
   ],
+  "protected_historical_record_identities": {
+    "_note": "THREE DISTINCT IDENTITIES, deliberately not conflated. git_blob_* is the portable repository identity (LF, what every platform checks out from). worktree_sha256/worktree_bytes are a NON-PORTABLE observation of this Windows checkout, where .gitattributes 'text=auto eol=lf' produced CRLF working-tree bytes. A Windows checkout hash must never be presented as a portable git-blob identity. eol_relationship records the proven relationship: applying CRLF->LF to the worktree bytes reproduces the blob exactly, with zero lone CR bytes. The transaction snapshots the ACTUAL CURRENT BYTES (whatever the platform checked out) and separately verifies the tracked git blob.",
+    "remediation/corrected/event_global_max_algorithm/build_manifest.json": {
+      "git_blob_sha1": "be4f077caed900b1bc5a0514ac28c97a6fc19349",
+      "git_blob_sha256": "f2aa871a1ba6cf6ef0d1841ba6db7d99a1a0183f836d0fd930d19280f347aa06",
+      "git_blob_bytes": 2652,
+      "worktree_sha256": "015d12cf37014ab59dd70bb832a4bc111122e0f779fb726b6be49f7a4c0b898d",
+      "worktree_bytes": 2706,
+      "worktree_platform": "windows-crlf",
+      "eol_relationship": "crlf_worktree_of_lf_blob"
+    },
+    "remediation/freeze/freeze_manifest_pre.json": {
+      "git_blob_sha1": "fcc8e93ac43e2f0dd6bd28010bad0e8adcedcc3d",
+      "git_blob_sha256": "0cc314da02c2db65a5fb5b6c963e6703b902fa88cca158031da5471783570b1a",
+      "git_blob_bytes": 27344,
+      "worktree_sha256": "909449de7236cacffafef8aa9f1fec2b3805241e604b5d73eaafff11d4a811a1",
+      "worktree_bytes": 28108,
+      "worktree_platform": "windows-crlf",
+      "eol_relationship": "crlf_worktree_of_lf_blob"
+    }
+  },
   "historical_netcdf_sha256": "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c",
+  "technical_source_candidate": {
+    "filename": "scorch_processed_data_pre_D6_local_candidate.zip",
+    "status": "LOCAL, UNPUBLISHED, PRE-D6 TECHNICAL SOURCE",
+    "is_released_archive_identity": false,
+    "is_evidence_of_publication_or_deposit": false,
+    "note": "The corrected pre-D6 candidate is the TECHNICAL SOURCE the finalizer extracts and rebuilds from. It is a local, unpublished, pre-D6 working artifact. It is NOT the released archive identity - the released identity is recomputed from the final archive bytes after the licence transition, manifest regeneration and deterministic rebuild. It is NOT evidence of publication or deposit, and nothing may cite it as such. It is never itself shipped, renamed to the release filename, or given a DOI.",
+    "sha256": "7a2ab7568b5ec84ebf11907d2f71bae334ba855cfd2ae7957225e5d34e8dca75",
+    "bytes": 116845703,
+    "content_root_hash": "28e10268d3efbcc5ecacb168f43a805ac85eba70b36ce7f9bd2d88952ed595ad",
+    "topology": {
+      "member_count": 109,
+      "sums_entries": 108,
+      "manifest_rows": 107,
+      "sums_member": "SHA256SUMS",
+      "manifest_member": "FILE_MANIFEST.csv",
+      "validator_member": "validate_deposit.py",
+      "licence_member": "LICENSE.txt"
+    }
+  },
+  "superseded_official_archive": {
+    "filename": "scorch_processed_data_v1.0.0.zip",
+    "path": "release_staging/scorch_processed_data_v1.0.0.zip",
+    "status": "SUPERSEDED. PRESERVED, NEVER OVERWRITTEN.",
+    "note": "The archive the tracked records currently point at. It carries a superseded NetCDF payload. The finalizer never writes to it, never deletes it and never uses it as a build source; its explicit path, SHA-256 and byte count are verified during preflight AND immediately before the write, and it must be byte-identical and present after a successful finalization as well as after a failed one. CRITICAL: the released archive has the SAME FILENAME, so a release-staging destination resolving to this path would destroy it. That collision is refused with RELEASE_DESTINATION_COLLIDES_WITH_SUPERSEDED; the operator must supply a different --release-staging directory.",
+    "sha256": "8d6ca0c5cd77d672a7c73924a1d243dab01d1a592c1730389aa0f1a864871383",
+    "bytes": 116845724,
+    "content_root_hash": "f5fe80d1fe843016af19904f60a0a2e1935f6a31c322f50ee0f4d56becd54205"
+  },
+  "publication_outputs_artwork_row": {
+    "_note": "The Figure 1 / Figure 4 row emitted into publication_outputs/README.md. Both wordings live HERE, in the trusted tracked contract, so the builder serves authored prose rather than inventing it. 'active' is deliberately null: activating CC BY rewrites a legal claim about a coauthor's copyright, and that prose is the authors' to write. While it is null the builder refuses to render an active row, exactly as the finalizer refuses an unauthored activation plan.",
+    "pending": "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 PENDING -- not yet in force; requires written authorization from coauthor Dr. Nasser Najibi |",
+    "active": null
+  },
+  "release_test_collection": {
+    "_note": "The frozen release test collection. A release run must collect EXACTLY this sorted node-ID set: the count and the SHA-256 of the newline-joined sorted node IDs must both match, and the executed set must equal the collected set. This is what makes 'everything passed' mean 'everything ran'. Regenerate deliberately whenever tests are added or removed - never to make a red run go green.",
+    "node_id_count": 906,
+    "sorted_node_ids_sha256": "ea2dc098c9f2a29385dadcd0d8f0184d01f02cfe419941bda465dc7afca0b5c0"
+  },
   "licence_records": [
     "docs/LICENSES_AND_ATTRIBUTION.md",
     "assets/frozen_figures/README.md",
@@ -93,6 +215,21 @@
     "scripts/figures/fig04/original/Figure_04_original.png",
     "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png"
   ],
+  "ccby_excluded_scope": {
+    "_note": "Categories the artwork activation may NEVER extend CC BY over. Counting third-party rights tokens proves they were not DELETED; it does not prove the activation did not ADD a CC BY claim over them. For each token below, the number of sentences asserting CC BY alongside it must not increase.",
+    "tokens": [
+      "validate_deposit.py",
+      "MIT",
+      "Aptos",
+      "font",
+      "ERA5",
+      "Copernicus",
+      "GHCN-Daily",
+      "Natural Earth",
+      "GPL-3.0-only",
+      "software"
+    ]
+  },
   "third_party_rights_tokens": [
     "GPL-3.0-only",
     "Contains modified Copernicus Climate Change Service information",
@@ -105,9 +242,18 @@
     "sums_entries": 108,
     "manifest_rows": 107,
     "relocation_rows": 21,
+    "expected_netcdf_members": 1,
+    "validator_verdict": {
+      "_note": "The shipped validate_deposit.py prints '[ok] ...' lines and ends with a BARE terminal verdict line. Measured against the real deposit: exit 0, 66 non-empty lines, last line exactly 'PASS', one PASS occurrence, zero FAIL. Counting substrings is not enough - 'BYPASS' and 'COMPASS' both contain 'PASS'. The verdict is therefore an ANCHORED whole-line match, it must be the LAST non-empty line, and exactly one verdict line may appear in the whole output.",
+      "pass_line": "PASS",
+      "fail_line": "FAIL",
+      "must_be_last_non_empty_line": true,
+      "expected_verdict_lines": 1
+    },
     "sums_member": "SHA256SUMS",
     "manifest_member": "FILE_MANIFEST.csv",
-    "validator_member": "validate_deposit.py"
+    "validator_member": "validate_deposit.py",
+    "licence_member": "LICENSE.txt"
   },
   "docx_fixtures": {
     "SCORCH_Manuscript_FINAL_v1.0.0.docx": "9e140b9ea8927ae3b69c4e50afb8301006e8802dcf3e601f1c80c511ca3ca2e3",
@@ -116,7 +262,7 @@
   "aptos_font_sha256": "95980114fcfd42f2f9c446dae429b70582bf2f03097d68433ea9e7d85a49da0b",
   "ccby_activation_plan": {
     "authored": false,
-    "note": "DELIBERATELY UNAUTHORED. Activating CC BY over the Figure 1 / Figure 4 artwork rewrites legal prose in the four licence records. That prose is the authors' to write, not the tooling's, so the finalizer refuses to invent it: with authored=false it stops with CCBY_ACTIVATION_PLAN_UNAUTHORED. To authorize activation, an author adds exact from/to pairs below (each naming the file it applies to and the exact occurrence count expected) and sets authored=true. The finalizer then applies them with the same structured, count-checked, transactional machinery it uses for the archive identity, and independently asserts that no third-party rights token changed.",
+    "note": "DELIBERATELY UNAUTHORED. When it is authored, artwork_licence_markers.active must be filled in at the same time so the classifier can recognise the new wording. Activating CC BY over the Figure 1 / Figure 4 artwork rewrites legal prose in the four licence records AND in the archive's own LICENSE.txt. That prose is the authors' to write, not the tooling's, so the finalizer refuses to invent it: with authored=false it stops with CCBY_ACTIVATION_PLAN_UNAUTHORED. To authorize activation, an author adds exact from/to pairs below (each naming the file it applies to and the exact occurrence count expected) and sets authored=true. The plan must cover ALL FIVE licence surfaces - the four tracked records plus the archive member LICENSE.txt - or it is rejected as partial. The finalizer then applies them with the same structured, count-checked, transactional machinery it uses for the archive identity, and independently asserts that no third-party rights token changed.",
     "replacements": []
   }
 }

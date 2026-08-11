@@ -86,6 +86,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -962,7 +963,80 @@ def tables_provenance_text(table1_notes, trend_checks):
     return "\n".join(lines) + "\n"
 
 
-def readme_text(identity, geom):
+# ---------------------------------------------------------------------------
+# Figure 1 / Figure 4 artwork licence: a state, not a constant
+# ---------------------------------------------------------------------------
+#: The repository root, derived from this file rather than from the caller's
+#: working directory.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The artwork licence state and both wordings live in ONE place, shared with
+# the release finalizer and the repository guards. Importing it here rather
+# than reimplementing it is deliberate: this builder used to decide the state
+# by asking whether a receipt FILE EXISTED, so an empty JSON object with the
+# right filename was enough to make it publish an active CC BY claim over a
+# coauthor's artwork.
+_RELEASE_DIR = _REPO_ROOT / "scripts" / "release"
+if str(_RELEASE_DIR) not in sys.path:
+    sys.path.insert(0, str(_RELEASE_DIR))
+
+import artwork_licence_state as _artwork  # noqa: E402  (sys.path set above)
+
+ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json"
+ARTWORK_LICENCE_PENDING = _artwork.PENDING
+ARTWORK_LICENCE_ACTIVE = _artwork.ACTIVE
+
+
+def artwork_licence_state(repo_root=None, contract=None):
+    """The artwork licence state: PENDING, ACTIVE or INCONSISTENT.
+
+    ACTIVE requires a receipt that VALIDATES - schema, login, exact
+    authorization body, timestamps, and exactly the seven contracted artwork
+    paths whose hashes still match the tree. A receipt that merely exists
+    activates nothing.
+
+    A receipt that is PRESENT but does not validate is a REFUSAL, not a
+    PENDING answer. Returning PENDING for it published a licence table
+    describing a coherent repository while a forged, corrupt or half-written
+    receipt sat in the tree - the one case in which this builder's own output
+    is what hides the problem.
+    """
+    state, issues, _detail = _artwork.artwork_licence_state(
+        repo_root or _REPO_ROOT, contract)
+    receipt_issues = [(code, why) for code, why in issues
+                      if code.startswith("RECEIPT_")]
+    if receipt_issues:
+        raise RuntimeError(
+            f"ARTWORK_RECEIPT_INVALID: a D6 authorization receipt is present "
+            f"but does not validate, so the artwork licence state cannot be "
+            f"established and no licence row may be published: "
+            f"{receipt_issues}")
+    if state == _artwork.INCONSISTENT:
+        raise RuntimeError(
+            f"ARTWORK_LICENCE_STATE_INCONSISTENT: the licence surfaces do not "
+            f"agree, and this builder will not publish a row for a state that "
+            f"does not exist: {issues}")
+    return state
+
+
+def artwork_licence_row(repo_root=None, contract=None):
+    """The licence-table row for the Fig. 1 / Fig. 4 artwork, by state.
+
+    BOTH wordings come from the trusted tracked contract, so production can
+    render the active README with no manual injection and no invented prose.
+    There is deliberately no parameter for passing licence text in: a caller
+    able to inject arbitrary wording into published output would be a way to
+    publish a licence claim nobody authored.
+
+    The state is established FIRST, so an invalid receipt refuses here too.
+    Serving the pending row while an unvalidatable receipt sits in the tree
+    would publish the reassuring answer at exactly the wrong moment.
+    """
+    artwork_licence_state(repo_root, contract)
+    return _artwork.publication_artwork_row(repo_root or _REPO_ROOT, contract)
+
+
+def readme_text(identity, geom, repo_root=None, contract=None):
     n_panels = sum(int(r["panel_count"]) for r in identity)
     lines = [
         "# SCORCH publication outputs",
@@ -1095,9 +1169,10 @@ def readme_text(identity, geom):
         "| `reproduced/**` (Fig. 5, 6, 7) | CC BY 4.0 for the authors'"
         " contribution only + Copernicus ERA5 terms and required"
         " attribution |",
-        "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 PENDING --"
-        " not yet in force; requires written authorization from coauthor"
-        " Dr. Nasser Najibi |",
+        # State-aware, served from the trusted contract. PENDING today; the
+        # builder refuses to render an active row the authors have not
+        # written, rather than shipping a licence claim nobody authored.
+        artwork_licence_row(repo_root, contract),
         "| `reproduced/**` (Fig. 2, 3, 12, B, D and both table sets) |"
         " CC BY 4.0 for the authors' contributions + current Copernicus ERA5"
         " terms and required attribution for the depicted ERA5-derived"
@@ -1124,8 +1199,14 @@ def readme_text(identity, geom):
 
 
 def build_tree(dest: Path, plan, identity, geom, tables, table1_notes,
-               trend_checks):
-    """Write the complete tree under `dest`. Returns the manifest rows."""
+               trend_checks, repo_root=None):
+    """Write the complete tree under `dest`. Returns the manifest rows.
+
+    ``repo_root`` is the operator's selected ``--root``. It is threaded through
+    to the licence-state lookup so a build against an alternate root reads THAT
+    root's contract and receipt, rather than silently classifying the artwork
+    from whichever repository this file happens to live in.
+    """
     rows = []
 
     for item in plan:
@@ -1260,7 +1341,7 @@ def build_tree(dest: Path, plan, identity, geom, tables, table1_notes,
 
     # --- README, manifest, checksums --------------------------------------
     readme = dest / README_NAME
-    write_text(readme, readme_text(identity, geom))
+    write_text(readme, readme_text(identity, geom, repo_root=repo_root))
     rows.append({
         "kind": "readme", "label": "", "folder": "", "panel": "",
         "path": README_NAME, "bytes": readme.stat().st_size,
@@ -1599,7 +1680,7 @@ def run(root: Path, reproduced: Path, out_dir: Path, args, echo) -> int:
     try:
         scratch.mkdir(parents=True)
         rows = build_tree(scratch, plan, identity, geom, tables,
-                          table1_notes, trend_checks)
+                          table1_notes, trend_checks, repo_root=root)
         echo(f"  wrote {len(rows)} manifest entries into the scratch tree")
         if out_dir.exists():
             os.replace(out_dir, previous)

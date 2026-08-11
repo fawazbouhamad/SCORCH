@@ -24,6 +24,7 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -1086,13 +1087,227 @@ PENDING_RX = re.compile(
 
 PENDING_SENTINEL = "CC BY 4.0 PENDING"
 
+# ---------------------------------------------------------------------------
+# The artwork licence is a STATE, and these guards must hold in both of them.
+#
+# PENDING  no durable D6 receipt; every record withholds the grant.
+# ACTIVE   a durable D6 receipt exists; NO pending claim survives anywhere.
+#
+# Asserting the pending wording unconditionally is what made activation
+# unreachable: the disposable validation run requires zero failures, so a
+# guard that hard-codes PENDING fails the moment the licence is activated and
+# no correct activation could ever pass.
+# ---------------------------------------------------------------------------
+ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json"
 
-def test_artwork_licence_pending_is_declared_in_the_authoritative_table():
-    """The gate must exist in the path table, not only in a figure README."""
+# ---------------------------------------------------------------------------
+# TEST-ONLY SYNTHETIC ACTIVATION WORDING - defined ONCE, here.
+#
+# Every synthetic ACTIVE fixture in this suite - the finalizer's own synthetic
+# contract, the publication builder's disposable trees, and the whole-repo
+# activated copy - uses THIS clause and no other. Three modules each inventing
+# their own active wording is what produced the r3c breakage: classification
+# is exact-normalized-block, so a fixture whose registered marker is a
+# fragment ("TEST-ONLY SYNTHETIC WORDING") registers a marker that is never a
+# block of anything, every record becomes unclassifiable, and the ACTIVE state
+# is unreachable again. One definition, imported everywhere, cannot drift.
+#
+# The clause is deliberately marked TEST-ONLY. The real CC BY activation prose
+# is the authors' to write, does not exist, and nothing here is a draft of it.
+# It is never written into the real tree: the real contract keeps
+# ``artwork_licence_markers.active == []`` and
+# ``ccby_activation_plan.authored == false``.
+# ---------------------------------------------------------------------------
+SYNTHETIC_ACTIVE_CLAUSE = (
+    "Figure 1 and Figure 4 artwork is licensed under CC BY 4.0 "
+    "(TEST-ONLY SYNTHETIC WORDING).")
+
+#: A SECOND, equally valid authored clause. Re-activating a tree that is
+#: ALREADY ACTIVE has to be a real transition between two authored markers,
+#: not a no-op, or the "already-ACTIVE source" path proves nothing.
+SYNTHETIC_ACTIVE_CLAUSE_ALPHA = (
+    "Figure 1 and Figure 4 artwork is licensed under CC BY 4.0 "
+    "(TEST-ONLY SYNTHETIC WORDING, VARIANT ALPHA).")
+
+#: Rights wording an activation may never disturb. The activated-copy helper
+#: asserts each token's occurrence count is identical before and after.
+PRESERVED_RIGHTS_TOKENS = ("ERA5", "GHCN-Daily", "Natural Earth", "GPL",
+                           "GPL-3.0", "GPL-3.0-only", "Aptos")
+
+_CLAUSE_SLOT = "{CLAUSE}"
+
+
+def synthetic_active_row(clause=SYNTHETIC_ACTIVE_CLAUSE):
+    """The publication licence-table row for ``clause``.
+
+    The clause occupies a table CELL of its own, so it normalizes to exactly
+    the registered marker.
+    """
+    return "| `assets/frozen_figures/**` (Fig. 1, 4) | " + clause + " |"
+
+
+# ---------------------------------------------------------------------------
+# The EXACT pending block of every tracked licence record, paired with the
+# block that replaces it. One entry per registered pending-marker occurrence.
+#
+# These are complete source BLOCKS, not markers: a transformation whose source
+# were "CC BY 4.0 PENDING" would rewrite four unrelated places in one file.
+# Each source below occurs EXACTLY ONCE in the record it names, and the helper
+# that applies them refuses on zero or multiple matches rather than guessing.
+#
+# Each destination emits the clause as a standalone block - its own line, its
+# own sentence, or its own table cell - and carries forward every third-party
+# rights sentence (ERA5, GHCN-Daily, GPL) the pending block happened to
+# contain. Only the Figure 1 / Figure 4 artwork claim changes.
+# ---------------------------------------------------------------------------
+_LICENCES = "docs/LICENSES_AND_ATTRIBUTION.md"
+_FROZEN = "assets/frozen_figures/README.md"
+_MANUSCRIPT = "assets/manuscript_final/README.md"
+_ZENODO = ".zenodo.json"
+
+SYNTHETIC_ACTIVATION_TRANSFORMS = (
+    # 1. The donor/original raster row: the whole second table cell.
+    (_LICENCES,
+     " **CC BY 4.0 PENDING - NOT YET IN FORCE.** These three files are "
+     "author-created slide ARTWORK that happens to sit under a code "
+     "directory; they are NOT software and are NOT GPL-3.0-only. The row "
+     "above must never be read as licensing them: a GPL grant over the SCORCH "
+     "software is not artwork permission. Licensing this artwork under CC BY "
+     "4.0 requires separate written authorization from coauthor Dr. Nasser "
+     "Najibi, which **has not been recorded**. Until it is, no public licence "
+     "is granted over these three rasters and no CC BY 4.0 grant may be "
+     "asserted anywhere for them ",
+     " " + _CLAUSE_SLOT + " These three files are author-created slide "
+     "ARTWORK that happens to sit under a code directory; they are NOT "
+     "software and are NOT GPL-3.0-only. The row above must never be read as "
+     "licensing them: a GPL grant over the SCORCH software is not artwork "
+     "permission. "),
+    # 2. The shipped-artwork row: the whole second table cell. The ERA5 /
+    #    GHCN-Daily sentence is carried across verbatim.
+    (_LICENCES,
+     " **CC BY 4.0 PENDING - NOT YET IN FORCE.** Same artwork, same gate as "
+     "the donor rasters above: written authorization from coauthor Dr. Nasser "
+     "Najibi is required and **has not been recorded**. No CC BY 4.0 grant is "
+     "in force over Figure 1 or Figure 4 in this repository, in the companion "
+     "deposit, in `publication_outputs/`, or in any PNG/PDF export derived "
+     "from them. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no "
+     "provider terms attach to them; the gate here is authorship permission "
+     "alone ",
+     " " + _CLAUSE_SLOT + " Figures 1 and 4 depict no ERA5 or GHCN-Daily "
+     "material, so no provider terms attach to them; the gate here is "
+     "authorship permission alone "),
+    # 3. The section heading.
+    (_LICENCES,
+     "## Figure 1 / Figure 4 artwork: CC BY 4.0 PENDING, not yet in force",
+     "## Figure 1 / Figure 4 artwork licence. " + _CLAUSE_SLOT),
+    # 4. The emphasised claim closing that section's first paragraph. The
+    #    preceding line is carried in so the sentence the paragraph builds
+    #    towards still reads as a sentence.
+    (_LICENCES,
+     "from them, including anything materialized into `publication_outputs/` "
+     "- is\n**CC BY 4.0 PENDING and NOT YET IN FORCE.**",
+     "from them, including anything materialized into `publication_outputs/` "
+     "- is\ncovered by the grant recorded immediately below.\n"
+     + _CLAUSE_SLOT),
+    # 5. The frozen-figures README paragraph. The GPL-3.0 sentence stays.
+    (_FROZEN,
+     "Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0\n"
+     "licensing is PENDING and not yet in force:** licensing author-created "
+     "slide\nartwork under CC BY 4.0 requires separate written authorization "
+     "from coauthor\nDr. Nasser Najibi, which has not been recorded. The "
+     "GPL-3.0 approval covering\nthe SCORCH software is not artwork "
+     "permission.",
+     "Figures 1 and 4 carry no such third-party material.\n" + _CLAUSE_SLOT
+     + "\nThe GPL-3.0 approval covering\nthe SCORCH software is not artwork "
+     "permission."),
+    # 6. The manuscript README cross-reference.
+    (_MANUSCRIPT,
+     "that directory's `README.md` for the full provenance chains and for the "
+     "standing\n**CC BY 4.0 PENDING - not yet in force** status of this "
+     "artwork.",
+     "that directory's `README.md` for the full provenance chains.\n"
+     + _CLAUSE_SLOT),
+    # 7. The Zenodo notes exclusion. BOTH registered pending markers -
+    #    "EXCLUDED FROM THE CC BY 4.0 ENTRY" and "CC BY 4.0 PENDING" - live in
+    #    this one sentence, together with the sentence forbidding the claim.
+    (_ZENODO,
+     "FIGURE 1 / FIGURE 4 ARTWORK IS EXCLUDED FROM THE CC BY 4.0 ENTRY: the "
+     "Figure 1 and Figure 4 slide artwork (assets/frozen_figures/fig01/**, "
+     "assets/frozen_figures/fig04/**, the archived-original and "
+     "immutable-donor rasters under scripts/figures/fig01/original/ and "
+     "scripts/figures/fig04/original/ and scripts/figures/fig04/donor/, and "
+     "every PNG/PDF export derived from them) is CC BY 4.0 PENDING and NOT "
+     "YET IN FORCE, because licensing it requires separate written "
+     "authorization from coauthor Dr. Nasser Najibi that has not been "
+     "recorded. That artwork must NOT be presented as CC BY 4.0 in the Zenodo "
+     "form, and this record must not be published asserting a CC BY 4.0 grant "
+     "over it. ",
+     " " + _CLAUSE_SLOT + " "),
+)
+
+
+def synthetic_activation_transforms(clause=SYNTHETIC_ACTIVE_CLAUSE):
+    """``(rel, source_block, destination_block)`` for one authored clause."""
+    return [(rel, src, dst.replace(_CLAUSE_SLOT, clause))
+            for rel, src, dst in SYNTHETIC_ACTIVATION_TRANSFORMS]
+
+
+def _artwork_state_module():
+    """The shared strict state module, imported from scripts/release."""
+    release_dir = REPO / "scripts" / "release"
+    if str(release_dir) not in sys.path:
+        sys.path.insert(0, str(release_dir))
+    import artwork_licence_state
+    return artwork_licence_state
+
+
+def artwork_licence_state(repo_root=None):
+    """(state, issues) from the shared strict helper. Never file existence."""
+    als = _artwork_state_module()
+    state, issues, _detail = als.artwork_licence_state(
+        Path(repo_root) if repo_root else REPO)
+    return state, issues
+
+
+def artwork_licence_is_active(repo_root=None):
+    """True only for a VALIDATED activation.
+
+    These guards used to treat the mere PRESENCE of the receipt file as
+    activation, so a file containing ``{"schema_version": "1.0.0"}`` would have
+    switched them into asserting an active CC BY grant over a coauthor's
+    artwork.
+    """
+    als = _artwork_state_module()
+    state, issues = artwork_licence_state(repo_root)
+    assert state != als.INCONSISTENT, (
+        f"the artwork licence state is INCONSISTENT and no guard may proceed "
+        f"against it: {issues}")
+    # Receipt defects fail in EVERY state, not only ACTIVE. A stub receipt
+    # leaves the state PENDING while carrying RECEIPT_* issues, and checking
+    # them only in the ACTIVE branch let a forged or corrupt receipt sit in
+    # the tree with every guard green.
+    receipt_issues = [(c, w) for c, w in issues if c.startswith("RECEIPT_")]
+    assert not receipt_issues, (
+        f"a D6 receipt is present but does not validate (state={state}): "
+        f"{receipt_issues}")
+    assert not issues, f"artwork licence state {state} with issues: {issues}"
+    return state == als.ACTIVE
+
+
+def test_artwork_licence_state_is_declared_in_the_authoritative_table():
+    """The path table must state the artwork's licence in either state."""
     text = _read("docs/LICENSES_AND_ATTRIBUTION.md")
-    assert PENDING_SENTINEL in text, (
-        "the authoritative path table does not declare the artwork gate")
-    assert "Najibi" in text and "has not been recorded" in text
+    if artwork_licence_is_active():
+        assert PENDING_SENTINEL not in text, (
+            "the artwork licence is ACTIVE but the authoritative path table "
+            "still declares it PENDING")
+        assert CCBY_RX.search(text), (
+            "the artwork licence is ACTIVE but the path table asserts no "
+            "CC BY 4.0 grant")
+    else:
+        assert PENDING_SENTINEL in text, (
+            "the authoritative path table does not declare the artwork gate")
+        assert "Najibi" in text and "has not been recorded" in text
     # the three donor/original rasters must be carved out of the software row
     for rel in ("scripts/figures/fig01/original/Figure_01_original.png",
                 "scripts/figures/fig04/original/Figure_04_original.png",
@@ -1110,6 +1325,23 @@ def test_no_active_cc_by_claim_over_figure_1_or_4_artwork(rel):
     may assert an active CC BY 4.0 licence over that artwork.
     """
     text = _read(rel)
+    if artwork_licence_is_active():
+        # The mirror-image guard: once the grant is in force, a surviving
+        # PENDING claim is the contradiction, and zero of them may remain.
+        # Keyed on the CONTRACT'S EXACT MARKERS, not the broad PENDING_RX -
+        # that regex matches "must not", "may not" and "prohibited", which
+        # appear legitimately in these records for ERA5, GHCN, Natural Earth,
+        # font and software restrictions that activation does not touch.
+        als = _artwork_state_module()
+        markers = als.load_trusted_contract(
+            REPO)["artwork_licence_markers"]["pending"]
+        stale = [m for m in markers if m in text]
+        assert not stale, (
+            f"{rel} still carries pending artwork markers after activation: "
+            f"{stale}")
+        assert PENDING_SENTINEL not in text, (
+            f"{rel} still carries the pending sentinel after activation")
+        return
     for sent in _sentences(text):
         if not (ARTWORK_RX.search(sent) and CCBY_RX.search(sent)):
             continue
@@ -1127,6 +1359,228 @@ def test_no_active_cc_by_claim_over_figure_1_or_4_artwork(rel):
     assert PENDING_RX.search(text), (
         f"{rel} mentions Figure 1/4 artwork but nowhere withholds the CC BY "
         f"4.0 grant while the licence is PENDING")
+
+
+# --- the receipt must VALIDATE, not merely exist ---------------------------
+def _valid_receipt(root, contract, als, **overrides):
+    """A receipt that validates, unless a test perturbs one field."""
+    repo = contract["repository"]
+    body = contract["authorization"]["text"]
+    artwork = {}
+    for rel in contract["ccby_artwork_paths"]:
+        target = root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(f"SYNTHETIC::{rel}\n".encode("utf-8"))
+        artwork[rel] = als.sha256_file(target)
+    receipt = {
+        "schema_version": contract["authorization_receipt"]["schema_version"],
+        "repository": f"{repo['owner']}/{repo['name']}",
+        "pull_request": repo["pull_request"],
+        "permalink": f"https://github.com/{repo['owner']}/{repo['name']}"
+                     f"/pull/{repo['pull_request']}#issuecomment-101",
+        "issue_url": contract["authorization"]["expected_issue_url"],
+        "comment_id": 101,
+        "login": contract["authorization"]["required_login"],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "body": body,
+        "body_sha256": als.sha256_hex(body),
+        "licensed_artwork": artwork,
+        "activated_at": "2026-01-01T00:00:00Z",
+        "finalizer_version": contract["finalizer_version"],
+        "starting_head": "a" * 40,
+    }
+    receipt.update(overrides)
+    return receipt
+
+
+@pytest.fixture
+def als():
+    return _artwork_state_module()
+
+
+def test_a_valid_synthetic_receipt_validates(tmp_path, als):
+    contract = als.load_trusted_contract(REPO)
+    assert als.validate_receipt(_valid_receipt(tmp_path, contract, als),
+                                contract, tmp_path) == []
+
+
+@pytest.mark.parametrize("overrides,code", [
+    ({"login": "impostor"}, "RECEIPT_LOGIN"),
+    ({"body": "I approve."}, "RECEIPT_BODY"),
+    ({"comment_id": "101"}, "RECEIPT_COMMENT_ID"),
+    ({"comment_id": 0}, "RECEIPT_COMMENT_ID"),
+    ({"comment_id": True}, "RECEIPT_COMMENT_ID"),
+    ({"created_at": "2026-13-45T99:99:99Z"}, "RECEIPT_CREATED_AT"),
+    ({"created_at": "2026-02-30T00:00:00Z"}, "RECEIPT_CREATED_AT"),
+    ({"created_at": "2026-06-01T00:00:00Z",
+      "updated_at": "2026-01-01T00:00:00Z"}, "RECEIPT_TIMESTAMP_ORDER"),
+    ({"activated_at": "2025-01-01T00:00:00Z"}, "RECEIPT_TIMESTAMP_ORDER"),
+    ({"issue_url": ""}, "RECEIPT_ISSUE_URL"),
+    ({"issue_url": "https://evil.example/repos/fawazbouhamad/SCORCH/issues/1"},
+     "RECEIPT_ISSUE_URL"),
+    ({"issue_url": "https://api.github.com/x/repos/fawazbouhamad/SCORCH"
+                   "/issues/1"}, "RECEIPT_ISSUE_URL"),
+    ({"permalink": "https://github.com/fawazbouhamad/SCORCH/pull/1"
+                   "#issuecomment-999"}, "RECEIPT_PERMALINK"),
+    ({"permalink": "https://evil.example/fawazbouhamad/SCORCH/pull/1"
+                   "#issuecomment-101"}, "RECEIPT_PERMALINK"),
+    ({"starting_head": "not-a-commit"}, "RECEIPT_STARTING_HEAD"),
+])
+def test_an_invalid_receipt_is_refused(tmp_path, als, overrides, code):
+    contract = als.load_trusted_contract(REPO)
+    receipt = _valid_receipt(tmp_path, contract, als, **overrides)
+    codes = [c for c, _ in als.validate_receipt(receipt, contract, tmp_path)]
+    assert code in codes, codes
+
+
+def test_a_wrong_scope_receipt_is_refused(tmp_path, als):
+    contract = als.load_trusted_contract(REPO)
+    receipt = _valid_receipt(tmp_path, contract, als)
+    receipt["licensed_artwork"].pop(sorted(receipt["licensed_artwork"])[0])
+    codes = [c for c, _ in als.validate_receipt(receipt, contract, tmp_path)]
+    assert "RECEIPT_ARTWORK_SCOPE" in codes
+
+
+def test_a_wrong_hash_receipt_is_refused(tmp_path, als):
+    contract = als.load_trusted_contract(REPO)
+    receipt = _valid_receipt(tmp_path, contract, als)
+    rel = sorted(receipt["licensed_artwork"])[0]
+    receipt["licensed_artwork"][rel] = "f" * 64
+    codes = [c for c, _ in als.validate_receipt(receipt, contract, tmp_path)]
+    assert "RECEIPT_ARTWORK_MISMATCH" in codes
+
+
+def _tree_with_receipt(tmp_path, als, blob):
+    """A copy of the four real records plus the contract, and a receipt."""
+    contract_src = REPO / "scripts/release/finalizer_contract.json"
+    contract = als.loads_strict(contract_src.read_text(encoding="utf-8"))
+    (tmp_path / "scripts" / "release").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts/release/finalizer_contract.json").write_text(
+        contract_src.read_text(encoding="utf-8"), encoding="utf-8",
+        newline="\n")
+    for rel in contract["licence_records"]:
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((REPO / rel).read_text(encoding="utf-8"),
+                          encoding="utf-8", newline="\n")
+    receipt = tmp_path / ARTWORK_RECEIPT_REL
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text(blob, encoding="utf-8", newline="\n")
+    return tmp_path
+
+
+@pytest.mark.parametrize("blob", ['{"schema_version": "1.0.0"}', "{}",
+                                  "not json at all", '{"a":1,"a":2}'])
+def test_the_actual_guard_fails_on_an_invalid_receipt(tmp_path, als, blob):
+    """The GUARD must fail, not merely the helper.
+
+    A stub receipt leaves the state PENDING, so a guard that only inspected
+    issues in the ACTIVE branch stayed green while a forged receipt sat in the
+    tree.
+    """
+    root = _tree_with_receipt(tmp_path, als, blob)
+    state, issues = artwork_licence_state(root)
+    assert state != als.ACTIVE, (
+        "an unvalidated receipt must never yield ACTIVE")
+    assert issues, "an invalid receipt produced no issues at all"
+    with pytest.raises(AssertionError) as exc:
+        artwork_licence_is_active(root)
+    # Any of the three refusal reasons is correct. Which one depends on the
+    # state of the surrounding records: PENDING records give
+    # "does not validate", ACTIVE records give INCONSISTENT.
+    assert any(phrase in str(exc.value) for phrase in
+               ("does not validate", "with issues", "INCONSISTENT")), exc.value
+
+
+def test_the_actual_guard_fails_on_a_forged_but_wellformed_receipt(tmp_path,
+                                                                   als):
+    """Right shape, wrong author: the guard must still refuse."""
+    contract = als.load_trusted_contract(REPO)
+    forged = _valid_receipt(tmp_path, contract, als, login="impostor")
+    root = _tree_with_receipt(tmp_path, als, json.dumps(forged, indent=2))
+    assert artwork_licence_state(root)[0] != als.ACTIVE
+    with pytest.raises(AssertionError) as exc:
+        artwork_licence_is_active(root)
+    assert any(phrase in str(exc.value) for phrase in
+               ("does not validate", "with issues", "INCONSISTENT")), exc.value
+
+
+def test_the_actual_guard_accepts_the_real_tree(als):
+    """The guard must pass against this tree, whichever state it is in."""
+    state, issues = artwork_licence_state()
+    assert state in (als.PENDING, als.ACTIVE), (state, issues)
+    assert artwork_licence_is_active() is (state == als.ACTIVE)
+
+
+@pytest.mark.parametrize("blob", ['{"schema_version": "1.0.0"}', "{}",
+                                  "not json at all", '{"a":1,"a":2}'])
+def test_a_stub_or_malformed_receipt_does_not_activate(tmp_path, als, blob):
+    """A file with the right name is not an authorization."""
+    contract = als.load_trusted_contract(REPO)
+    for rel in contract["licence_records"]:
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((REPO / rel).read_text(encoding="utf-8"),
+                          encoding="utf-8", newline="\n")
+    shutil_release = tmp_path / "scripts" / "release"
+    shutil_release.mkdir(parents=True, exist_ok=True)
+    (shutil_release / "finalizer_contract.json").write_text(
+        (REPO / "scripts/release/finalizer_contract.json").read_text("utf-8"),
+        encoding="utf-8", newline="\n")
+    receipt = tmp_path / ARTWORK_RECEIPT_REL
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text(blob, encoding="utf-8", newline="\n")
+    state, _issues, detail = als.artwork_licence_state(tmp_path)
+    assert detail["_receipt_present"] is True
+    assert detail["_receipt_valid"] is False
+    assert state != als.ACTIVE
+
+
+# --- classification is scoped to exact artwork markers ---------------------
+def test_unrelated_restrictions_are_not_artwork_pending_claims(als):
+    """Broad vocabulary must not classify unrelated prose as artwork PENDING."""
+    contract = als.load_trusted_contract(REPO)
+    for text in (
+        "The prohibited-region invariance test must not be removed.",
+        "The underlying ERA5 information carries no CC BY licence and may "
+        "not be redistributed under one.",
+        "GHCN-Daily observations are forbidden from CC BY relicensing.",
+        "The pinned Aptos face must not be substituted.",
+        "Natural Earth boundaries may not be relicensed by this project.",
+    ):
+        assert als.classify_claim(text, contract) is None, text
+
+
+def test_every_real_licence_record_is_classified_and_agrees(als):
+    """Every record must classify, and all four must agree with each other."""
+    contract = als.load_trusted_contract(REPO)
+    claims = {rel: als.classify_claim((REPO / rel).read_text(encoding="utf-8"),
+                                      contract)
+              for rel in contract["licence_records"]}
+    assert None not in claims.values(), (
+        f"unclassified licence record(s): "
+        f"{[r for r, c in claims.items() if c is None]}")
+    assert len(set(claims.values())) == 1, f"records disagree: {claims}"
+    state, _issues = artwork_licence_state()
+    assert set(claims.values()) == {state}, (claims, state)
+
+
+def test_removing_the_artwork_markers_clears_the_pending_claim(als):
+    """A transformed copy of each real record, with unrelated text intact."""
+    contract = als.load_trusted_contract(REPO)
+    markers = contract["artwork_licence_markers"]["pending"]
+    preserved = ("ERA5", "GHCN", "Natural Earth", "GPL-3.0-only", "Aptos")
+    for rel in contract["licence_records"]:
+        text = (REPO / rel).read_text(encoding="utf-8")
+        kept = {t: text.count(t) for t in preserved}
+        stripped = text
+        for marker in markers:
+            stripped = stripped.replace(marker, "<ARTWORK CLAUSE REMOVED>")
+        assert als.classify_claim(stripped, contract) != als.PENDING, rel
+        for token, count in kept.items():
+            assert stripped.count(token) == count, (
+                f"{rel}: removing the artwork markers disturbed {token!r}")
 
 
 def test_gpl_software_row_does_not_swallow_the_artwork():
