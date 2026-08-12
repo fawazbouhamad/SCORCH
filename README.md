@@ -2,31 +2,16 @@
 
 **Spatiotemporal Classification of Regional Compound Heatwaves**
 
-SCORCH is a reproducible framework for identifying, characterizing, and
-classifying regionally extensive compound heatwaves over the Eastern
-Mediterranean and Middle East. From ERA5-derived daily maximum temperature
-it detects local heatwave episodes, selects the days on which heat is
-regionally extensive, groups consecutive such days into compound events,
-resolves the daily spatial heat structures within them, summarizes each
-structure's geometry with a PCA ellipse, and assigns every event to one of
-four types defined by duration and daily structural multiplicity.
-
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-## Persistent resources
-
-| Resource | Identifier | Status |
-|---|---|---|
-| Source repository | https://github.com/fawazbouhamad/SCORCH | Public |
-| Processed-data archive | [10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752) | **Reserved DOI; record forthcoming** |
-| Software archive | [10.5281/zenodo.21717874](https://doi.org/10.5281/zenodo.21717874) | **Reserved DOI; record forthcoming** |
-| Associated manuscript | Understanding the Spatiotemporal Organization of Regionally Extensive Heatwaves Using the SCORCH Framework | Prepared for submission |
-| Authors | Fawaz Bouhamad and Nasser Najibi | — |
-
-> Both Zenodo DOIs are **reserved and not yet resolvable**. The records are
-> unpublished drafts; they are not openly available yet, and the DOIs will
-> begin to resolve when the records are published. Archive badges will be
-> added at that point, not before.
+SCORCH is a reproducible Python framework for detecting and characterizing
+regionally extensive compound heatwaves over the Eastern Mediterranean and
+Middle East. From ERA5-derived daily maximum temperature it detects local
+heatwave episodes, selects the days on which heat is regionally extensive,
+groups consecutive selected days into compound events, resolves the daily
+spatial heat structures within them, summarizes each structure's geometry
+with a PCA ellipse, and assigns every event to one of four types defined by
+duration and daily structural multiplicity.
 
 **Documentation:** [Reproducibility](docs/REPRODUCIBILITY_REPORT.md) ·
 [Provider reconstruction](docs/PROVIDER_RECONSTRUCTION_GUIDE.md) ·
@@ -35,65 +20,49 @@ four types defined by duration and daily structural multiplicity.
 [Licences and attribution](docs/LICENSES_AND_ATTRIBUTION.md) ·
 [Terminology](docs/TERMINOLOGY.md)
 
-## Scientific overview
+## Method summary
 
 The analysis domain is a 1° grid over the Eastern Mediterranean and Middle
 East (10–46 °N, 20–70 °E), restricted to the April–September warm season for
-1940–2025. This yields **1,800 valid grid boxes** across **15,738**
-warm-season days.
+1940–2025. This yields 1,800 valid grid boxes across 15,738 warm-season
+days.
 
 For each grid cell, the local threshold is the 95th percentile of daily Tmax
-pooled across **all** April–September days during 1940–2025 — a single fixed
+pooled across all April–September days during 1940–2025: a single fixed
 threshold per cell, not a calendar-day climatology. A day is a
-**threshold-meeting day** for that cell when its Tmax is **greater than or
-equal to** that value.
+threshold-meeting day for that cell when its Tmax is greater than or equal
+to that value.
 
-Local heatwave episodes are then delimited by **two consecutive
-non-exceedance days**, trimmed to begin and end on threshold-meeting days,
-and retained when they span at least three days **and** contain at least
-three threshold-meeting days. An isolated non-exceedance day inside a
-qualifying episode is therefore **bridged** and remains part of it. Cells
-belonging to a retained episode on a given day are **heatwave-labeled
-cells**.
+Local heatwave episodes are delimited by two consecutive non-exceedance
+days, trimmed to begin and end on threshold-meeting days, and retained when
+they span at least three days and contain at least three threshold-meeting
+days. An isolated non-exceedance day inside a qualifying episode is bridged
+and remains part of it. Cells belonging to a retained episode on a given day
+are heatwave-labeled cells.
 
-The count of heatwave-labeled cells on a day, *N*<sub>HW</sub>(*t*),
-measures how regionally extensive the heat is. Days satisfying
-*N*<sub>HW</sub>(*t*) ≥ **371** — the regional 97.5th-percentile threshold of
-that count — are retained as **regionally selected days**; there are **395**
-of them. **Compound events** are the maximal runs of consecutive selected
-days: **51** of them. Event construction is purely temporal — it is the
-consecutive-day runs, not any clustering step, that defines compound events.
+Days on which the count of heatwave-labeled cells reaches the regional
+97.5th-percentile threshold (*N*<sub>HW</sub>(*t*) ≥ 371) are retained as
+regionally selected days; there are 395 of them. Compound events are the
+maximal runs of consecutive selected days: 51 events. Event construction is
+purely temporal: the consecutive-day runs, not any clustering step, define
+compound events.
 
-Within each selected day, DBSCAN is applied to that day's
-**heatwave-labeled cells** to delineate spatially coherent **daily heat
-structures**, giving **760** structures overall. Each structure's geometry is
-summarized by a PCA ellipse at a fixed σ = 1.25. Events are then classified
-by duration and daily structural multiplicity into four types, with
-**3, 4, 20 and 24** events in Types 1–4 respectively.
+Within each selected day, DBSCAN is applied to that day's heatwave-labeled
+cells to delineate spatially coherent daily heat structures, giving 760
+structures overall. Each structure's geometry is summarized by a PCA ellipse
+at a fixed σ = 1.25, computed without temperature weighting and then rigidly
+translated to the structure's Tmax-weighted centroid (raw degrees Celsius
+within that structure). The translation changes the ellipse's location only;
+it does not alter clustering, PCA axes, orientation, area, shape ratio, or
+typology. Events are then classified by duration and daily structural
+multiplicity into four types, with 3, 4, 20 and 24 events in Types 1–4
+respectively.
 
-The five levels are distinct and are used consistently throughout: a
-*threshold-meeting cell* (Tmax ≥ its own pooled 95th percentile that day) →
-a *heatwave-labeled cell* (belonging to a retained persistence episode) → a
-*regionally selected day* (*N*<sub>HW</sub> ≥ 371) → a *compound event*
-(maximal run of selected days) → a *daily DBSCAN structure* (within one
-selected day).
-
-Two conventions are worth stating explicitly, because they are easy to
-assume otherwise:
-
-- **PCA geometry is computed without temperature weighting.** Once the
-  ellipse is complete it is rigidly translated to the structure's
-  Tmax-weighted centroid, computed in raw degrees Celsius within that
-  structure. The translation moves the ellipse's location only; it does not
-  alter clustering, PCA axes, orientation, area, shape ratio, typology, σ
-  selection, Appendix A, or the upper-tail results.
-- **SCORCH does not track structures across days.** It characterizes each
-  day's structures independently. It therefore makes no claim about
-  structure identity, continuity, splitting, or merging over time.
-
-SCORCH also fits a log-Gaussian Cox process to the structure centroids to
-summarize their relative spatial concentration. That surface is a relative
-concentration summary — not a probability, risk, hazard, susceptibility, or
+SCORCH does not track structures across days: it characterizes each day's
+structures independently and makes no claim about structure identity,
+continuity, splitting, or merging over time. SCORCH also fits a log-Gaussian
+Cox process to the structure centroids; that surface is a relative
+concentration summary, not a probability, risk, hazard, susceptibility, or
 impact estimate, and not a forecast.
 
 ## Analysis workflow
@@ -109,26 +78,6 @@ identified, regionally selected days are chosen, and maximal
 consecutive-day runs define compound events before daily spatial clustering
 of heatwave-labeled cells and geometric analysis.</em></p>
 
-## What SCORCH does
-
-- Identifies threshold-meeting cells against a per-cell 95th percentile
-  pooled over all April–September days of 1940–2025 (Tmax ≥ threshold).
-- Labels heatwave cells by the persistence rule (episodes split at two
-  consecutive non-exceedance days, trimmed, ≥3 days and ≥3 threshold-meeting
-  days, isolated gaps bridged).
-- Selects regionally selected days by the regional
-  *N*<sub>HW</sub>(*t*) ≥ 371 criterion and builds compound events from
-  maximal consecutive runs of those days.
-- Resolves daily heat structures by applying DBSCAN to each selected day's
-  heatwave-labeled cells.
-- Summarizes each structure with a fixed-σ PCA ellipse (orientation, axes,
-  area, shape ratio) translated to its Tmax-weighted centroid.
-- Classifies each event into Types 1–4 by duration and daily multiplicity.
-- Summarizes centroid concentration with a log-Gaussian Cox process, and
-  reports upper-tail and trend diagnostics.
-- Regenerates every deposit-reproducible figure and table, with byte-level
-  provenance for each output.
-
 ## Event typology
 
 <p align="center">
@@ -142,21 +91,14 @@ and daily structural multiplicity. The diagram summarizes daily
 configurations and does not represent tracked structure identities,
 splitting, or merging.</em></p>
 
-## Quick reproduction
+## Installation and reproduction
 
 Python orchestrates the whole workflow. The log-Gaussian Cox process stage
 additionally invokes R with `spatstat` through an external `Rscript` call;
 that stage is documented in [docs/R_WORKFLOW.md](docs/R_WORKFLOW.md).
 
-The fast route begins from the **processed Zenodo data**, not from raw
-provider files. Retrieval of raw ERA5 fields from the Copernicus Climate
-Data Store and the hourly-to-daily preprocessing are documented separately
-in [docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md);
-that provider-level route is **not fully automated** and is not executed by
-the commands below.
-
 ```bash
-# 1. install — CANONICAL clean-room route (hash-locked, fully pinned)
+# 1. install: canonical hash-locked route (fully pinned)
 python -m pip install --require-hashes -r environment/requirements-lock-py312.txt
 python -m pip install --no-deps -e .
 
@@ -177,128 +119,98 @@ python run_reproduction.py fast \
 python -m pytest tests -q
 ```
 
-> **Step 1** is the canonical route: it installs the exact hash-pinned
-> environment that produced the published numbers. A convenience
-> alternative exists but is **explicitly non-canonical** — it resolves
-> dependencies freely and is not the environment the results were generated
-> in:
->
-> ```bash
-> python -m pip install -e ".[full,dev]"   # NON-CANONICAL convenience install
-> ```
->
-> **Step 2** requires the data record to be **published**. The data DOI
-> `10.5281/zenodo.21717752` is currently **reserved and does not yet
-> resolve**, so `fetch-data --doi` will not retrieve anything until the
-> record is public. Until then, the processed-data route still works from an
-> authorized Zenodo preview link or an existing local copy of the deposit:
-> point `--data-dir` at that directory and skip `fetch-data`. Note that
-> [docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md)
-> describes rebuilding the inputs from **raw provider data**; it does not
-> grant access to the processed deposit.
+Step 1 is the canonical route: it installs the exact hash-pinned
+environment that produced the reported numbers. The convenience alternative
+`python -m pip install -e ".[full,dev]"` resolves dependencies freely and is
+non-canonical.
 
-Useful variants:
+Step 2 requires the data record to be published. The data DOI
+`10.5281/zenodo.21717752` is currently reserved and does not yet resolve, so
+`fetch-data --doi` will not retrieve anything until the record is public.
+Until then, point `--data-dir` at an authorized preview or existing local
+copy of the deposit and skip `fetch-data`.
 
-```bash
-python run_reproduction.py smoke   # catalog validation + Table 1 + Figs 12 and 2
-python run_reproduction.py guide   # print the provider reconstruction guide only
-```
+The fast route begins from the processed deposit, not from raw provider
+files. Rebuilding the inputs from raw ERA5 fields retrieved from the
+Copernicus Climate Data Store is documented in
+[docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md);
+that provider-level route is not fully automated. Useful variants:
+`python run_reproduction.py smoke` (catalog validation plus a figure/table
+subset) and `python run_reproduction.py guide` (print the provider
+reconstruction guide). `--nboot` defaults to the canonical 5000; smaller
+values give a quick, non-canonical run.
 
-`--nboot` defaults to the canonical 5000. Any smaller value produces a
-quick, **non-canonical** run whose power-law numbers are not the
-manuscript-reported values.
-
-## Expected validation results
-
-| Check | Expected |
-|---|---|
-| Fast route | **33/33 stages PASS**, including the publication-outputs assembly |
-| Reconstruction route | 9/9 stages, weighted-centroid stage executing 760/760 |
-| Test suite (source-only) | **450 passed, 46 skipped, 0 failed, 0 errors, 0 xfailed - exit 0, PASS**, with every `SCORCH_*` variable cleared; 496 collected |
-| Test suite (required-archive) | **473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed - exit 1**, with `SCORCH_DATA_DIR`, `SCORCH_DATA_ARCHIVE` and `SCORCH_REQUIRE_ARCHIVE=1` set against the unchanged v1.0.0 archive candidate; 496 collected. The one failure is **EXPECTED** and is a verified release blocker, not a regression: the release gate reports the archive's stale NetCDF metadata through all nine `NETCDF_*` contract codes. The 22 skips are 21 FINAL-DOCX-dependent guards and 1 pinned-Aptos-font guard (a non-redistributable Microsoft 365 cloud font); both fixture sets are absent here and were deliberately not supplied. A fully configured zero-skip acceptance run, and final release acceptance itself, are both **PENDING** - see [docs/REPRODUCIBILITY_REPORT.md](docs/REPRODUCIBILITY_REPORT.md). Historical and superseded, quoted as provenance only: at the committed head `6d483cf9` before the uncommitted Phase 2.2A2 changes this was 396 collected, with 350 passed / 46 skipped source-only and 373 passed / 22 skipped / 1 xfailed configured; at the prior head `44a54a05`, 327 passed / 36 skipped source-only and 363 passed / 0 skipped configured |
-| Valid grid boxes | 1,800 |
-| Warm-season days | 15,738 |
-| Regional threshold | *N*<sub>HW</sub>(*t*) ≥ 371 |
-| Regionally extensive days | 395 |
-| Compound events | 51 |
-| Daily heat structures / ellipses | 760 |
-| Events in Types 1–4 | 3 / 4 / 20 / 24 |
-
-Some guards skip unless their fixtures are present; set `SCORCH_DATA_DIR` to
-the deposit root so that every scientific and publication guard runs.
-
-## Repository organization
+## Repository structure
 
 | Path | Contents |
 |---|---|
-| `src/scorch/` | The installable package: pipeline stages, catalog, CLI |
-| `scripts/` | Figure, publication, deposit, LGCP and validation scripts |
-| `configs/` | The complete, closed reproduction configuration |
-| `tests/` | Unit, regression, provenance and manuscript-integrity tests |
-| `docs/` | Provenance, reproducibility, licensing and terminology records |
-| `assets/` | Frozen figure assets and canonical manuscript figure rasters |
-| `data/auxiliary/` | Small author-generated inputs shipped with the code |
-| `environment/` | Hash-pinned environment locks |
-| `remediation/` | Evidence packet for the pre-release Tmax-weighted-centroid correction |
-| `run_reproduction.py` | Cross-platform driver for the stage table |
+| `assets/` | Figures and figure provenance |
+| `configs/` | Reproducibility configuration |
+| `data/` | Tracked data documentation and auxiliary inputs |
+| `docs/` | Scientific and release documentation |
+| `environment/` | Environment specifications |
+| `scripts/` | Executable workflows and release tools |
+| `src/` | The Python package |
+| `tests/` | Verification and regression tests |
+| `remediation/` | Retained scientific correction evidence |
+| `legacy_defective_figure09/` | Archival pointer for removed defective Figure 9 files |
 
-Per-figure provenance is machine-readable rather than narrated here: see
+Per-figure provenance is machine-readable: see
 [docs/FIGURE_PROVENANCE.csv](docs/FIGURE_PROVENANCE.csv),
 [docs/MANUSCRIPT_FIGURE_IDENTITY.csv](docs/MANUSCRIPT_FIGURE_IDENTITY.csv)
 and [docs/REPRODUCIBILITY_MATRIX.csv](docs/REPRODUCIBILITY_MATRIX.csv).
 
 ## Data and software availability
 
-The processed dataset and reproduction inputs are associated with the
-reserved Zenodo data DOI
-[10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752). The
-source code and reproducibility workflow are maintained in this repository,
-and the corresponding software archive has the reserved Zenodo DOI
-[10.5281/zenodo.21717874](https://doi.org/10.5281/zenodo.21717874). Both
-Zenodo records will become publicly accessible when they are published.
+| Resource | Identifier | Status |
+|---|---|---|
+| Source repository | https://github.com/fawazbouhamad/SCORCH | Public |
+| Processed-data archive | [10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752) | Reserved DOI; record forthcoming |
+| Software archive | [10.5281/zenodo.21717874](https://doi.org/10.5281/zenodo.21717874) | Reserved DOI; record forthcoming |
+
+Both Zenodo DOIs are reserved and not yet resolvable. The records are
+unpublished drafts; the DOIs will begin to resolve when the records are
+published, and archive badges will be added at that point, not before.
 
 SCORCH redistributes no raw provider data. ERA5-derived content carries the
 Copernicus/ECMWF terms and required notice, and GHCN-Daily-derived content
 the NOAA/NCEI source and use terms; both are set out in
 [docs/LICENSES_AND_ATTRIBUTION.md](docs/LICENSES_AND_ATTRIBUTION.md).
 
+## Verification status
+
+| Check | Result |
+|---|---|
+| Frozen release test collection | 1,258 tests; sorted node-ID SHA-256 `818edfb7386ab8223f1d31435ea49f8d73a73805b54191eeba1341ec54c5fc16` |
+| Source-only profile | 1,212 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
+| Fully configured profile | 1,256 pass, with 2 expected pre-finalization identity check failures |
+| NetCDF release gate | Pass against the corrected candidate archive |
+| Fast reproduction route | 33/33 stages pass, including the publication-outputs assembly |
+| Reconstruction route | 9/9 stages pass, weighted-centroid stage executing 760/760 |
+
+The two configured-profile failures are expected before release
+finalization: they compare the corrected candidate archive against
+superseded identity values that the controlled finalization step will
+update. The acceptance record in
+[docs/CANONICAL_SCIENCE.json](docs/CANONICAL_SCIENCE.json) additionally
+preserves the clean-room measurement at its 496-test recording point, where
+450 passed with 46 skipped in the source-only profile and 473 passed with
+one expected failure in the required-archive profile.
+
 ## Citation
 
-Cite the software using the metadata in [`CITATION.cff`](CITATION.cff) —
-GitHub renders it under **Cite this repository**.
-
-The associated manuscript is:
+Cite the software using the metadata in [`CITATION.cff`](CITATION.cff);
+GitHub renders it under **Cite this repository**. The associated manuscript
+is:
 
 > Bouhamad, F., and Najibi, N. Understanding the Spatiotemporal Organization
 > of Regionally Extensive Heatwaves Using the SCORCH Framework. Manuscript
 > prepared for submission to *Weather and Climate Extremes*.
 
-It has no DOI, volume, issue, page range or publication date yet, so it is
-deliberately not declared as a machine-readable `preferred-citation`; that
-will be added once the article is published.
-
-If you use SCORCH, please cite the associated software archive and
-manuscript. If you use the deposited data, please also cite the data
-archive. Citation is requested as a matter of scholarly practice and is not
-an additional condition of the GPL.
-
-## FAIR
-
-- **Findable** — persistent DOIs are reserved for both the software and the
-  processed data, and the repository carries `CITATION.cff` and
-  `.zenodo.json` metadata.
-- **Accessible** — the source is public; the processed data will be openly
-  downloadable from Zenodo on publication, and the deposit ships its own
-  manifest and validator.
-- **Interoperable** — outputs are CSV, NetCDF, PNG and PDF, with a data
-  dictionary and an explicit, closed configuration schema.
-- **Reusable** — path-specific licensing, a hash-pinned environment lock,
-  byte-level figure provenance, and a 33-stage reproduction route.
-
-The CARE Principles for Indigenous Data Governance are **not** invoked: this
-work uses global reanalysis and public station records and involves no
-Indigenous or community-governed data, so claiming CARE alignment would be
-inaccurate.
+If you use SCORCH, please cite the software archive and manuscript; if you
+use the deposited data, please also cite the data archive. Citation is
+requested as a matter of scholarly practice and is not an additional
+condition of the GPL.
 
 ## License and attribution
 
@@ -306,7 +218,6 @@ SCORCH source code is licensed under the GNU General Public License v3.0
 only (GPL-3.0-only). Data, figures, documentation, and third-party material
 may have separate path-specific terms described in
 [docs/LICENSES_AND_ATTRIBUTION.md](docs/LICENSES_AND_ATTRIBUTION.md).
-
 Earlier public revisions of this repository were released under the MIT
 License and remain under the licence included with those revisions; see
 [docs/LICENSING_HISTORY.md](docs/LICENSING_HISTORY.md).

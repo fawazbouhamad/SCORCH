@@ -12,17 +12,17 @@ already retrievable by anyone, not an internal plan.
 | Revisions | Software licence | Status |
 |---|---|---|
 | Public snapshots up to and including the `v1.0.0` tag target (commit `184f15c6`) and the `main` commit `bd6e4608` | **MIT** | In force for those revisions. `bd6e4608` is the present head of the public default branch, so MIT is still what a default-branch clone receives today. |
-| The unmerged pre-release candidate branch `chore/final-repository-cleanup` (head `6d483cf9`) and the draft pull request #1 that carries it | **GPL-3.0-only** | Publicly readable now. The GPL text is already distributed on these bytes — but they are a **candidate**, not a release: not merged, not tagged, not released. |
+| The unmerged pre-release candidate branch `chore/final-repository-cleanup` (head `6d483cf9`) and the draft pull request #1 that carries it | **GPL-3.0-only** | Publicly readable now. The GPL text is already distributed on these bytes, but they are a **candidate**, not a release: not merged, not tagged, not released. |
 | The forthcoming formal v1.0.0 release onward | **GPL-3.0-only** | The intended licence of the release. Not yet in force *as a release*, because the release has not been made. |
 
 > **"Current" is deliberately not used as a label above.** Two licences are
-> simultaneously retrievable from this public repository right now — MIT from
-> `main`, GPL-3.0-only from the candidate branch — so a single row marked
+> simultaneously retrievable from this public repository right now (MIT from
+> `main`, GPL-3.0-only from the candidate branch), so a single row marked
 > "current" would misdescribe the repository rather than summarise it. Which
 > terms apply depends on which revision a reader actually obtained.
 
 > The existing `v1.0.0` tag (annotated object `47d0c06d`) points at commit
-> `184f15c6`, a **pre-release repository snapshot** carrying MIT — not the
+> `184f15c6`, a **pre-release repository snapshot** carrying MIT, not the
 > completed formal release. Final tag alignment is a separate release stop
 > gate; the tag object and its commit are preserved as provenance and are not
 > moved in this round.
@@ -75,8 +75,8 @@ author and remain visible in the commit metadata itself for any auditor.
 
 There are no third-party contributors, so no outside contributor's consent
 is implicated. (`GitHub <noreply@github.com>` appears twice as *committer*
-only — the standard identity recorded for edits made through the GitHub web
-interface — and is not an authoring party.)
+only, the standard identity recorded for edits made through the GitHub web
+interface, and is not an authoring party.)
 
 No third-party source code is vendored into this repository. Every software
 dependency is installed from PyPI or CRAN at build time and is separately

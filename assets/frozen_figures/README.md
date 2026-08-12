@@ -89,11 +89,11 @@ correct. Conflating them would be a false portability claim, so the two
 guarantees are stated separately and enforced separately by the two ACTIVE
 Figure 4 guards:
 
-* `tests/test_fig04_symmetry_final.py` — the symmetry-round regressions (Type 4
+* `tests/test_fig04_symmetry_final.py`: the symmetry-round regressions (Type 4
   horizontal reading, lattice symmetry, Type 3 label centring, exact integer
   label translation, prohibited-region invariance) plus a producer run that
   must be PIXEL-identical to the shipped asset;
-* `tests/test_fig04_cross_platform_determinism.py` — the identity split itself,
+* `tests/test_fig04_cross_platform_determinism.py`: the identity split itself,
   plus adversarial regressions on the producer's contracts (missing donor,
   hash-mutated donor, wrong raw-RGB digest, wrong encoded digest, and the
   encoder-policy classification).

@@ -1,7 +1,7 @@
-# SCORCH Tmax-Weighted Centroid Remediation — Evidence Report
+# SCORCH Tmax-Weighted Centroid Remediation: Evidence Report
 
 Branch `fix/tmax-weighted-centroids` · worktree `<WORKTREE>`
-Date: 2026-08-07 · Operator: automated remediation session (Claude Code), audit-first.
+Date: 2026-08-07 · Prepared under the direction and responsibility of Fawaz Bouhamad.
 
 ---
 
@@ -24,7 +24,7 @@ Date: 2026-08-07 · Operator: automated remediation session (Claude Code), audit
   `remediation/corrected/event_global_max_algorithm/build_manifest.json`
   (`dependency_versions`).
 * Processed-data deposit: `<TMPDIR>/scorch_dep_v100/scorch_processed_data_v1.0.0`
-  — **93/93 files verified against its SHA256SUMS (0 mismatch, 0 missing)**.
+  with **93/93 files verified against its SHA256SUMS (0 mismatch, 0 missing)**.
 
 ## 2–3. Base commit, remediation branch, final state
 
@@ -40,7 +40,7 @@ Date: 2026-08-07 · Operator: automated remediation session (Claude Code), audit
 ## 4. Root cause (confirmed from the release tree)
 
 `scripts/pipeline/build_event_global_max_master.py` (release path; the
-prompt's `scripts/event_global_max/` path is an untracked research copy)
+`scripts/event_global_max/` path is an untracked research-tree copy)
 called at line 147:
 
 ```python
@@ -53,7 +53,7 @@ were discarded; every reported `centroid_lon/lat` (and aliases
 kernel's optional weighting path (`ellipse_pca.py:127–154`) was additionally
 **non-compliant**: `tmax_weighted_centroid_from_cells` applied
 `max(Tmax, 0.0)` (prohibited clipping) and `safe_weighted_mean` silently
-dropped non-finite weights and fell back to the unweighted mean —
+dropped non-finite weights and fell back to the unweighted mean, a
 prohibited silent fallback. It was therefore NOT activated; a new strict
 stage was implemented. The legacy helpers remain frozen and unused; a test
 asserts the canonical builder never calls them.
@@ -84,7 +84,7 @@ phi_w,h(t)    = sum_k lat_hk * w_hk / sum_k w_hk
   min 19.234 °C, max 52.505 °C, mean 37.441 °C, sd 6.409 °C;
   **0 missing, 0 duplicated, 0 non-finite, 0 zero-or-negative**; every
   denominator finite and positive. (Had any weight been ≤ 0 °C the code
-  raises `WeightedCentroidError` — an explicit stop, no fallback.)
+  raises `WeightedCentroidError`, an explicit stop with no fallback.)
 * Join: exact structure date + exact 1° cell-centre coordinates (stable
   identifiers; never row position; never approximate matching); exactly one
   Tmax per member cell enforced.
@@ -105,19 +105,19 @@ Downstream location products (regenerated): master-catalog centroid fields
 (`snapshots.py` now renders via the weighted stages) · Fig 12 · LGCP inputs
 (`build_inputs.py`) → R `kppm` refit → variant3 surface → k-fold CV +
 risk-zone validation → CV figure, fold maps, Figure S4 (Appendix D) ·
-sector counts. Power-law/Table-1/statistics scripts read **areas only** —
-unaffected, and their inputs are unchanged.
+sector counts. Power-law/Table-1/statistics scripts read **areas only**;
+they are unaffected, and their inputs are unchanged.
 
 ## 9–10. Appendix A isolation and sigma proof
 
 * Appendix A producer (`make_figA1_sigma_matrices.py`) reads exactly one
-  data file — the labels CSV — and recomputes ordinary unweighted PCA
+  data file (the labels CSV) and recomputes ordinary unweighted PCA
   (`lon.mean()`, `fit_pca`) over a 9×9 σ grid; the `MASTER` binding in it
   is dead code (assigned, never used). The renderer reads only the four
   frozen `figA1_inputs/*.csv` (byte-pinned in `docs/CANONICAL_SCIENCE.json`
   `sigma_sensitivity_figureA.expected_matrix_sha256`, verification status
   "4/4 BYTE-IDENTICAL"). Neither script references any weighted field or
-  the new module — enforced by lineage tests
+  the new module, as enforced by lineage tests
   (`test_appendix_a_scripts_cannot_read_weighted_fields`,
   `test_appendix_a_inputs_are_the_frozen_sigma_matrices`,
   `test_upstream_stages_do_not_import_weighted_module`).
@@ -129,7 +129,7 @@ unaffected, and their inputs are unchanged.
   `sigma_sensitivity_figureA.selected_sigma = 1.25`, combined score
   204.5440673062212 at 1.25, selection rule intact). Disambiguation: the
   LGCP `sigma2` (=1.647219 baseline) is the Gaussian random-field variance,
-  and CV/bootstrap seeds are unrelated quantities — neither is the ellipse
+  and CV/bootstrap seeds are unrelated quantities; neither is the ellipse
   scale. Regression test `test_sigma_remains_exactly_1_25_everywhere`
   added. Appendix A was **not** re-run as a sensitivity experiment; its
   figure, tables, caption, and interpretation are untouched.
@@ -151,7 +151,7 @@ unaffected, and their inputs are unchanged.
 * Post-implementation comparison (760 rows, keyed by
   date/event/cluster): **all 53 frozen catalog columns match**; integer
   and string columns exact; float geometry columns worst relative
-  difference **2.6e-16 (1 ulp)** — floating-point associativity between
+  difference **2.6e-16 (1 ulp)**: floating-point associativity between
   builds, far inside the release's own 1e-6 acceptance and the contract's
   1e-12 geometry tolerance; explained, not silent. Unweighted origins
   preserved bitwise except 20/1520 coordinate values differing by
@@ -164,7 +164,7 @@ unaffected, and their inputs are unchanged.
 ## 12. Automated tests
 
 * New suite `tests/test_tmax_weighted_centroid.py`: 26 tests covering the
-  required matrix — reference example (6,7)≠(5,5) · Kelvin differs & unused ·
+  required matrix: reference example (6,7)≠(5,5) · Kelvin differs & unused ·
   equal-weight = ordinary centroid · hotter-cell pull · permutation and
   positive-scaling invariance · determinism · AST prohibitions ·
   missing/mismatch/duplicate/non-finite/zero-negative explicit stops ·
@@ -250,7 +250,7 @@ preserved (no "Event Frequency"), alignment acceptance checks passed
 Uncertainty measures: the minimum-contrast `kppm` fit does not produce
 standard errors for fixed effects; **none are invented** (matching the
 v1.0.0 convention "phi not available for this fitted LGCP object").
-Geographic interpretation: qualitatively unchanged — intensity maximum in
+Geographic interpretation: qualitatively unchanged, with the intensity maximum in
 the northeastern Tigris–Euphrates lowland corridor; hotspot cell
 (45.5°E, 32.5°N); mean-Tmax remains the dominant covariate (stronger after
 correction); weak negative std-Tmax effect; smooth NW–SE rank gradient
@@ -339,7 +339,7 @@ pytest full suite 33 s. Seeds preserved: CV 20260704; power-law bootstraps
    shipped); values byte-identical to v1.0.0.
 5. **RESOLVED 2026-08-07:** the corrected overlay now lives in the
    worktree at `release_staging/scorch_corrected_overlay_v1.0.1`
-   (gitignored staging; archived — §27.7).
+   (gitignored staging; archived, see §27.7).
 
 ---
 
@@ -354,7 +354,7 @@ packet: see `release_staging/evidence/GIT_STATE.txt`).
 `make_figS1_type3_event25.py` switched from `render_day` to the canonical
 `render_day_tmax_weighted`; all four displayed structure centroids
 verified against the corrected catalog (<1e-9 deg) with displacements
-33.459 / 118.254 / 24.271 / 125.601 km (nonzero displacement asserted —
+33.459 / 118.254 / 24.271 / 125.601 km (nonzero displacement asserted;
 a visually unchanged layer fails the build). Source data exported
 (`Figure_S1_type3_event25_source_data.csv`). Station panels (c)/(d)
 regenerated from the deposit (r = 0.98, RMSE = 1.70 °C, bias = −1.60 °C,
@@ -370,7 +370,7 @@ corrected regression pins 389.670138931229 / 231.807728434158 /
 151.672109636537 / 69.064508207406 km (1e-6 km tolerance; derived from
 the corrected validation table; n = 760, 5×152 folds, seed 20260704).
 Fold maps re-derived (equal-grid-cell mean ranks 0.599–0.666; per-fold
-top-20% hit rates 0.303–0.408 — a DISTINCT convention from the
+top-20% hit rates 0.303–0.408, a DISTINCT convention from the
 area-weighted held-out quantiles 0.6438/0.6801, kept separate).
 Composite `New_Figure_S2_candidate.png` `88f9e177cf396d0d`, `.pdf`
 `be02a4f1e1427b1a`; overlay copies of
@@ -382,7 +382,7 @@ outputs.
 
 The DISPLAYED panel (b) uses the 0.25° display lattice (145 × 201 nodes,
 20–70°E / 10–46°N): independently recomputed maximum **282** at four
-nodes near 42°E, 31°N — (41.75, 31.00), (42.00, 31.00), (43.00, 31.00),
+nodes near 42°E, 31°N: (41.75, 31.00), (42.00, 31.00), (43.00, 31.00),
 (42.00, 31.25). The earlier-reported 279 @ (43.5°E, 30.5°N) is the
 SEPARATE 1° 1,800-cell audit (maximum attained at four cells) and is not
 the displayed maximum; §18's footprint block is that audit. Neither
@@ -396,7 +396,7 @@ section; PROVENANCE.md carries the release identifier, corrected variant3
 LGCP fit, corrected CV/risk-zone values, and the event-14 note;
 clean_data_README.md documents the 816,814-byte corrected catalog and the
 weighted/unweighted field families; DATA_DICTIONARY.csv (649 rows,
-99,622 bytes) — weighted-convention descriptions on all generic centroid
+99,622 bytes), with weighted-convention descriptions on all generic centroid
 aliases + 68 observed ranges refreshed from the corrected payloads;
 `lgcp/validation_summary.json` re-pathed (release-relative in-deposit,
 `<LOCAL-PATH-REDACTED>/…` external; agrees with PROVENANCE). Zero live
@@ -419,7 +419,7 @@ the adopted overlay copy.
 `scripts/deposit/rebuild_processed_deposit_manifests.py` (preserves path
 order/descriptions, strict missing/duplicate/extra failure, rebuilds
 SHA256SUMS incl. the final FILE_MANIFEST hash). Final overlay:
-**SHA256SUMS 93/93 and FILE_MANIFEST 92/92 — zero mismatches from both
+**SHA256SUMS 93/93 and FILE_MANIFEST 92/92: zero mismatches from both
 systems; extended validator PASS.**
 
 ### 27.6 One-command reproducibility
@@ -431,7 +431,7 @@ kernel, and compares every remediation column against the corrected
 catalog. Full run against the overlay: **9/9 stages ok; weighted stage
 760/760; worst rel diff 2.5e-15**. Appendix A isolation and legacy-helper
 freeze unchanged (tests). Full suite: **274 passed, 2 skipped** (skips:
-`publication_outputs/` not materialized) — this count INCLUDES the 26
+`publication_outputs/` not materialized); this count INCLUDES the 26
 original remediation tests and the 4 new guards. Double-build re-verified:
 two fresh catalog builds byte-identical to each other and to the overlay
 catalog (`dffb5e8f…`).

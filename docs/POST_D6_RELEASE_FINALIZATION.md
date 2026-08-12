@@ -21,7 +21,7 @@ states.**
 | | `preflight` | `finalize` |
 |---|---|---|
 | writes to disk | never, including bytecode | only after every check passes |
-| needs the authorization | no | yes — resolved from the selected source: committed approval record plus supplied original evidence, or a GitHub comment fetched live twice. |
+| needs the authorization | no | yes, resolved from the selected source: committed approval record plus supplied original evidence, or a GitHub comment fetched live twice. |
 | safe to run now | yes | it will stop at the gate |
 
 ### The interpreter: name it, never inherit it
@@ -486,7 +486,7 @@ is what every receipt written before the second route existed would be.
 * during a live finalization, agreement with the comment fetched moments
   earlier.
 
-**(c) `external_evidence` only** — no comment id, no permalink, no pull
+**(c) `external_evidence` only**: no comment id, no permalink, no pull
 request, because there is no comment:
 
 * `source_type` one the contract admits (`approval_email` or
@@ -495,7 +495,7 @@ request, because there is no comment:
   `approved_text_sha256` hashing it;
 * **the tracked approval record**, re-read at HEAD every time: present,
   tracked, byte-equal to its committed blob, with `approval_record_sha256` and
-  `approval_record_blob_sha1` **recomputed** and equal to the receipt's — and
+  `approval_record_blob_sha1` **recomputed** and equal to the receipt's, and
   the record must itself be well-formed (its own `schema_version`, its full
   mandatory field set, an allowed `source_type`);
 * **the original evidence**, by `evidence_filename`, `evidence_sha256` and

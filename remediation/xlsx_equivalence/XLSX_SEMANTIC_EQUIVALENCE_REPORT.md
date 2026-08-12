@@ -58,11 +58,11 @@ whatever the relocation state.
 | XLSX | repository-normalized | 428,600 | `4ca9ef136ee0a98ada2acc7d3976bc314a4402f8b22af62f818119ba286e6b42` |
 
 The XLSX is binary, so its two scopes are identical. The CSV's two scopes differ
-**only** by LF↔CRLF — a proven end-of-line transformation, not byte identity.
+**only** by LF↔CRLF, a proven end-of-line transformation, not byte identity.
 
 The recorded run read the **archive members**, not a repository copy: the report's
 `csv_source` and `xlsx_source` are both `deposit`. Those members hash to
-`dffb5e8f…4a53d` / 816,814 B and `4ca9ef13…6e6b42` / 428,600 B — that is, the
+`dffb5e8f…4a53d` / 816,814 B and `4ca9ef13…6e6b42` / 428,600 B: that is, the
 deposited CSV is byte-identical to the *historical-worktree* (CRLF) form, and the
 deposited workbook is byte-identical to both declared XLSX scopes. The comparison
 therefore ran against exactly the bytes this report names, and says which copy
@@ -96,7 +96,7 @@ Complete ZIP member list (9 parts, no macro and no external-link part):
 `xl/_rels/workbook.xml.rels`, `xl/styles.xml`, `xl/theme/theme1.xml`,
 `xl/workbook.xml`, `xl/worksheets/sheet1.xml`.
 
-### Relationships — every `.rels` part, parsed as XML
+### Relationships: every `.rels` part, parsed as XML
 
 The relationship scan enumerates **every** `.rels` member in the container and
 parses each as XML, rather than string-matching a single known part. Two parts
@@ -117,7 +117,7 @@ All six are internal; `external_relationships`, `external_relationship_parts` an
 
 **This is new information, and it is recorded as such.** The earlier
 implementation read only `xl/_rels/workbook.xml.rels`, by counting strings.
-`_rels/.rels` — which holds three of the six relationships — had never been
+`_rels/.rels` (which holds three of the six relationships) had never been
 inspected at all when the first issue of this report was written. The finding does
 not change the verdict (there was no external relationship to find), but the
 earlier report's clean external-link line rested on a narrower scan than its
@@ -159,8 +159,8 @@ no presentation information among the 23 checked properties.
 | Row key | `new_event_id` + `date` + `cluster_id` |
 | Key uniqueness | unique in both |
 | Key order | positionally identical row-for-row; first `1\|1983-07-13\|0`, last `51\|2025-08-15\|1` |
-| Non-numeric columns | 5 (`date`, `type`, `event_type`, `event_type_name`, `event_type_original`) — **0 differing cells** |
-| Integer-schema columns | 20 declared, 20 present, 0 missing — **0 differing cells** |
+| Non-numeric columns | 5 (`date`, `type`, `event_type`, `event_type_name`, `event_type_original`); **0 differing cells** |
+| Integer-schema columns | 20 declared, 20 present, 0 missing; **0 differing cells** |
 | Canonical-CSV schema violations | 0 |
 | Non-integral cells in an integer column | 0 |
 | Non-numeric XLSX cells in an integer column | 0 |
@@ -183,7 +183,7 @@ Semantic type is decided by the **canonical CSV alone**, against a pinned list o
 `E_ellipse_cells_translated`, `interH_intersection_cells_translated`,
 `union_cells_translated`.
 
-All 20 must exist in the CSV, and the CSV must itself satisfy the schema —
+All 20 must exist in the CSV, and the CSV must itself satisfy the schema,
 reported as `canonical_csv_schema_violations`, measured empty. For those columns
 the workbook must be numeric, integral and **exactly equal**; the relative
 tolerance of section 5 does not apply to them. The remaining 56 numeric columns
@@ -207,7 +207,7 @@ are the pinned integer schema of section 4 and are held to exact equality.
 **Why relative.** The 76 numeric columns span about nine orders of magnitude,
 from PCA eigenvector components of order 1e-3 to `ellipse_area_km2` of order
 5e6. An absolute tolerance of 1e-12 would demand ~1e-18 relative precision on the
-large columns — below float64 resolution — and is not a meaningful criterion.
+large columns (below float64 resolution) and is not a meaningful criterion.
 
 **Why ULP is a diagnostic, not the criterion.** An Excel round-trip is a decimal
 serialisation at fixed significant digits. That bounds the *relative* error, not
@@ -236,13 +236,13 @@ ULP distribution over the 11,670 differing cells:
 
 The two extremes sit in different columns and neither is near the threshold:
 
-* **Worst relative** — `pc1_vec_x`, value magnitude 7.741127872636276e-04,
+* **Worst relative**: `pc1_vec_x`, value magnitude 7.741127872636276e-04,
   absolute difference 2.7647155398380363e-17, relative 3.571463468018517e-14,
   255 ULP. `pc1_vec_x` and `pc2_vec_y` differ in 195 cells each. These are
   near-zero PCA direction-cosine components: exactly where ULP counting inflates,
   and where the physical content is a unit vector whose direction is unaffected at
   the 14th significant digit.
-* **Worst absolute** — `ellipse_area_km2`, value magnitude 4,851,424.382741476,
+* **Worst absolute**: `ellipse_area_km2`, value magnitude 4,851,424.382741476,
   absolute difference 1.862645149230957e-09, relative
   **3.839377886332015e-16**, 2 ULP. `ellipse_area_km2` and `area` differ in 288
   cells each.
@@ -281,7 +281,7 @@ through a subprocess; A, C and D all run end to end through the real program.
 That is a property of the file format rather than a softened test, and it is
 recorded here instead of being left out.
 
-## 7. Reference disposition — not a bulk rewrite
+## 7. Reference disposition: not a bulk rewrite
 
 The five references to the workbook play different roles and receive different
 actions:
