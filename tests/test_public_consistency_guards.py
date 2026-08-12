@@ -1113,10 +1113,18 @@ ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json"
 # is unreachable again. One definition, imported everywhere, cannot drift.
 #
 # The clause is deliberately marked TEST-ONLY. The real CC BY activation prose
-# is the authors' to write, does not exist, and nothing here is a draft of it.
-# It is never written into the real tree: the real contract keeps
-# ``artwork_licence_markers.active == []`` and
-# ``ccby_activation_plan.authored == false``.
+# is the authors' to write; they have now written it, and it lives in the
+# tracked contract - NOT here. Nothing in this module is a draft of it and
+# nothing here may be copied into the real tree: production refuses TEST-ONLY
+# wording outright (``synthetic_wording_issues``), so these clauses can never
+# become the registered marker however far they travel.
+#
+# The real contract is now AUTHORED and still INACTIVE:
+# ``artwork_licence_markers.active`` carries the authors' clause and
+# ``ccby_activation_plan.authored == true``, while every licence record still
+# withholds the grant and no receipt exists. Authoring is not activation, and
+# these guards remain keyed on the STATE - not on the plan - precisely so that
+# writing the wording down could not move them.
 # ---------------------------------------------------------------------------
 SYNTHETIC_ACTIVE_CLAUSE = (
     "Figure 1 and Figure 4 artwork is licensed under CC BY 4.0 "
@@ -1142,8 +1150,15 @@ def synthetic_active_row(clause=SYNTHETIC_ACTIVE_CLAUSE):
 
     The clause occupies a table CELL of its own, so it normalizes to exactly
     the registered marker.
+
+    The scope cell is PATH-EXACT, naming the two declared directory scopes
+    rather than ``assets/frozen_figures/**``. The broad glob is not one of the
+    five scopes any contract declares, and the row's scope is now read by
+    ``_assert_publication_row_scope`` - so a fixture that kept writing it would
+    be modelling a row the production guard refuses.
     """
-    return "| `assets/frozen_figures/**` (Fig. 1, 4) | " + clause + " |"
+    return ("| `assets/frozen_figures/fig01/**`, "
+            "`assets/frozen_figures/fig04/**` (Fig. 1, 4) | " + clause + " |")
 
 
 # ---------------------------------------------------------------------------

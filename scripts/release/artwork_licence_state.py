@@ -431,35 +431,39 @@ def _posix_safe_open(root, rel):
     return fd, None
 
 
-def safe_read_receipt(path, repo_root):
+def safe_read_within(anchor, path):
     """ONE fail-closed operation: open safely, validate the HANDLE, read it.
 
     Inspecting a pathname and then opening it is two operations with a window
-    between them, and the whole class of attack on this file lives in that
+    between them, and the whole class of attack on these files lives in that
     window: ``lstat`` says regular file, the path is swapped for a link, the
     read follows it. Here there is nothing to swap, and - just as importantly -
     NO PATHNAME IS RESOLVED AFTER THE OPEN. A ``realpath`` performed once the
     descriptor is in hand is a second, independent question about a name, and
     its answer is not required to describe the object the descriptor refers to.
 
-    * On POSIX containment is STRUCTURAL: the walk starts at the repository
-      root and opens each component with ``O_DIRECTORY | O_NOFOLLOW``, so the
-      descriptor cannot have left the repository and there is nothing to
-      compare.
+    * On POSIX containment is STRUCTURAL: the walk starts at ``anchor`` and
+      opens each component with ``O_DIRECTORY | O_NOFOLLOW``, so the descriptor
+      cannot have left the anchor and there is nothing to compare.
     * On Windows both sides of the comparison come from OPENED HANDLES -
-      ``GetFinalPathNameByHandleW`` on the root and on the receipt - and
-      neither is passed back through ``os.path.realpath``.
+      ``GetFinalPathNameByHandleW`` on the anchor and on the leaf - and neither
+      is passed back through ``os.path.realpath``.
+
+    ``anchor`` is the containment boundary: the REPOSITORY ROOT for a tracked
+    file, and the VOLUME ROOT for an external evidence file, which lives outside
+    any repository but whose every component is still walked and refused if it
+    carries a link, a junction or a non-directory.
 
     Raises ReceiptOpenRefused. It never returns bytes whose provenance it has
     not established, and it never falls back to a weaker open.
     """
     path = Path(path)
-    root = Path(repo_root)
+    root = Path(anchor)
     try:
         rel = path.relative_to(root)
     except ValueError:
         raise ReceiptOpenRefused(
-            f"{path} is not inside the repository {root}")
+            f"{path} is not inside {root}")
     if os.name == "nt":
         fd, final, root_final = _windows_safe_open(root, rel)
     else:
@@ -473,11 +477,11 @@ def safe_read_receipt(path, repo_root):
                     root_final.casefold().rstrip("\\/") + "/"))
             if not inside:
                 raise ReceiptOpenRefused(
-                    f"the opened receipt is at {final}, which is outside the "
-                    f"repository {root_final}. Both paths come from opened "
-                    f"handles, so a junction on a parent directory is caught "
-                    f"as surely as a link on the file itself - and neither "
-                    f"side was re-resolved from a name afterwards")
+                    f"the opened file is at {final}, which is outside "
+                    f"{root_final}. Both paths come from opened handles, so a "
+                    f"junction on a parent directory is caught as surely as a "
+                    f"link on the file itself - and neither side was "
+                    f"re-resolved from a name afterwards")
         with os.fdopen(fd, "rb") as handle:
             fd = None
             return handle.read()
@@ -489,6 +493,41 @@ def safe_read_receipt(path, repo_root):
                 pass
 
 
+def safe_read_receipt(path, repo_root):
+    """The repository-contained case: anchor is the repository root."""
+    return safe_read_within(repo_root, path)
+
+
+def volume_anchor(path):
+    """The VOLUME ROOT of an absolute path: ``C:\\`` or ``/``.
+
+    The external evidence file is not inside any repository, so there is no
+    tree to be contained by - but "outside the repository" must not become
+    "unchecked". Anchoring at the volume root means EVERY component of the
+    supplied path, from the drive letter down, is opened and inspected by the
+    same walk that protects the tracked receipt: a junction on any parent, a
+    symlink on the leaf, or a device where a file was expected is refused
+    where it sits.
+    """
+    path = Path(path)
+    if not path.is_absolute():
+        raise ReceiptOpenRefused(
+            f"{path} is not an absolute path; the original approval evidence "
+            f"is named absolutely so that every component of the name can be "
+            f"walked and checked")
+    return Path(path.anchor)
+
+
+def safe_read_external_evidence(path):
+    """Read the ORIGINAL approval evidence, component-safe and no-follow.
+
+    Same primitive as the receipt, anchored at the volume root instead of the
+    repository, because this file deliberately lives OUTSIDE the tree. Fails
+    closed: any refusal is a refusal, never a fallback to ``open()``.
+    """
+    return safe_read_within(volume_anchor(path), path)
+
+
 def read_receipt_bytes(path, repo_root=None):
     """The single safe-open operation, under its historical name.
 
@@ -496,12 +535,481 @@ def read_receipt_bytes(path, repo_root=None):
     be contained by: ``repo_root`` defaults to this module's own repository
     rather than to "no containment check".
     """
-    return safe_read_receipt(path, repository_root(repo_root))
+    return safe_read_within(repository_root(repo_root), path)
 
 
 # ---------------------------------------------------------------------------
 # Receipt validation - the whole point of this module
 # ---------------------------------------------------------------------------
+#: The receipt field that says HOW the approval was obtained, and its two
+#: values. Absent means the GitHub route: a receipt predating the second route
+#: cannot retroactively have said which one it used.
+SOURCE_FIELD = "approval_source"
+GITHUB_SOURCE = "github_pr_comment"
+EXTERNAL_SOURCE = "external_evidence"
+
+
+def _strict_json(text):
+    """``json.loads`` that REFUSES duplicate keys.
+
+    ``{"custodian": "someone else", "custodian": "Fawaz Bouhamad"}`` parses
+    silently in stock json and keeps the LAST value, so a record could carry a
+    reviewed-looking field beside the one that actually takes effect.
+    """
+    def _no_duplicates(pairs):
+        seen = {}
+        for key, value in pairs:
+            if key in seen:
+                raise ValueError(f"duplicate key {key!r}")
+            seen[key] = value
+        return seen
+    return json.loads(text, object_pairs_hook=_no_duplicates)
+
+
+#: The only ambient variables a git subprocess here inherits. An ALLOWLIST,
+#: not a denylist, for the same reason the finalizer uses one: a denylist has
+#: to have heard of the variable that redirects the answer.
+_GIT_ENV_ALLOWLIST = ("PATH", "SYSTEMROOT", "SystemRoot", "COMSPEC", "ComSpec",
+                      "PATHEXT", "WINDIR", "windir", "TEMP", "TMP", "TMPDIR",
+                      "LANG", "LC_ALL")
+
+
+def _git_env(root):
+    """The environment every git subprocess in this module runs under.
+
+    ``GIT_DIR`` and ``GIT_INDEX_FILE`` alone point a command at a DIFFERENT
+    repository from the one named with ``-C``, so "what is committed at this
+    path" could be answered by somebody else's tree - which, for a function
+    whose entire job is to prove that an approval record is committed, is the
+    whole game. Global and system configuration are neutralised rather than
+    inherited, so a hostile ``~/.gitconfig`` cannot introduce an alias or a
+    filter, and upward discovery is stopped above the repository.
+    """
+    env = {key: os.environ[key] for key in _GIT_ENV_ALLOWLIST
+           if key in os.environ}
+    env.update({
+        # No system config, and no global config: point both at a path that
+        # cannot hold settings, so HOME is irrelevant and need not be trusted.
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        # Reading the tree must not write the index or the reflog.
+        "GIT_OPTIONAL_LOCKS": "0",
+        # If `root` turns out not to be a repository, refuse rather than
+        # walking up and answering about whatever repository encloses it.
+        "GIT_CEILING_DIRECTORIES": str(Path(root).resolve().parent),
+    })
+    return env
+
+
+def _git_blob(root, rel):
+    """``(blob_id, blob_bytes)`` for ``rel`` at HEAD, or ``(None, None)``."""
+    import subprocess
+    env = _git_env(root)
+    try:
+        ident = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", f"HEAD:{rel}"],
+            capture_output=True, env=env)
+        blob = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "blob", f"HEAD:{rel}"],
+            capture_output=True, env=env)
+    except OSError:                                         # pragma: no cover
+        return None, None
+    if ident.returncode != 0 or blob.returncode != 0:
+        return None, None
+    blob_id = ident.stdout.decode("ascii", "replace").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", blob_id):
+        return None, None
+    return blob_id, blob.stdout
+
+
+#: What each declared source type must actually LOOK LIKE on disk.
+#:
+#: The record says how the approval arrived; the evidence file is the thing
+#: that arrived. Nothing required the two to agree, so a record could declare
+#: ``approval_email`` - which the custodian attestation and the operator guide
+#: both describe as "the complete message with its full headers" - while the
+#: preserved file was a ``.docx`` or a screenshot ``.png``. Those are not the
+#: original message: they are a transcription of it, with the headers that
+#: carry the provenance discarded.
+#:
+#: A CONSISTENCY check and nothing more. It does not authenticate the mail, and
+#: no format check could - see the custodian trust model in the operator guide.
+#: It refuses the case where the record's own claim about what it preserved is
+#: contradicted by the file it preserved.
+EVIDENCE_FORMATS = {
+    "approval_email": (
+        frozenset("eml msg mbox mht mhtml emlx".split()),
+        "the complete original message as received - .eml, .msg or .mbox - "
+        "so that its headers are preserved. A PDF, a screenshot or a word "
+        "processor document is a transcription of a message, not the message"),
+    "signed_approval_form": (
+        frozenset("pdf png jpg jpeg tif tiff".split()),
+        "the signed form as scanned or exported - .pdf, or a .png/.jpg/.tiff "
+        "scan - so that the signature itself is preserved"),
+}
+
+
+def evidence_format_issues(source_type, filename, *, code):
+    """Refuse an evidence file whose format contradicts its declared source."""
+    spec = EVIDENCE_FORMATS.get(str(source_type))
+    if spec is None:
+        return []
+    allowed, expectation = spec
+    ext = Path(str(filename)).suffix.lower().lstrip(".")
+    if ext in allowed:
+        return []
+    return [(code,
+             f"the record declares source_type {source_type!r} but the "
+             f"preserved evidence is {filename!r} (.{ext or 'no extension'}). "
+             f"That source type means {expectation}")]
+
+
+def approval_record_receipt_issues(receipt, contract, root):
+    """Prove the tracked approval record the receipt RESTS ON, at HEAD.
+
+    An external receipt is a claim about a second file: "the approval this
+    licence rests on is recorded at <path>, whose bytes hash to <sha256> and
+    whose committed blob is <sha1>". Until r3m nothing checked that the file
+    existed - so a receipt naming a record that had never been written, or one
+    naming a record whose bytes had since been edited, still read as ACTIVE,
+    and the guards happily asserted CC BY over a coauthor's artwork on the
+    strength of a self-consistent JSON file somebody could type.
+
+    So the record is re-read here, from the tree, EVERY time a receipt is
+    validated - by the builder, by the guards, and by the finalizer:
+
+    * read through the component-safe, no-follow walk, so a link at the path or
+      a junction on any parent directory is a refusal and not a redirection;
+    * TRACKED at HEAD, because a record that exists only in a working copy has
+      no history, no review and no author;
+    * its bytes on disk EQUAL to the blob at HEAD, so the reviewed record and
+      the read record are the same object;
+    * its SHA-256 and its git blob identity RECOMPUTED and equal to the two the
+      receipt commits to; and
+    * its approved paragraph, its seven-artwork scope, its evidence metadata
+      and its custodian attestation equal to the receipt's.
+
+    None of this authenticates the human approval - see the custodian trust
+    model in the operator guide. It establishes that the receipt and the
+    committed record are one consistent, unaltered pair.
+    """
+    issues = []
+    ext = (contract.get("approval_sources") or {}).get(EXTERNAL_SOURCE) or {}
+    rel = ext.get("tracked_record_path")
+    if not rel:
+        return [("RECEIPT_APPROVAL_RECORD_UNVERIFIABLE",
+                 "the contract enables external evidence but declares no "
+                 "tracked_record_path, so the record a receipt rests on cannot "
+                 "be located")]
+    root = Path(root)
+    path = root / rel
+
+    if not os.path.lexists(str(path)):
+        return [("RECEIPT_APPROVAL_RECORD_ABSENT",
+                 f"the receipt rests on {rel}, which does not exist. A receipt "
+                 f"naming an approval record that is not in the tree is not "
+                 f"evidence of anything")]
+    try:
+        disk = safe_read_within(root, path)
+    except ReceiptOpenRefused as exc:
+        return [("RECEIPT_APPROVAL_RECORD_UNREADABLE",
+                 f"{rel} could not be read safely: {exc.why}")]
+
+    blob_id, blob = _git_blob(root, rel)
+    if blob_id is None:
+        return [("RECEIPT_APPROVAL_RECORD_UNTRACKED",
+                 f"{rel} is not tracked at HEAD; an approval record that was "
+                 f"never committed has no history, no review and no author")]
+    if disk != blob:
+        return [("RECEIPT_APPROVAL_RECORD_MODIFIED",
+                 f"{rel} on disk ({sha256_hex(disk.decode('utf-8', 'replace'))}"
+                 f", {len(disk)} B) differs from its committed blob {blob_id} "
+                 f"({len(blob)} B); the record being read is not the record "
+                 f"that was reviewed and committed")]
+
+    got_sha = hashlib.sha256(disk).hexdigest()
+    if receipt.get("approval_record_sha256") != got_sha:
+        issues.append((
+            "RECEIPT_APPROVAL_RECORD_MISMATCH",
+            f"the receipt commits to approval_record_sha256 "
+            f"{receipt.get('approval_record_sha256')!r}; {rel} hashes "
+            f"{got_sha}"))
+    if receipt.get("approval_record_blob_sha1") != blob_id:
+        issues.append((
+            "RECEIPT_APPROVAL_RECORD_MISMATCH",
+            f"the receipt commits to approval_record_blob_sha1 "
+            f"{receipt.get('approval_record_blob_sha1')!r}; {rel} is committed "
+            f"as blob {blob_id}"))
+
+    try:
+        record = _strict_json(disk.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        issues.append(("RECEIPT_APPROVAL_RECORD_MALFORMED",
+                       f"{rel} is not a strict JSON object: {exc}"))
+        return sorted(set(issues))
+    if not isinstance(record, dict):
+        return sorted(set(issues)) + [
+            ("RECEIPT_APPROVAL_RECORD_MALFORMED", f"{rel} is not an object")]
+
+    # --- the RECORD must be well-formed IN ITSELF ---------------------------
+    # Not merely consistent with the receipt. A record and a receipt that agree
+    # with each other can still both be wrong: the durable path validated only
+    # that they matched, so a committed record missing its custodian
+    # attestation entirely, or declaring an invented source_type, or carrying
+    # no schema_version, passed every check as long as the receipt written
+    # beside it repeated the same defect. `find_external_approval` applies
+    # these at finalization; they belong here too, because the builder and the
+    # guards read the receipt for years afterwards and never call it.
+    missing = [f for f in (ext.get("required_fields") or [])
+               if f not in record]
+    if missing:
+        issues.append(("RECEIPT_APPROVAL_RECORD_MALFORMED",
+                       f"{rel} is missing required field(s) {missing}; a "
+                       f"receipt may not rest on an incomplete record"))
+    want_schema = ext.get("schema_version")
+    if want_schema is not None and record.get("schema_version") != want_schema:
+        issues.append((
+            "RECEIPT_APPROVAL_RECORD_SCHEMA_VERSION",
+            f"{rel} declares schema_version "
+            f"{record.get('schema_version')!r}, the contract admits "
+            f"{want_schema!r}"))
+    allowed_types = ext.get("allowed_source_types") or []
+    if allowed_types and record.get("source_type") not in allowed_types:
+        issues.append((
+            "RECEIPT_APPROVAL_RECORD_SOURCE_TYPE",
+            f"{rel} declares source_type {record.get('source_type')!r}, which "
+            f"is not one of {allowed_types}"))
+    else:
+        # The record's claim about HOW the approval arrived, against the name
+        # of the file it says it preserved. Checked on the RECORD's filename,
+        # which is the one that outlives the finalization.
+        rec_evidence = record.get("evidence")
+        rec_evidence = rec_evidence if isinstance(rec_evidence, dict) else {}
+        issues.extend(evidence_format_issues(
+            record.get("source_type"),
+            rec_evidence.get("filename") or receipt.get("evidence_filename"),
+            code="RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT"))
+
+    # --- the receipt must say what the record says --------------------------
+    if str(record.get("source_type")) != str(receipt.get("source_type")):
+        issues.append((
+            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+            f"receipt source_type={receipt.get('source_type')!r} but {rel} "
+            f"records {record.get('source_type')!r}"))
+    if str(record.get("approval_date")) != str(receipt.get("approval_date")):
+        issues.append((
+            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+            f"receipt approval_date={receipt.get('approval_date')!r} but {rel} "
+            f"records {record.get('approval_date')!r}"))
+    if normalize_prose(str(record.get("approved_text") or "")) != \
+            normalize_prose(str(receipt.get("approved_text") or "")):
+        issues.append((
+            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+            f"the paragraph the receipt carries is not the paragraph {rel} "
+            f"records as approved"))
+
+    want_paths = sorted(contract["ccby_artwork_paths"])
+    rec_art = record.get("licensed_artwork")
+    if not isinstance(rec_art, dict) or sorted(rec_art) != want_paths:
+        got = sorted(rec_art) if isinstance(rec_art, dict) else rec_art
+        issues.append((
+            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+            f"{rel} approves {got!r}; the contracted scope is exactly "
+            f"{want_paths}"))
+    else:
+        rcp_art = receipt.get("licensed_artwork")
+        rcp_art = rcp_art if isinstance(rcp_art, dict) else {}
+        for art_rel in want_paths:
+            if rec_art[art_rel] != rcp_art.get(art_rel):
+                issues.append((
+                    "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+                    f"{art_rel}: {rel} approves {rec_art[art_rel]}, the "
+                    f"receipt licenses {rcp_art.get(art_rel)!r}. The approval "
+                    f"covers the bytes that were shown"))
+
+    evidence = record.get("evidence")
+    evidence = evidence if isinstance(evidence, dict) else {}
+    for rec_field, rcp_field in (("filename", "evidence_filename"),
+                                 ("bytes", "evidence_bytes"),
+                                 ("sha256", "evidence_sha256")):
+        if evidence.get(rec_field) != receipt.get(rcp_field):
+            issues.append((
+                "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+                f"receipt {rcp_field}={receipt.get(rcp_field)!r} but {rel} "
+                f"records evidence.{rec_field}={evidence.get(rec_field)!r}"))
+
+    attestation = record.get("custodian_attestation")
+    attestation = attestation if isinstance(attestation, dict) else {}
+    for rec_field, rcp_field in (("custodian", "custodian"),
+                                 ("attested_at", "attested_at")):
+        if attestation.get(rec_field) != receipt.get(rcp_field):
+            issues.append((
+                "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+                f"receipt {rcp_field}={receipt.get(rcp_field)!r} but {rel} "
+                f"records custodian_attestation.{rec_field}="
+                f"{attestation.get(rec_field)!r}"))
+    if normalize_prose(str(attestation.get("statement") or "")) != \
+            normalize_prose(str(ext.get("attestation_statement") or "")):
+        issues.append((
+            "RECEIPT_APPROVAL_RECORD_ATTESTATION",
+            f"the custodian attestation in {rel} is not EXACTLY the contracted "
+            f"statement"))
+    return sorted(set(issues))
+
+
+def _external_receipt_issues(receipt, contract, root, record=None):
+    """Every defect in a receipt written from a preserved email or a form.
+
+    The GitHub receipt's authority is a live comment that can be re-fetched.
+    This one's authority is a TRACKED APPROVAL RECORD plus a private original,
+    so what it must prove is different: that it names the record it rests on by
+    both digests, that it names the evidence by digest and length, that the
+    paragraph it carries is the contracted one, and that the seven artwork
+    identities still hold in the tree. Nothing here can be satisfied by a
+    boolean, and nothing here can be written by hand without the record and the
+    evidence agreeing with it.
+    """
+    issues = []
+    spec = contract["authorization_receipt"]
+    repo = contract["repository"]
+    sources = (contract.get("approval_sources") or {})
+    ext = sources.get(EXTERNAL_SOURCE) or {}
+
+    if EXTERNAL_SOURCE not in (sources.get("enabled") or []):
+        issues.append(("RECEIPT_APPROVAL_SOURCE",
+                       f"the receipt claims {EXTERNAL_SOURCE!r} but that "
+                       f"source is not enabled in approval_sources.enabled"))
+    required = spec.get("required_fields_external_evidence") or []
+    for field in required:
+        if field not in receipt:
+            issues.append(("RECEIPT_FIELD_MISSING",
+                           f"required field {field!r} is absent"))
+    if issues:
+        return sorted(set(issues))
+
+    if receipt["schema_version"] != spec["schema_version"]:
+        issues.append(("RECEIPT_SCHEMA_VERSION",
+                       f"schema_version {receipt['schema_version']!r} != "
+                       f"{spec['schema_version']!r}"))
+    if receipt["repository"] != f"{repo['owner']}/{repo['name']}":
+        issues.append(("RECEIPT_REPOSITORY",
+                       f"repository {receipt['repository']!r} is not the "
+                       f"contracted one"))
+    if receipt["source_type"] not in (ext.get("allowed_source_types") or []):
+        issues.append(("RECEIPT_SOURCE_TYPE",
+                       f"source_type {receipt['source_type']!r} is not one of "
+                       f"{ext.get('allowed_source_types')}"))
+    if receipt["approval_record_path"] != ext.get("tracked_record_path"):
+        issues.append(("RECEIPT_APPROVAL_RECORD_PATH",
+                       f"approval_record_path "
+                       f"{receipt['approval_record_path']!r} is not the "
+                       f"contracted {ext.get('tracked_record_path')!r}"))
+    if receipt["custodian"] != ext.get("custodian"):
+        issues.append(("RECEIPT_CUSTODIAN",
+                       f"custodian {receipt['custodian']!r} is not the "
+                       f"contracted {ext.get('custodian')!r}"))
+
+    want_text = normalize_prose(contract["authorization"]["text"])
+    if normalize_prose(str(receipt["approved_text"])) != want_text:
+        issues.append(("RECEIPT_APPROVED_TEXT",
+                       "approved_text is not EXACTLY the contracted approval "
+                       "paragraph"))
+    if sha256_hex(receipt["approved_text"]) != receipt["approved_text_sha256"]:
+        issues.append(("RECEIPT_APPROVED_TEXT_SHA256",
+                       "approved_text_sha256 does not hash its own text"))
+
+    for field, pattern, what in (
+            ("approval_record_sha256", r"[0-9a-f]{64}", "a 64-hex digest"),
+            ("evidence_sha256", r"[0-9a-f]{64}", "a 64-hex digest"),
+            ("approval_record_blob_sha1", r"[0-9a-f]{40}", "a 40-hex blob id"),
+            ("starting_head", r"[0-9a-f]{40}", "a 40-hex commit")):
+        if not re.fullmatch(pattern, str(receipt[field] or "")):
+            issues.append((f"RECEIPT_{field.upper()}",
+                           f"{field} {receipt[field]!r} is not {what}"))
+
+    size = receipt["evidence_bytes"]
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        issues.append(("RECEIPT_EVIDENCE_BYTES",
+                       f"evidence_bytes {size!r} is not a positive integer"))
+    if not str(receipt["evidence_filename"] or "").strip():
+        issues.append(("RECEIPT_EVIDENCE_FILENAME",
+                       "evidence_filename is empty"))
+
+    stamps = {}
+    for field in ("approval_date", "attested_at", "activated_at"):
+        value = str(receipt.get(field) or "")
+        parsed = parse_timestamp(value) if value else None
+        if parsed is None:
+            issues.append((f"RECEIPT_{field.upper()}",
+                           f"{field} {value!r} is not a real ISO-8601 UTC "
+                           f"instant"))
+            continue
+        stamps[field] = parsed
+    # The order the evidence chain actually happened in: the coauthor approved,
+    # the custodian attested to holding that approval, and only then did a
+    # finalization act on it.
+    if {"approval_date", "attested_at"} <= set(stamps) and \
+            stamps["attested_at"] < stamps["approval_date"]:
+        issues.append(("RECEIPT_TIMESTAMP_ORDER",
+                       f"attested_at {receipt['attested_at']} precedes the "
+                       f"approval it attests to ({receipt['approval_date']})"))
+    if {"attested_at", "activated_at"} <= set(stamps) and \
+            stamps["activated_at"] < stamps["attested_at"]:
+        issues.append(("RECEIPT_TIMESTAMP_ORDER",
+                       f"activated_at {receipt['activated_at']} precedes the "
+                       f"custodian attestation ({receipt['attested_at']}); the "
+                       f"required order is approval_date <= attested_at <= "
+                       f"activated_at"))
+
+    if receipt["finalizer_version"] != contract["finalizer_version"]:
+        issues.append(("RECEIPT_FINALIZER_VERSION",
+                       f"finalizer_version {receipt['finalizer_version']!r} "
+                       f"!= {contract['finalizer_version']!r}"))
+
+    artwork = receipt["licensed_artwork"]
+    want_paths = sorted(contract["ccby_artwork_paths"])
+    if not isinstance(artwork, dict) or sorted(artwork) != want_paths:
+        got = sorted(artwork) if isinstance(artwork, dict) else artwork
+        issues.append(("RECEIPT_ARTWORK_SCOPE",
+                       f"receipt licenses {got!r}; the contracted scope is "
+                       f"exactly {want_paths}"))
+    else:
+        for rel in want_paths:
+            path = root / rel
+            if not path.is_file():
+                issues.append(("RECEIPT_ARTWORK_MISSING",
+                               f"{rel} is licensed by the receipt but absent"))
+                continue
+            got = sha256_file(path)
+            if artwork[rel] != got:
+                issues.append((
+                    "RECEIPT_ARTWORK_MISMATCH",
+                    f"{rel}: receipt records {artwork[rel]}, tree has {got}"))
+
+    # --- the TRACKED RECORD this receipt rests on, always -------------------
+    # Not conditional on `record`. The builder and the guards run long after
+    # any finalization and have no live approval to compare against, and they
+    # are exactly the callers a hand-written receipt was aimed at.
+    issues.extend(approval_record_receipt_issues(receipt, contract, root))
+
+    # --- the approval this run actually resolved, when we have one ----------
+    if record is not None:
+        for field in ("source_type", "approval_date", "approved_text",
+                      "approved_text_sha256", "approval_record_path",
+                      "approval_record_sha256", "approval_record_blob_sha1",
+                      "evidence_filename", "evidence_sha256", "evidence_bytes",
+                      "custodian", "attested_at"):
+            if receipt.get(field) != record.get(field):
+                issues.append((
+                    "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+                    f"receipt {field}={receipt.get(field)!r} but the approval "
+                    f"resolved from the tracked record and its original "
+                    f"evidence says {record.get(field)!r}"))
+    return sorted(set(issues))
+
+
 def validate_receipt(receipt, contract, repo_root=None, *, record=None):
     """Aggregate EVERY defect in a receipt. Returns sorted (code, why) tuples.
 
@@ -517,6 +1025,22 @@ def validate_receipt(receipt, contract, repo_root=None, *, record=None):
 
     if not isinstance(receipt, dict):
         return [("RECEIPT_MALFORMED", "receipt is not a JSON object")]
+
+    # WHICH SOURCE licensed the artwork decides which fields a receipt must
+    # carry. A receipt written from a preserved email carries no comment id and
+    # no permalink, because there is no comment; requiring the GitHub field set
+    # of it would either refuse a valid approval or invite fabricated fields.
+    # A receipt with no discriminator at all is read as the GitHub route, which
+    # is what every receipt written before the second route existed would be.
+    source = receipt.get(SOURCE_FIELD, GITHUB_SOURCE)
+    if source not in (GITHUB_SOURCE, EXTERNAL_SOURCE):
+        return [("RECEIPT_APPROVAL_SOURCE",
+                 f"approval_source {source!r} is not one of "
+                 f"{(GITHUB_SOURCE, EXTERNAL_SOURCE)}")]
+    if source == EXTERNAL_SOURCE:
+        return sorted(set(_external_receipt_issues(receipt, contract, root,
+                                                   record)))
+
     for field in spec["required_fields"]:
         if field not in receipt:
             issues.append(("RECEIPT_FIELD_MISSING",
@@ -1084,6 +1608,42 @@ def is_synthetic_contract(contract):
     direction that matters.
     """
     return bool((contract or {}).get("synthetic_fixture"))
+
+
+#: The key by which a contract opts OUT of the reviewed-prose pins, the
+#: code-owned scope pins and the TEST-ONLY wording refusal.
+SYNTHETIC_FIXTURE_KEY = "synthetic_fixture"
+
+
+def production_contract_issues(contract):
+    """A PRODUCTION contract may not carry ``synthetic_fixture`` at all.
+
+    ``is_synthetic_contract`` is opt-in so that the test fixtures can drive
+    activation with invented wording, and every guard that consults it returns
+    early - the reviewed-prose digests, the code-owned scope pins and the
+    TEST-ONLY wording refusal all switch off together. That is correct for a
+    fixture built in a temporary directory and catastrophic for the tracked
+    contract: committing one line, ``"synthetic_fixture": true``, would disable
+    the entire legal-scope apparatus while every guard still reported PASS.
+
+    So the production loader refuses the KEY, not merely the value ``true``.
+    ``false``, ``0`` and ``null`` are refused too: a production contract has no
+    business discussing whether it is a fixture, and accepting the falsey forms
+    would leave a reviewer diffing a one-character change from ``false`` to
+    ``true`` as the only thing between the release and an unpinned scope.
+    """
+    if SYNTHETIC_FIXTURE_KEY in (contract or {}):
+        return [(
+            "CONTRACT_DECLARES_SYNTHETIC_FIXTURE",
+            f"the tracked contract carries {SYNTHETIC_FIXTURE_KEY!r}="
+            f"{(contract or {}).get(SYNTHETIC_FIXTURE_KEY)!r}. That key exists "
+            f"so TEST fixtures can opt out of the reviewed-prose pins, the "
+            f"code-owned artwork-scope pins and the TEST-ONLY wording refusal. "
+            f"A production contract may not carry it in ANY form - present and "
+            f"false is refused as surely as present and true, because the "
+            f"difference between them is one character in a file the release "
+            f"then trusts to define what it is licensing")]
+    return []
 
 
 def synthetic_wording_issues(contract):

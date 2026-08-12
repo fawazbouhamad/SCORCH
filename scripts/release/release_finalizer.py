@@ -103,6 +103,44 @@ PENDING_RX = re.compile(
     r"requires separate written authorization|has not been recorded|"
     r"no record may|must not|may not|forbidden|prohibited", re.I)
 
+#: The complete identity of a released archive, as :func:`current_identity`
+#: reads it out of the package record. Pinned in CODE because "every identity
+#: field" has to mean these same four names in every mapped file, including a
+#: file that declares only one of them: the whole point of the per-file check
+#: is to count the fields a file did NOT declare.
+IDENTITY_FIELDS = ("archive_filename", "archive_sha256", "archive_bytes",
+                   "content_root_hash")
+
+#: The identity fields the stray scan treats as POINTERS at an archive. The
+#: filename and the byte count are deliberately not here: they are short,
+#: ordinary strings that occur legitimately in prose and in path tables, and
+#: it is the two 64-hex digests that actually identify a set of bytes.
+IDENTITY_POINTER_FIELDS = ("archive_sha256", "content_root_hash")
+
+#: The ONLY paths in the trusted contract that may carry an archive identity,
+#: pinned EXACTLY and in CODE rather than in the contract. Pinning the two
+#: BLOCKS and letting the contract choose the fields inside them was still a
+#: choice the contract got to make: a newly declared sibling - say
+#: ``superseded_official_archive.previous_sha256`` - sits under a permitted
+#: root and would have been waved through by its own declaration. The contract
+#: must now declare this set and nothing else; it does not get to extend it,
+#: shrink it, or repeat an entry to blur how many distinct fields are exempt.
+CONTRACT_IDENTITY_EXEMPT_FIELDS = (
+    "superseded_official_archive.sha256",
+    "superseded_official_archive.content_root_hash",
+    "technical_source_candidate.sha256",
+    "technical_source_candidate.content_root_hash",
+)
+
+#: The blocks those paths are rooted at. DERIVED from the paths above so the
+#: two records cannot drift apart, and kept as a name because a declaration
+#: rooted somewhere else deserves the specific "wrong block" diagnosis before
+#: the blanket set comparison reports it as merely unequal.
+CONTRACT_IDENTITY_EXEMPT_ROOTS = tuple(dict.fromkeys(
+    dotted.split(".")[0] for dotted in CONTRACT_IDENTITY_EXEMPT_FIELDS))
+
+_HEX64_RX = re.compile(r"\A[0-9a-f]{64}\Z")
+
 
 # ---------------------------------------------------------------------------
 # Reporting
@@ -230,8 +268,17 @@ def load_contract(path=None) -> dict:
                         .read_text(encoding="utf-8"))
 
 
-def load_trusted_contract(repo_root):
+def load_trusted_contract(repo_root, *, allow_synthetic_fixture=False):
     """Load the contract production is allowed to trust, or refuse.
+
+    ``allow_synthetic_fixture`` is a TEST SEAM and is keyword-only, defaulted
+    off, and reachable from Python alone. No command-line flag, environment
+    variable or contract field sets it - ``main`` calls this function with the
+    default and nothing else - so an OPERATOR cannot turn it on, which is what
+    "the production loader rejects the declaration" has to mean to be worth
+    anything. It exists because the end-to-end tests drive this same production
+    path against a synthetic repository in a temporary directory, and a
+    fixture contract has to be able to say that it is one.
 
     The contract decides who may authorize the release, what text counts as
     authorization, which assets the licence reaches and what the activation may
@@ -305,11 +352,24 @@ def load_trusted_contract(repo_root):
         raise FinalizerError("CONTRACT_UNPARSABLE",
                              f"{TRACKED_CONTRACT_REL}: {exc}")
     # THE production contract, by definition: tracked, committed, and
-    # byte-equal to the blob at the expected head. TEST-ONLY wording
-    # reaching here would mean the repository was about to assert a
-    # copyright licence over a coauthor's artwork in prose whose own
-    # text says it is not real.
+    # byte-equal to the blob at the expected head.
+    #
+    # FIRST the fixture declaration, because every check after it can be
+    # switched off by that one key: a contract that says it is synthetic gets
+    # a free pass from the reviewed-prose digests, the code-owned scope pins
+    # and the TEST-ONLY wording refusal alike. Production refuses the KEY
+    # outright rather than reading its value.
+    if not allow_synthetic_fixture:
+        for code, why in _artwork.production_contract_issues(contract):
+            raise FinalizerError(code, why)
+    # THEN the wording. TEST-ONLY wording reaching here would mean the
+    # repository was about to assert a copyright licence over a coauthor's
+    # artwork in prose whose own text says it is not real.
     for code, why in _artwork.synthetic_wording_issues(contract):
+        raise FinalizerError(code, why)
+    # THEN the legal scope: the seven works and the five directory scopes as
+    # pinned in code, against every contract surface that claims to state them.
+    for code, why in reviewed_scope_issues(contract):
         raise FinalizerError(code, why)
     return contract, identity
 
@@ -635,6 +695,382 @@ def find_authorization(github, contract):
 
 
 # ---------------------------------------------------------------------------
+# The professional approval route: preserved email, or a signed form
+# ---------------------------------------------------------------------------
+#: The two discriminated approval sources. A receipt says which one it rests
+#: on, so the durable evidence records HOW the permission was obtained and not
+#: merely that it was.
+SOURCE_GITHUB = "github_pr_comment"
+SOURCE_EXTERNAL = "external_evidence"
+
+#: What each declared source type must actually LOOK LIKE on disk.
+#:
+#: The record says how the approval arrived; the evidence file is the thing
+#: that arrived. Until r3m nothing required the two to agree, so a record could
+#: declare ``approval_email`` - which the custodian attestation and the guide
+#: both describe as "the complete message with its full headers" - while the
+#: preserved file was a ``.docx`` or a screenshot ``.png``. Those are not the
+#: original message: they are a transcription of it, with the headers that
+#: carry the provenance discarded. A reviewer reading the receipt would have
+#: no way to see that.
+#:
+#: This is a CONSISTENCY check and nothing more. It does not authenticate the
+#: mail, and no format check could - see the custodian trust model in the
+#: operator guide. It refuses the case where the record's own claim about what
+#: it preserved is contradicted by the file it preserved.
+#: ONE canonical map, owned by the shared state module, because BOTH the
+#: finalization path and the durable guards have to apply the same rule: the
+#: finalizer checks it when the approval is resolved, and the builder and the
+#: guards check it again every time they read the receipt, years later.
+EVIDENCE_FORMATS = _artwork.EVIDENCE_FORMATS
+
+
+def evidence_format_issues(source_type, filename):
+    """Refuse an evidence file whose format contradicts its declared source."""
+    return _artwork.evidence_format_issues(
+        source_type, filename, code="APPROVAL_EVIDENCE_FORMAT")
+
+
+def external_evidence_spec(contract):
+    """The external-evidence configuration, or None when it is not enabled."""
+    sources = contract.get("approval_sources") or {}
+    if SOURCE_EXTERNAL not in (sources.get("enabled") or []):
+        return None
+    return sources.get(SOURCE_EXTERNAL) or None
+
+
+def approval_record_state(repo_root, contract):
+    """``(rel, present)`` for the tracked approval record.
+
+    ``present`` is deliberately generous: a symlink, a directory or an
+    unreadable object AT the path all count as present, because the question
+    this answers is "has anything been put here yet", and the answer for
+    anything other than nothing is yes.
+    """
+    spec = external_evidence_spec(contract)
+    if not spec:
+        return None, False
+    rel = spec.get("tracked_record_path")
+    if not rel:
+        return None, False
+    return rel, os.path.lexists(str(Path(repo_root) / rel))
+
+
+def select_approval_source(repo_root, contract):
+    """Decide which approval source this run rests on. ONE, never both.
+
+    Returns ``(source, rel, present, issues)``. ``source`` is
+    :data:`SOURCE_EXTERNAL`, :data:`SOURCE_GITHUB`, or None when neither
+    enabled route can qualify - which is the ordinary, expected state today.
+
+    The decision is made from OBSERVABLE STATE and never from a flag:
+
+    * a committed approval record at the contracted path IS the professional
+      route, and where one exists no GitHub comment is consulted, asked for or
+      required - so the coauthor is never asked for a GitHub account;
+    * with no record, the GitHub comment route is used only if it is ENABLED;
+    * with no record and that route disabled, there is no source at all, which
+      is ``RELEASE_BLOCKED_D6``.
+
+    Preflight and finalize both call this, so a read-only preflight and the
+    real finalization can never disagree about which evidence is being asked
+    for - which they did until r3m, when preflight validated the GitHub route
+    unconditionally and reported the release blocked on a missing comment that
+    finalize had already decided it did not need.
+    """
+    sources = contract.get("approval_sources") or {}
+    enabled = list(sources.get("enabled") or [SOURCE_GITHUB])
+    rel, present = approval_record_state(repo_root, contract)
+    if external_evidence_spec(contract) is not None and present:
+        return SOURCE_EXTERNAL, rel, present, []
+    if SOURCE_GITHUB in enabled:
+        return SOURCE_GITHUB, rel, present, []
+    if rel:
+        why = (f"no approval record at {rel} and the GitHub comment route is "
+               f"not enabled; there is no source this release could rest on")
+    else:                                        # pragma: no cover - contract
+        why = ("no approval source is enabled; there is nothing this release "
+               "could rest on")
+    return None, rel, present, [("RELEASE_BLOCKED_D6", why)]
+
+
+def _tracked_blob(repo_root, rel):
+    """``(blob_sha1, blob_bytes)`` for ``rel`` at HEAD, or ``(None, None)``."""
+    blob_id = git(repo_root, "rev-parse", f"HEAD:{rel}", check=False)
+    if not re.fullmatch(r"[0-9a-f]{40}", blob_id or ""):
+        return None, None
+    proc = subprocess.run(["git", "-C", str(repo_root), "cat-file", "blob",
+                           f"HEAD:{rel}"], capture_output=True, env=_git_env())
+    if proc.returncode != 0:
+        return None, None
+    return blob_id, proc.stdout
+
+
+def find_external_approval(repo_root, contract, evidence_path):
+    """Resolve an approval from a preserved email or a signed form.
+
+    Returns ``(record, issues)`` with the same contract as
+    :func:`find_authorization`: ``record`` is None unless EVERY check passes.
+
+    Two halves, and neither is trusted without the other. The TRACKED RECORD
+    inside the repository is the auditable, public-facing statement: what was
+    approved, when, by which kind of evidence, over which seven files, under
+    whose custody. The ORIGINAL EVIDENCE - the complete email with its headers,
+    or the signed scan - stays outside the repository, because headers carry
+    personal routing data and a signature is a signature; it is supplied by the
+    operator at finalization time, read without following links, and required
+    to hash to exactly what the tracked record committed to.
+
+    Deliberately absent: any boolean that says "approved", any way to name the
+    approval text on the command line, and any way to write the record from
+    this tool. The record is a reviewed, committed file or it is nothing.
+    """
+    issues = []
+    spec = external_evidence_spec(contract)
+    if not spec:
+        return None, [("APPROVAL_SOURCE_DISABLED",
+                       "the external-evidence approval source is not enabled "
+                       "in approval_sources.enabled")]
+    root = Path(repo_root)
+    rel = spec["tracked_record_path"]
+    path = root / rel
+
+    # --- the tracked record must exist, be a regular file, and be TRACKED ---
+    if not os.path.lexists(str(path)):
+        return None, [("RELEASE_BLOCKED_D6",
+                       f"{rel} does not exist: no coauthor approval has been "
+                       f"recorded, so there is nothing to finalize")]
+    # COMPONENT-SAFE, no-follow, opened-handle. `_read_regular_file` protects
+    # the LEAF only: it lstats the final component and opens it with
+    # O_NOFOLLOW, which says nothing whatever about the directories above it.
+    # A junction on `docs/` therefore redirected the read to an approval record
+    # in another tree entirely, and the bytes that came back were validated,
+    # hashed and recorded as though they had been the repository's own. The
+    # same walk that protects the receipt protects the record: every component
+    # from the repository root is opened and refused if it carries a link, a
+    # junction or a non-directory, and containment is decided from OPEN
+    # HANDLES rather than from a name resolved afterwards.
+    try:
+        raw = _artwork.safe_read_within(root, path)
+    except _artwork.ReceiptOpenRefused as exc:
+        return None, [("APPROVAL_RECORD_UNREADABLE", f"{rel}: {exc.why}")]
+    except OSError as exc:
+        return None, [("APPROVAL_RECORD_UNREADABLE", f"{rel}: {exc}")]
+    if raw is None:                              # pragma: no cover - raced
+        return None, [("RELEASE_BLOCKED_D6", f"{rel} disappeared while being "
+                                             f"read")]
+
+    if spec.get("must_be_tracked_at_head", True):
+        blob_sha1, blob = _tracked_blob(root, rel)
+        if blob_sha1 is None:
+            return None, [(
+                "APPROVAL_RECORD_UNTRACKED",
+                f"{rel} is not tracked at HEAD. An approval record that exists "
+                f"only in somebody's working copy is not a repository record: "
+                f"it has no history, no review and no author")]
+        if raw != blob and raw.replace(b"\r\n", b"\n") != blob:
+            return None, [(
+                "APPROVAL_RECORD_MODIFIED",
+                f"{rel} differs from its committed blob {blob_sha1}; the "
+                f"approval record being read is not the one that was reviewed "
+                f"and committed")]
+    else:                                        # pragma: no cover - contract
+        blob_sha1 = None
+
+    try:
+        record = loads_strict(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        return None, [("APPROVAL_RECORD_MALFORMED",
+                       f"{rel} is not a strict JSON object: {exc}")]
+    if not isinstance(record, dict):
+        return None, [("APPROVAL_RECORD_MALFORMED",
+                       f"{rel} is not a JSON object")]
+    missing = [f for f in spec["required_fields"] if f not in record]
+    if missing:
+        return None, [("APPROVAL_RECORD_MALFORMED",
+                       f"{rel} is missing required field(s) {missing}")]
+
+    if record["schema_version"] != spec["schema_version"]:
+        issues.append(("APPROVAL_RECORD_SCHEMA_VERSION",
+                       f"schema_version {record['schema_version']!r} != "
+                       f"{spec['schema_version']!r}"))
+    source_type = record["source_type"]
+    if source_type not in spec["allowed_source_types"]:
+        issues.append(("APPROVAL_SOURCE_TYPE",
+                       f"source_type {source_type!r} is not one of "
+                       f"{spec['allowed_source_types']}"))
+    approval_date = str(record["approval_date"] or "")
+    if _artwork.parse_timestamp(approval_date) is None:
+        issues.append(("APPROVAL_DATE",
+                       f"approval_date {approval_date!r} is not a real "
+                       f"ISO-8601 UTC instant"))
+
+    # --- the approved paragraph, EXACTLY -----------------------------------
+    want_text = normalize_prose(contract["authorization"]["text"])
+    if normalize_prose(str(record["approved_text"])) != want_text:
+        issues.append((
+            "APPROVAL_TEXT_MISMATCH",
+            "approved_text is not EXACTLY the contracted approval paragraph; "
+            "a paraphrased, truncated, prefixed, qualified or revoked "
+            "paragraph is not the approval that was asked for"))
+
+    # --- the seven identities, against the contract AND the tree ------------
+    artwork = record["licensed_artwork"]
+    want_paths = sorted(contract["ccby_artwork_paths"])
+    if not isinstance(artwork, dict) or sorted(artwork) != want_paths:
+        got = sorted(artwork) if isinstance(artwork, dict) else artwork
+        issues.append(("APPROVAL_ARTWORK_SCOPE",
+                       f"the record approves {got!r}; the contracted scope is "
+                       f"exactly {want_paths}"))
+    else:
+        for rel_art in want_paths:
+            art = root / rel_art
+            if not art.is_file():
+                issues.append(("APPROVAL_ARTWORK_MISSING",
+                               f"{rel_art} is approved by the record but is "
+                               f"not in the tree"))
+                continue
+            got = sha256_file(art)
+            if artwork[rel_art] != got:
+                issues.append((
+                    "APPROVAL_ARTWORK_MISMATCH",
+                    f"{rel_art}: the record approves {artwork[rel_art]}, the "
+                    f"tree holds {got}. The approval covers the bytes that "
+                    f"were shown, not whatever is at the path now"))
+
+    # --- the custodian's attestation ---------------------------------------
+    attestation = record["custodian_attestation"]
+    if not isinstance(attestation, dict):
+        issues.append(("APPROVAL_ATTESTATION_MALFORMED",
+                       "custodian_attestation is not a JSON object"))
+        attestation = {}
+    for field in spec["attestation_required_fields"]:
+        if field not in attestation:
+            issues.append(("APPROVAL_ATTESTATION_MALFORMED",
+                           f"custodian_attestation is missing {field!r}"))
+    if attestation.get("custodian") != spec["custodian"]:
+        issues.append(("APPROVAL_ATTESTATION_CUSTODIAN",
+                       f"custodian {attestation.get('custodian')!r} is not the "
+                       f"contracted {spec['custodian']!r}"))
+    if normalize_prose(str(attestation.get("statement") or "")) != \
+            normalize_prose(spec["attestation_statement"]):
+        issues.append(("APPROVAL_ATTESTATION_STATEMENT",
+                       "the custodian attestation is not EXACTLY the "
+                       "contracted statement"))
+    attested_at = str(attestation.get("attested_at") or "")
+    if _artwork.parse_timestamp(attested_at) is None:
+        issues.append(("APPROVAL_ATTESTATION_TIMESTAMP",
+                       f"attested_at {attested_at!r} is not a real ISO-8601 "
+                       f"UTC instant"))
+
+    # --- the ORIGINAL evidence, re-read and re-hashed -----------------------
+    evidence = record["evidence"]
+    if not isinstance(evidence, dict):
+        issues.append(("APPROVAL_EVIDENCE_MALFORMED",
+                       "evidence is not a JSON object"))
+        evidence = {}
+    for field in spec["evidence_required_fields"]:
+        if field not in evidence:
+            issues.append(("APPROVAL_EVIDENCE_MALFORMED",
+                           f"evidence is missing {field!r}"))
+    if not evidence_path:
+        issues.append((
+            "APPROVAL_EVIDENCE_MISSING",
+            f"--approval-evidence was not supplied. {rel} records an approval "
+            f"whose original evidence hashes {evidence.get('sha256')!r}; "
+            f"finalization reads those original bytes and will not proceed on "
+            f"the tracked record alone"))
+        return None, sorted(set(issues))
+
+    ev = Path(evidence_path)
+    if not os.path.lexists(str(ev)):
+        issues.append(("APPROVAL_EVIDENCE_MISSING",
+                       f"{ev} does not exist"))
+        return None, sorted(set(issues))
+    try:
+        ev_resolved = ev.resolve()
+        root_resolved = root.resolve()
+        inside = (ev_resolved == root_resolved
+                  or root_resolved in ev_resolved.parents)
+    except OSError:                              # pragma: no cover - platform
+        inside = False
+    if inside and spec.get("evidence_must_be_outside_repository", True):
+        issues.append((
+            "APPROVAL_EVIDENCE_IN_REPOSITORY",
+            f"{ev} is inside the repository. The original approval - full "
+            f"email headers, or a signature - is private and is kept outside "
+            f"the tree; only the tracked record is published"))
+    # The ORIGINAL evidence lives OUTSIDE the repository by design, so there is
+    # no tree to be contained by - but "outside the repository" must not mean
+    # "unchecked". It is read by the same component-safe walk, anchored at the
+    # VOLUME ROOT, so every directory from the drive letter down is opened and
+    # refused if it is a link or a junction, the leaf is refused if it is not a
+    # regular file, and a name swapped between classification and open cannot
+    # change which object is hashed. Any refusal is FINAL: there is no fallback
+    # to a plain open, because a fallback is the whole attack.
+    try:
+        ev_bytes = _artwork.safe_read_external_evidence(ev)
+    except _artwork.ReceiptOpenRefused as exc:
+        issues.append(("APPROVAL_EVIDENCE_UNREADABLE", f"{ev}: {exc.why}"))
+        return None, sorted(set(issues))
+    except OSError as exc:
+        issues.append(("APPROVAL_EVIDENCE_UNREADABLE", f"{ev}: {exc}"))
+        return None, sorted(set(issues))
+    if ev_bytes is None:                         # pragma: no cover - raced
+        issues.append(("APPROVAL_EVIDENCE_MISSING",
+                       f"{ev} disappeared while being read"))
+        return None, sorted(set(issues))
+    limit = int(spec.get("max_evidence_bytes") or 0)
+    if limit and len(ev_bytes) > limit:
+        issues.append(("APPROVAL_EVIDENCE_TOO_LARGE",
+                       f"{ev} is {len(ev_bytes)} B, the contract admits at "
+                       f"most {limit} B"))
+    if evidence.get("filename") != ev.name:
+        issues.append((
+            "APPROVAL_EVIDENCE_FILENAME",
+            f"the record names evidence {evidence.get('filename')!r} but "
+            f"{ev.name!r} was supplied"))
+    # The record's claim about HOW the approval arrived, against the file that
+    # actually arrived. Checked on BOTH names, so renaming the supplied file
+    # cannot satisfy it while the recorded one still contradicts the record.
+    issues.extend(evidence_format_issues(source_type,
+                                         evidence.get("filename") or ev.name))
+    issues.extend(evidence_format_issues(source_type, ev.name))
+    got_bytes = len(ev_bytes)
+    if evidence.get("bytes") != got_bytes:
+        issues.append(("APPROVAL_EVIDENCE_BYTES",
+                       f"the record records {evidence.get('bytes')!r} B of "
+                       f"evidence, {ev} is {got_bytes} B"))
+    got_sha = sha256_bytes(ev_bytes)
+    if evidence.get("sha256") != got_sha:
+        issues.append((
+            "APPROVAL_EVIDENCE_MISMATCH",
+            f"the supplied evidence hashes {got_sha}; {rel} commits to "
+            f"{evidence.get('sha256')!r}. These are not the bytes the "
+            f"approval record was written against"))
+
+    if issues:
+        return None, sorted(set(issues))
+    return {
+        "approval_source": SOURCE_EXTERNAL,
+        "source_type": source_type,
+        "approval_date": approval_date,
+        "approved_text": str(record["approved_text"]),
+        "approved_text_sha256": sha256_bytes(
+            str(record["approved_text"]).encode("utf-8")),
+        "licensed_artwork": dict(artwork),
+        "approval_record_path": rel,
+        "approval_record_sha256": sha256_bytes(raw),
+        "approval_record_blob_sha1": blob_sha1,
+        "evidence_filename": ev.name,
+        "evidence_sha256": got_sha,
+        "evidence_bytes": got_bytes,
+        "custodian": attestation.get("custodian"),
+        "attested_at": attested_at,
+    }, []
+
+
+# ---------------------------------------------------------------------------
 # Archive identity
 # ---------------------------------------------------------------------------
 def current_identity(repo_root, contract) -> dict:
@@ -646,10 +1082,7 @@ def current_identity(repo_root, contract) -> dict:
     rec = json.loads((Path(repo_root) / contract["identity"]["package_record"])
                      .read_text(encoding="utf-8"))
     pkg = rec["relocation"]["packages"][contract["identity"]["package_id"]]
-    return {"archive_filename": str(pkg["archive_filename"]),
-            "archive_sha256": str(pkg["archive_sha256"]),
-            "archive_bytes": str(pkg["archive_bytes"]),
-            "content_root_hash": str(pkg["content_root_hash"])}
+    return {field: str(pkg[field]) for field in IDENTITY_FIELDS}
 
 
 def archive_identity(path) -> dict:
@@ -990,18 +1423,234 @@ def _assert_no_unauthorized_member_drift(final_path, source_path, contract):
             "members_compared": len(final)}
 
 
+#: The archive's own ``LICENSE.txt`` is the ONE licence surface whose authored
+#: destination block is a different SIZE from the block it retires: the
+#: activated notice runs exactly two lines longer. Every tracked record is held
+#: to an unchanged line count by :func:`_assert_structure_preserved`, so
+#: without this the deposit's legal notice would be the only surface whose
+#: rewrite had no pinned size at all.
+#:
+#: It lives in CODE, and the contract must AGREE with it, for the same reason
+#: CONTRACT_IDENTITY_EXEMPT_FIELDS does: editing the contract must not be able
+#: to license a larger rewrite of the deposit's legal notice than the one that
+#: was reviewed.
+ARCHIVE_LICENCE_EXPECTED_LINE_DELTA = 2
+
+
+def _occurrences(haystack, needle):
+    """Every start offset of ``needle``, including overlapping ones."""
+    out, start = [], haystack.find(needle)
+    while start != -1:
+        out.append(start)
+        start = haystack.find(needle, start + 1)
+    return out
+
+
+def _first_difference(expected, actual):
+    """Locate the first differing byte, for a diagnostic that names a place."""
+    if len(expected) != len(actual):
+        note = f"length {len(actual)} B, expected {len(expected)} B"
+    else:
+        note = "same length, differing content"
+    limit = min(len(expected), len(actual))
+    for i in range(limit):
+        if expected[i] != actual[i]:
+            return f"first difference at byte {i} ({note})"
+    return f"identical for {limit} B then diverges ({note})"
+
+
+def _archive_licence_replacement_spec(contract):
+    """Read the pinned shape of the archive licence rewrite. Fail closed.
+
+    A contract that omits the declaration, or declares a delta other than the
+    one pinned in this module, does not get to decide how much of the deposit's
+    legal notice a finalization may rewrite.
+    """
+    spec = (contract["archive_topology"].get("licence_block_replacement")
+            or {})
+    if "expected_line_delta" not in spec:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_REPLACEMENT_UNPINNED",
+            "archive_topology.licence_block_replacement.expected_line_delta "
+            "is not declared; the size of the deposit's licence rewrite must "
+            "be pinned before that rewrite may be applied")
+    declared = spec["expected_line_delta"]
+    if declared != ARCHIVE_LICENCE_EXPECTED_LINE_DELTA:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_REPLACEMENT_UNPINNED",
+            f"the contract declares an expected line delta of {declared!r}; "
+            f"the value pinned in release_finalizer.py is "
+            f"{ARCHIVE_LICENCE_EXPECTED_LINE_DELTA}. Editing the contract may "
+            f"not widen the rewrite of the deposit's legal notice")
+    anchors = [a for a in (spec.get("adjacent_anchors") or []) if a]
+    if not anchors:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_REPLACEMENT_UNPINNED",
+            "archive_topology.licence_block_replacement.adjacent_anchors is "
+            "empty; no adjacent or third-party passage is being held fixed")
+    return {"expected_line_delta": declared, "adjacent_anchors": anchors}
+
+
+def _assert_adjacent_anchors_unmoved(rel, original, updated, anchors,
+                                     offset, src_len):
+    """Named adjacent and third-party passages must be OUTSIDE the block.
+
+    Byte identity of the prefix and the suffix already proves that nothing
+    outside the block moved. This adds the one thing byte identity cannot
+    state: that the passages the deposit's rights actually depend on - the
+    section 0 path table, the MIT software section, and the Copernicus and
+    GHCN-Daily notices in sections 3 and 4 - are outside the block in the first
+    place, and so were covered by that proof rather than quietly swallowed by
+    it. A source block that grew to contain the Copernicus notice could
+    otherwise rewrite it and still satisfy every check above.
+    """
+    end = offset + src_len
+    for anchor in anchors:
+        raw = anchor.encode("utf-8") if isinstance(anchor, str) else anchor
+        shown = anchor[:56] if isinstance(anchor, str) else raw[:56]
+        before = original.count(raw)
+        if before == 0:
+            raise FinalizerError(
+                "ARCHIVE_LICENCE_ANCHOR_ABSENT",
+                f"{rel}: the pinned adjacent passage {shown!r} is not present "
+                f"in the notice being rewritten, so holding it fixed would "
+                f"assert nothing")
+        for start in _occurrences(original, raw):
+            if start < end and start + len(raw) > offset:
+                raise FinalizerError(
+                    "ARCHIVE_LICENCE_ANCHOR_INSIDE_BLOCK",
+                    f"{rel}: the pinned adjacent passage {shown!r} lies inside "
+                    f"the block being replaced; proving the block changed "
+                    f"would not then prove that passage survived")
+        after = updated.count(raw)
+        if after != before:
+            raise FinalizerError(
+                "ARCHIVE_LICENCE_ADJACENT_TEXT_CHANGED",
+                f"{rel}: the pinned adjacent passage {shown!r} occurred "
+                f"{before} time(s) before the rewrite and {after} after; "
+                f"activation may not touch text adjacent to the licence block")
+
+
+def _assert_block_replacement_is_surgical(rel, original, updated, src, dst, *,
+                                          expected_line_delta, anchors=()):
+    """Prove the rewrite replaced ONE block and left every other byte alone.
+
+    ``bytes.replace`` is a global operation. Counting occurrences before the
+    call establishes that there was one match at that moment; it establishes
+    nothing whatever about the bytes that came back. This function works from
+    the other end: it locates the single occurrence, splits the original into
+    the bytes before it and the bytes after it, and requires the result to be
+    exactly ``prefix + destination + suffix``. Anything else - a second
+    substitution, a truncated tail, an edit that also touched the Copernicus
+    notice two sections further down - is collateral and is refused.
+
+    The deposit's ``LICENSE.txt`` is the only licence surface whose replacement
+    legitimately changes the line count, so that change is pinned to an exact
+    figure rather than merely permitted.
+    """
+    if not src:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_BLOCK_EMPTY",
+            f"{rel}: the activation source block is empty; an empty source "
+            f"matches at every position")
+    occurrences = original.count(src)
+    if occurrences != 1:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_BLOCK_NOT_UNIQUE",
+            f"{rel}: the complete activation source block occurs "
+            f"{occurrences} time(s); a surgical replacement requires exactly "
+            f"one, so the destination cannot also land somewhere else")
+
+    offset = original.find(src)
+    prefix, suffix = original[:offset], original[offset + len(src):]
+    expected = prefix + dst + suffix
+    if updated != expected:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_COLLATERAL_EDIT",
+            f"{rel}: the rewritten notice is not the authored destination "
+            f"block spliced into the original at byte {offset}; "
+            f"{_first_difference(expected, updated)}")
+
+    # Restated from the RESULT, so the evidence does not rest on one equality:
+    # the two sides are compared as the spans they actually occupy afterwards.
+    head = updated[:len(prefix)]
+    body = updated[len(prefix):len(prefix) + len(dst)]
+    tail = updated[len(prefix) + len(dst):]
+    if head != prefix:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_COLLATERAL_EDIT",
+            f"{rel}: the {len(prefix)} byte(s) preceding the replaced block "
+            f"changed; text adjacent to the licence block must be untouched")
+    if tail != suffix:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_COLLATERAL_EDIT",
+            f"{rel}: the {len(suffix)} byte(s) following the replaced block "
+            f"changed; the third-party notices in sections 3 and 4 live there")
+    if body != dst:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_DESTINATION_ALTERED",
+            f"{rel}: the block written in place of the retired one is not the "
+            f"authored destination block")
+
+    # The retired block may survive only where the AUTHOR reinstated it.
+    survived, permitted = updated.count(src), dst.count(src)
+    if survived != permitted:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_SOURCE_SURVIVED",
+            f"{rel}: the retired PENDING block occurs {survived} time(s) after "
+            f"the rewrite; the authored destination reinstates it {permitted}")
+
+    block_delta = dst.count(b"\n") - src.count(b"\n")
+    file_delta = updated.count(b"\n") - original.count(b"\n")
+    if block_delta != expected_line_delta:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_LINE_DELTA",
+            f"{rel}: the authored block changes the notice's line count by "
+            f"{block_delta:+d}, the pinned delta is {expected_line_delta:+d}")
+    if file_delta != expected_line_delta:
+        raise FinalizerError(
+            "ARCHIVE_LICENCE_LINE_DELTA",
+            f"{rel}: the rewritten notice's line count changed by "
+            f"{file_delta:+d}, the pinned delta is {expected_line_delta:+d}")
+
+    _assert_adjacent_anchors_unmoved(rel, original, updated, anchors,
+                                     offset, len(src))
+
+    return {"member": rel,
+            "block_offset": offset,
+            "source_block_bytes": len(src),
+            "destination_block_bytes": len(dst),
+            "unchanged_prefix_bytes": len(prefix),
+            "unchanged_suffix_bytes": len(suffix),
+            "unchanged_prefix_sha256": sha256_bytes(prefix),
+            "unchanged_suffix_sha256": sha256_bytes(suffix),
+            "line_delta": file_delta,
+            "pinned_line_delta": expected_line_delta,
+            "adjacent_anchors_verified": len(anchors)}
+
+
 def apply_archive_licence_transition(stage_root, contract, transition):
     """Rewrite the archive's own LICENSE.txt with the authored from/to pair.
 
     The archive carries its own licence notice. Activating CC BY in the four
     tracked records while the shipped deposit still says PENDING would publish
     a contradiction, so the archive member transitions with them or not at all.
+
+    The deposit's notice is the surface with the least protection and the most
+    to lose: it carries the section 0 path table, the MIT grant over
+    ``validate_deposit.py``, and the Copernicus and GHCN-Daily notices the
+    authors have no power to relicense. So the rewrite is SPLICED rather than
+    globally replaced, and is then held to the same scope guards as every
+    tracked record plus a byte-level proof that nothing outside the single
+    authored block moved.
     """
     member = contract["archive_topology"]["licence_member"]
     path = Path(stage_root) / member
     if not path.is_file():
         raise FinalizerError("ARCHIVE_LICENCE_MEMBER_ABSENT",
                              f"{member} is not present in the staged archive")
+    rel = ARCHIVE_FILE_PREFIX + member
+    spec = _archive_licence_replacement_spec(contract)
     original = path.read_bytes()
     src = transition["from"].encode("utf-8")
     dst = transition["to"].encode("utf-8")
@@ -1011,11 +1660,28 @@ def apply_archive_licence_transition(stage_root, contract, transition):
             "CCBY_ACTIVATION_COUNT",
             f"{member}: activation source occurs {found} time(s), plan "
             f"declares {transition['count']}")
-    updated = original.replace(src, dst)
-    _assert_third_party_rights_preserved(member, original, updated, contract)
+
+    # Spliced, not globally replaced: the result is CONSTRUCTED from the two
+    # unchanged sides, so there is no second match for it to have landed in.
+    offset = original.find(src)
+    updated = original[:offset] + dst + original[offset + len(src):]
+
+    evidence = _assert_block_replacement_is_surgical(
+        rel, original, updated, src, dst,
+        expected_line_delta=spec["expected_line_delta"],
+        anchors=spec["adjacent_anchors"])
+    # The same three scope guards every tracked licence record gets. The
+    # deposit's notice previously got only the third-party token count, so a
+    # destination block that widened CC BY over the MIT validator, or asserted
+    # a grant over an eighth raster, would have been applied without complaint.
+    _assert_third_party_rights_preserved(rel, original, updated, contract)
+    _assert_excluded_scope_unchanged(rel, original, updated, contract)
+    _assert_no_unregistered_artwork_scope(rel, original, updated, contract)
+
     path.write_bytes(updated)
     return {"member": member, "before_sha256": sha256_bytes(original),
-            "after_sha256": sha256_bytes(updated), "occurrences": found}
+            "after_sha256": sha256_bytes(updated), "occurrences": found,
+            "block_replacement": evidence}
 
 
 def regenerate_archive_manifests(stage_root, contract):
@@ -1360,10 +2026,326 @@ BARE_MARKERS = {"pending", "not yet in force", "cc by", "cc by 4.0",
 MIN_ACTIVATION_BLOCK = 40
 
 
+#: THE REVIEWED LEGAL PROSE, PINNED IN CODE.
+#:
+#: Every entry is the SHA-256 of the exact activated wording a human reviewed
+#: for one licence surface. The contract carries the prose; this table decides
+#: WHICH prose was reviewed, and it lives in code precisely so that editing the
+#: contract cannot move it.
+#:
+#: This is the PRIMARY authority on activation scope, and it is fail-CLOSED by
+#: construction. The prose guards below - polarity, path exactness, open-ended
+#: language - are pattern matchers, and a pattern matcher only refuses what
+#: somebody anticipated: r3k's counted lexical CC-BY mentions accepted a
+#: denial rewritten into a grant, an unknown image extension, a bare directory
+#: glob and a drive-absolute path, because none of those had been thought of.
+#: A digest anticipates nothing and needs to: any edit to a destination block -
+#: an eighth artwork path, a widened class, a deleted exclusion, a single
+#: character - changes it, and an unrecognised destination is refused without
+#: the code having to understand what changed.
+#:
+#: Production contracts only. ``is_synthetic_contract`` is opt-in, so a
+#: contract that declares nothing is production and IS pinned; the test
+#: fixtures that drive activation with invented wording say so explicitly.
+REVIEWED_ACTIVATION_DESTINATIONS = {
+    "docs/LICENSES_AND_ATTRIBUTION.md":
+        "a79e4af54103626af6142c1a3094b4e42a04b1e38396e50aec0187ae2cfa7807",
+    "assets/frozen_figures/README.md":
+        "f87e21897ff87922d0e8a7aea9f1ecd4c84df45c86b7d77b623a25382ec90567",
+    "assets/manuscript_final/README.md":
+        "2a4093efe942c780cf2097815520b8196b2153cbcafcb6003ad5ff8da1b9b6b8",
+    ".zenodo.json":
+        "c422c8f1e3751e4a1add81da718a6beb0b66abb6613079b2626ed002fc7f05e7",
+    "archive:LICENSE.txt":
+        "e8cf0e9d58157b1c93983e8b30f593394db473e9eac8364e0def2d98c637ad34",
+}
+
+#: The other three pieces of reviewed legal text, pinned the same way: the row
+#: the publication builder emits, the marker the classifier calls ACTIVE, and
+#: the approval paragraph itself. A grant is only as narrow as the narrowest of
+#: these, so all four surfaces are pinned or none of them means anything.
+#: Repinned at 4D-r3n, when the row was made PATH-EXACT. It used to write
+#: ``assets/frozen_figures/**`` - a scope that is not one of the five the
+#: contract declares, and which reaches everything under frozen_figures rather
+#: than the fig01 and fig04 folders the approval covers. The row is the one
+#: licence surface published to readers of publication_outputs/README.md, and
+#: it was checked only for its digest and its marker, never for what its scope
+#: token claimed, so the broad glob passed the guards that refuse it anywhere
+#: else.
+REVIEWED_PUBLICATION_ROW_ACTIVE = \
+    "0ee44d702c0156b409ea44ff0c62f17935662b0ccaa93de6d86954af1c65532b"
+REVIEWED_ACTIVE_MARKER = \
+    "55710064a9ed823853233bc6fed7877c801e44f8f2b675e65ad5b219bb46d95a"
+REVIEWED_APPROVAL_TEXT = \
+    "749e0a504215aeed3de9ec62348644cdebe0edc758944fbd5e364ebee642d338"
+
+
+#: THE LEGAL SCOPE, PINNED IN CODE: the SEVEN works the coauthor approval
+#: covers, each by repository path AND by the SHA-256 of the exact bytes that
+#: were shown when the approval was sought.
+#:
+#: The reviewed-prose pins above decide what the licence SENTENCES say. They do
+#: not decide which FILES those sentences reach, because the sentences name
+#: directories and figure numbers, not identities - and every surface that does
+#: name the files lived in the contract, where a single edit could add an
+#: eighth work, repoint a path at different bytes, or quietly drop one. Four
+#: separate contract surfaces claim to state this scope and nothing required
+#: them to agree with each other, let alone with anything a human had approved.
+#:
+#: A path alone would not be enough. "Figure_04.png is licensed" is a statement
+#: about a NAME, and the bytes behind a name change; the approval was given
+#: over an image somebody looked at. Pinning path -> SHA-256 means replacing
+#: the file's content is exactly as loud a failure as adding a new file.
+REVIEWED_CCBY_ARTWORK_IDENTITIES = {
+    "assets/frozen_figures/fig01/Figure_01.png":
+        "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "assets/frozen_figures/fig01/Figure_01.pdf":
+        "fce1921839131e761cabe894e7b71f8226efafba654cd7f488539af78809917b",
+    "assets/frozen_figures/fig04/Figure_04.png":
+        "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "assets/frozen_figures/fig04/Figure_04.pdf":
+        "53a3f4fe6c15075ed956367712123cd9cc26290c4a09017b7beb87d06d5fc3e4",
+    "scripts/figures/fig01/original/Figure_01_original.png":
+        "cc561b368f84b298b3ee38a39415799cc31d8ca932fa586a32bd7624831ec787",
+    "scripts/figures/fig04/original/Figure_04_original.png":
+        "d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png":
+        "c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2eefc829f",
+}
+
+#: The FIVE directory scopes the licence records are allowed to write instead
+#: of naming both files in a folder. Pinned for the same reason: a sixth scope,
+#: or a scope widened from ``fig04/donor/**`` to ``scripts/figures/**``, is a
+#: grant over work nobody approved, and it reads in prose exactly like the
+#: five that were reviewed.
+REVIEWED_CCBY_SCOPE_GLOBS = (
+    "assets/frozen_figures/fig01/**",
+    "assets/frozen_figures/fig04/**",
+    "scripts/figures/fig01/original/**",
+    "scripts/figures/fig04/original/**",
+    "scripts/figures/fig04/donor/**",
+)
+
+#: Document formats that are NOT artwork. The approval covers seven images; a
+#: sentence that puts a manuscript or a slide deck under CC BY is granting a
+#: licence over a different kind of work entirely - and the manuscript carries
+#: third-party figures and publisher rights the authors do not hold.
+NON_ARTWORK_GRANT_EXTENSIONS = frozenset(
+    "docx doc dotx pptx ppt potx xlsx xls odt odp ods rtf pages key numbers"
+    .split())
+
+
+def _artwork_path_shape_issues(where, tokens):
+    """Refuse anything that is not a plain repository-relative POSIX path.
+
+    Every check downstream of here joins these tokens onto the repository root
+    and asks the filesystem about the result. ``Path(root) / "/etc/passwd"``
+    is ``/etc/passwd`` - pathlib DISCARDS the root when the right-hand side is
+    absolute - so a POSIX-absolute token silently escapes the tree, and the
+    same is true of a UNC share and of a drive-absolute Windows path. A
+    ``~``-prefixed token is refused for the adjacent reason: it means nothing
+    to ``Path`` but is expanded by shells, editors and readers, so a scope
+    reviewed as "the user's own copy" is not what the code would read.
+    """
+    issues = []
+    for raw in tokens or []:
+        token = str(raw)
+        why = None
+        if token.startswith("~"):
+            why = ("is home-prefixed; scope is stated relative to the "
+                   "repository root and never to whoever is running this")
+        elif token.startswith(("//", "\\\\")):
+            why = ("is a UNC share path; the licensed works are files in this "
+                   "repository, not on a network share")
+        elif token.startswith(("/", "\\")):
+            why = ("is filesystem-absolute; joining it onto the repository "
+                   "root DISCARDS the root and reads a file outside the tree")
+        elif re.match(r"^[A-Za-z]:", token):
+            why = ("is drive-absolute; joining it onto the repository root "
+                   "discards the root")
+        elif ".." in Path(token.replace("\\", "/")).parts:
+            why = "traverses upwards out of the repository"
+        elif not token.strip():
+            why = "is empty"
+        if why:
+            issues.append((
+                "CCBY_ARTWORK_PATH_NOT_REPOSITORY_RELATIVE",
+                f"{where} carries {token!r}, which {why}"))
+    return issues
+
+
+def reviewed_scope_issues(contract):
+    """Every place a contract surface disagrees with the code-owned scope.
+
+    FOUR surfaces state which works the licence reaches, and until r3m nothing
+    required them to agree either with each other or with anything reviewed:
+
+    * ``ccby_artwork_paths`` - the list the receipt, the approval record and
+      the guards all check the seven identities against;
+    * ``figures`` - the pinned SHA-256 of each of those paths;
+    * ``ccby_activation_plan.scope.assets`` - what the activation plan says it
+      is putting under CC BY; and
+    * ``ccby_artwork_scope_globs`` - the directory scopes the licence prose is
+      permitted to write instead of naming files.
+
+    Adding a work to one, renaming a path in another, or changing the bytes a
+    third points at was a contract edit and nothing more. Now each is compared
+    to the pins above, so any of those is a refusal BEFORE an approval is
+    sought and before any activation is planned.
+    """
+    if _artwork.is_synthetic_contract(contract):
+        return []
+    issues = []
+    want_paths = sorted(REVIEWED_CCBY_ARTWORK_IDENTITIES)
+
+    declared = list(contract.get("ccby_artwork_paths") or [])
+    issues.extend(_artwork_path_shape_issues("ccby_artwork_paths", declared))
+    if sorted(declared) != want_paths:
+        issues.append((
+            "CCBY_ARTWORK_SCOPE_UNREVIEWED",
+            f"ccby_artwork_paths is {sorted(declared)}; the reviewed scope is "
+            f"exactly the {len(want_paths)} works pinned in code: "
+            f"{want_paths}"))
+    if len(declared) != len(set(declared)):
+        issues.append((
+            "CCBY_ARTWORK_SCOPE_UNREVIEWED",
+            f"ccby_artwork_paths repeats a path: {sorted(declared)}"))
+
+    figures = contract.get("figures") or {}
+    for rel, want in sorted(REVIEWED_CCBY_ARTWORK_IDENTITIES.items()):
+        got = figures.get(rel)
+        if got is None:
+            issues.append((
+                "CCBY_ARTWORK_IDENTITY_UNREVIEWED",
+                f"figures carries no entry for {rel}, which is one of the "
+                f"{len(want_paths)} works the approval covers; an unpinned "
+                f"licensed work is a licence over whatever is at that path"))
+        elif got != want:
+            issues.append((
+                "CCBY_ARTWORK_IDENTITY_UNREVIEWED",
+                f"figures[{rel!r}] is {got}, the reviewed identity is {want}. "
+                f"The approval was given over the bytes that were shown, not "
+                f"over the name"))
+
+    plan_assets = list(((contract.get("ccby_activation_plan") or {})
+                        .get("scope") or {}).get("assets") or [])
+    issues.extend(_artwork_path_shape_issues(
+        "ccby_activation_plan.scope.assets", plan_assets))
+    if sorted(plan_assets) != want_paths:
+        issues.append((
+            "CCBY_ARTWORK_SCOPE_UNREVIEWED",
+            f"ccby_activation_plan.scope.assets is {sorted(plan_assets)}; the "
+            f"reviewed scope is exactly {want_paths}. What the activation "
+            f"plan says it grants must be what the approval covers"))
+
+    globs = list(contract.get("ccby_artwork_scope_globs") or [])
+    issues.extend(_artwork_path_shape_issues(
+        "ccby_artwork_scope_globs", globs))
+    if sorted(globs) != sorted(REVIEWED_CCBY_SCOPE_GLOBS):
+        issues.append((
+            "CCBY_SCOPE_GLOBS_UNREVIEWED",
+            f"ccby_artwork_scope_globs is {sorted(globs)}; the reviewed "
+            f"directory scopes are exactly {sorted(REVIEWED_CCBY_SCOPE_GLOBS)}"
+        ))
+    return sorted(set(issues))
+
+
+def _sha256_text(value):
+    return sha256_bytes(str(value).encode("utf-8"))
+
+
+def reviewed_activation_issues(contract):
+    """Every place the contract's legal prose is not the prose that was
+    reviewed. Returns ``(code, why)`` tuples; empty means it matches exactly.
+    """
+    if _artwork.is_synthetic_contract(contract):
+        return []
+    issues = []
+    plan = contract.get("ccby_activation_plan") or {}
+    destinations = {}
+    for item in plan.get("replacements") or []:
+        if not isinstance(item, dict):
+            continue
+        rel = item.get("file")
+        if rel in destinations:
+            issues.append((
+                "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+                f"{rel} carries more than one authored destination; the "
+                f"reviewed wording for a surface is one block"))
+            continue
+        destinations[rel] = item.get("to")
+
+    for rel, want in sorted(REVIEWED_ACTIVATION_DESTINATIONS.items()):
+        if rel not in destinations:
+            issues.append((
+                "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+                f"the activation plan carries no destination for {rel}, which "
+                f"has reviewed wording pinned in code"))
+            continue
+        got = _sha256_text(destinations[rel])
+        if got != want:
+            issues.append((
+                "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+                f"{rel}: the authored destination hashes {got}, the reviewed "
+                f"wording is {want}. The prose that will be written into a "
+                f"licence record is not the prose that was reviewed, so what "
+                f"it grants is unknown and it is refused"))
+    for rel in sorted(set(destinations) - set(REVIEWED_ACTIVATION_DESTINATIONS)):
+        issues.append((
+            "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+            f"the activation plan carries a destination for {rel}, which is "
+            f"not one of the {len(REVIEWED_ACTIVATION_DESTINATIONS)} reviewed "
+            f"licence surfaces"))
+
+    row = ((contract.get("publication_outputs_artwork_row") or {})
+           .get("active") or "")
+    if _sha256_text(row) != REVIEWED_PUBLICATION_ROW_ACTIVE:
+        issues.append((
+            "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+            f"publication_outputs_artwork_row.active hashes "
+            f"{_sha256_text(row)}, the reviewed row is "
+            f"{REVIEWED_PUBLICATION_ROW_ACTIVE}"))
+
+    markers = [m for m in ((contract.get("artwork_licence_markers") or {})
+                           .get("active") or []) if m]
+    digests = [_sha256_text(m) for m in markers]
+    if digests != [REVIEWED_ACTIVE_MARKER]:
+        issues.append((
+            "CCBY_ACTIVATION_DESTINATION_UNREVIEWED",
+            f"artwork_licence_markers.active is {digests}, the reviewed "
+            f"marker set is exactly [{REVIEWED_ACTIVE_MARKER!r}]"))
+
+    text = (contract.get("authorization") or {}).get("text") or ""
+    if _sha256_text(text) != REVIEWED_APPROVAL_TEXT:
+        issues.append((
+            "CCBY_APPROVAL_TEXT_UNREVIEWED",
+            f"authorization.text hashes {_sha256_text(text)}, the reviewed "
+            f"approval paragraph is {REVIEWED_APPROVAL_TEXT}. The paragraph "
+            f"a coauthor is asked to agree to is not the one that was "
+            f"reviewed"))
+    return sorted(set(issues))
+
+
 def plan_ccby_activation(repo_root, contract, base=None):
     """TEST-ONLY wording is refused before a plan is even considered."""
     for code, why in _artwork.synthetic_wording_issues(contract):
         raise FinalizerError(code, why)
+    # The code-owned pins, BEFORE any prose is examined. A destination that is
+    # not the reviewed one never reaches the pattern guards at all.
+    for code, why in reviewed_activation_issues(contract):
+        raise FinalizerError(code, why)
+    # ...and the code-owned SCOPE pins beside the code-owned PROSE pins. The
+    # loader checks these too, but an activation must not depend on having
+    # come through it: what the plan grants is decided here.
+    for code, why in reviewed_scope_issues(contract):
+        raise FinalizerError(code, why)
+    # Declared directory scopes are expanded against the REAL tree. Synthetic
+    # fixtures build a handful of files in a temporary directory and are not
+    # that tree, so the expansion is skipped for them exactly as the pins are;
+    # preflight runs it against the real repository on every run.
+    if not _artwork.is_synthetic_contract(contract):
+        _assert_declared_scopes_hold_only_registered_artwork(repo_root,
+                                                             contract)
     return _plan_ccby_activation(repo_root, contract, base)
 
 
@@ -1445,6 +2427,9 @@ def _plan_ccby_activation(repo_root, contract, base=None):
             f"publication_outputs_artwork_row.active carries none of the "
             f"active markers {active_markers}; the published row would not "
             f"classify as ACTIVE")
+
+    # ...and the row's own SCOPE is read, not merely its digest and its marker.
+    _assert_publication_row_scope(contract)
 
     repo_root = Path(repo_root)
     records = list(contract["licence_records"])
@@ -1544,6 +2529,7 @@ def _plan_ccby_activation(repo_root, contract, base=None):
         original = prior if prior is not None else (repo_root / rel).read_bytes()
         _assert_third_party_rights_preserved(rel, original, updated, contract)
         _assert_excluded_scope_unchanged(rel, original, updated, contract)
+        _assert_no_unregistered_artwork_scope(rel, original, updated, contract)
         _assert_structure_preserved(rel, original, updated)
         edits.append(Edit(rel, original, updated,
                           {"ccby_activation": 1}, 1))
@@ -1579,6 +2565,529 @@ def _assert_excluded_scope_unchanged(rel, original, updated, contract):
                 f"{rel}: activation added {now - was} sentence(s) asserting "
                 f"CC BY alongside {token!r}; the authorization covers the "
                 f"Figure 1 / Figure 4 artwork and nothing else")
+
+
+#: Tokens in licence prose that CLAIM to name something on disk: a URL, a
+#: drive-absolute path, a relative path, or a bare dotted filename. Deliberately
+#: wider than the set of things that ARE artwork - the classification of what a
+#: token names happens afterwards, in :func:`_scope_token_claim`, so that a
+#: token this pattern can see but cannot resolve is REFUSED rather than silently
+#: skipped. The scheme and drive alternatives exist because dropping them was
+#: itself a bypass: ``C:\assets\frozen_figures\fig01\Figure_01.png`` used to
+#: have its drive letter shaved off by the old pattern and the remainder
+#: normalized onto a registered repository path, licensing a file outside the
+#: tree entirely.
+#: The ROOT-ANCHORED forms, added at 4D-r3n. They must be matched INCLUDING
+#: their leading marker, which is the whole repair: the pattern below requires
+#: a token to begin with ``[A-Za-z0-9_.*+-]``, so in
+#:
+#:     /assets/frozen_figures/fig01/Figure_01.png is licensed under CC BY 4.0.
+#:
+#: the match began AFTER the slash and the classifier was handed
+#: ``assets/frozen_figures/fig01/Figure_01.png`` - a registered path - and
+#: answered "claims nothing". The tokenizer, not the classifier, was doing the
+#: normalizing, so no amount of care in ``_scope_token_claim`` could have seen
+#: it. The same held for ``~/assets/...`` and ``//host/share/assets/...``.
+#:
+#: The lookbehind keeps this from firing on ``and/or`` (preceded by a word
+#: character) and on ``https://`` (preceded by a colon), which the URL
+#: alternative above already owns.
+_ROOT_ANCHORED_TOKEN = r"(?<![A-Za-z0-9_.*+\-:])(?:~[\\/]|~|//|\\\\|[\\/])" \
+                       r"[^\s`|,;)\]]+"
+
+_SCOPE_TOKEN_RX = re.compile(
+    r"[A-Za-z][A-Za-z0-9+.-]*://[^\s`|,;)\]]+"
+    r"|[A-Za-z]:[\\/][^\s`|,;)\]]+"
+    r"|" + _ROOT_ANCHORED_TOKEN +
+    r"|(?:[A-Za-z0-9_.*+-]+[\\/])+[A-Za-z0-9_.*+-]*"
+    r"|[A-Za-z0-9_+-]+\.[A-Za-z0-9]{1,8}\b")
+
+#: What each root-anchored form is called when it is refused.
+_ROOT_ANCHORED_KINDS = (
+    (re.compile(r"\A~"), "home-prefixed path"),
+    (re.compile(r"\A(?://|\\\\)"), "UNC/network path"),
+    (re.compile(r"\A[\\/]"), "POSIX absolute path"),
+)
+
+#: Extensions that name a single ARTWORK work. Broadened well past the raster
+#: set the previous guard knew, because an extension it had not heard of -
+#: ``.webp`` - made the token invisible and the grant unexamined.
+_ARTWORK_EXTENSIONS = frozenset("""
+png pdf tif tiff jpg jpeg jpe jfif svg svgz eps ps ai psd psb webp avif heic
+heif gif bmp dib jp2 j2k jpf jpx jxl ico emf wmf cdr xcf pict pct tga exr dds
+""".split())
+
+#: Extensions that name a RECORD rather than a work: manifests, code, prose,
+#: metadata and data. A licence table legitimately cites these inside a CC BY
+#: sentence - the receipt the grant rests on, the relocation CSV, the guard
+#: module that enforces it - and treating each citation as an artwork grant
+#: would report the activation's own evidence as a widening.
+_REFERENCE_EXTENSIONS = frozenset("""
+json csv tsv py pyi md markdown txt text rst cff yml yaml toml ini cfg conf lock
+zip gz tgz bz2 xz nc nc4 h5 hdf5 parquet feather sql db sqlite tex bib html htm
+xml xsd r rmd sh bash ps1 bat cmd log gitignore
+gitattributes gitmodules editorconfig
+""".split())
+
+#: DOCUMENT formats, moved OUT of the reference set at r3m. They used to sit
+#: beside ``json`` and ``csv`` as things a licence table merely CITES, so
+#:
+#:     The manuscript (manuscript_final/SCORCH_manuscript.docx) and the Figure
+#:     1 and Figure 4 artwork are licensed under CC BY 4.0.
+#:
+#: classified the DOCX as a citation, counted nothing, and passed. A manuscript
+#: is not a manifest: it is an authored work in its own right, it carries the
+#: publisher's rights and third-party figures the authors do not hold, and it
+#: was never part of what Dr. Najibi was asked to approve. The same is true of
+#: a slide deck or a spreadsheet of results.
+#:
+#: They are still not ARTWORK, so they are not compared against the seven
+#: registered identities - a document can never BE one of them. Any affirmative
+#: grant naming one is simply refused, with a key that says why.
+_DOCUMENT_EXTENSIONS = NON_ARTWORK_GRANT_EXTENSIONS
+
+#: Open-ended scope: language that grants over a CLASS of works rather than
+#: over named ones. "every PNG/PDF export derived from them", "any derived
+#: export", "everything in publication_outputs/" all reach works that do not
+#: exist yet and were never shown to the coauthor, so no digest can be checked
+#: against them and no reviewer can have seen them. The authorization reaches
+#: seven files and their byte-identical copies; a class is not that.
+_OPEN_ENDED_SCOPE_RX = (
+    re.compile(r"\b(?:every|all|any|each)\b[^.;|]{0,60}?"
+               r"\b(?:png|pdf|jpe?g|tiff?|svg|eps|raster|image|export|"
+               r"derivative)s?\b[^.;|]{0,60}?\bderived\b", re.I),
+    re.compile(r"\b(?:every|all|any|each)\b[^.;|]{0,60}?"
+               r"\b(?:png|pdf|jpe?g|tiff?|svg|eps)\s*(?:/|,|or|and)?\s*"
+               r"(?:png|pdf|jpe?g|tiff?|svg|eps)?\s*exports?\b", re.I),
+    re.compile(r"\bderived\s+(?:png|pdf|jpe?g|tiff?|svg|eps)?\s*exports?\b",
+               re.I),
+    re.compile(r"\bexports?\s+derived\s+from\s+"
+               r"(?:them|it|these|those|the\s+\w+)\b", re.I),
+    re.compile(r"\b(?:everything|anything)\s+"
+               r"(?:in|under|within|inside|materiali[sz]ed|placed|written|"
+               r"produced|generated)\b", re.I),
+    re.compile(r"\b(?:every|all|any|each|the\s+entire|the\s+whole)\s+"
+               r"(?:\w+\s+){0,3}?(?:directory|folder|subtree|output\s+tree)\b",
+               re.I),
+)
+
+
+def _normalized_repo_path(token):
+    """A path token as a repository-root-relative POSIX path.
+
+    Separators are normalized, a leading ``./`` or ``/`` is dropped and empty
+    or ``.`` segments are collapsed. ``..`` is deliberately NOT resolved: a
+    token that climbs out of the tree is not one of the seven registered paths
+    and must not be normalized into one.
+    """
+    parts = [p for p in token.replace("\\", "/").split("/")
+             if p not in ("", ".")]
+    return "/".join(parts)
+
+
+def _open_ended_scope_phrases(sentence):
+    """Every open-ended scope phrase in a sentence, normalized for counting."""
+    found = []
+    for rx in _OPEN_ENDED_SCOPE_RX:
+        for match in rx.finditer(sentence):
+            found.append(" ".join(match.group(0).lower().split()))
+    return found
+
+
+#: An EXPLICIT denial of the artwork grant. Deliberately narrow, and narrow in
+#: the fail-CLOSED direction: a sentence this does not recognise is treated as
+#: an AFFIRMATIVE grant and its tokens are counted. Reading polarity by looking
+#: for any negation word anywhere in the sentence is the opposite trade, and it
+#: is a bypass - "assets/other/Figure_09.png is licensed under CC BY 4.0, and
+#: this does not alter third-party data" carries a negation and is a grant.
+#: So a negation only denies when it GOVERNS the grant: immediately before the
+#: licence name, or as "is/are not licensed/granted/asserted/in force".
+_SCOPE_DENIAL_RX = re.compile(
+    r"\b(?:no|neither|nor)\b[^.;|]{0,40}?"
+    r"(?:CC\s*BY|Creative\s+Commons\s+Attribution)"
+    r"|(?:CC\s*BY|Creative\s+Commons\s+Attribution)[^.;|]{0,60}?"
+    r"\b(?:is|are|was|were)\s+(?:not|never)\s+"
+    r"(?:licen[sc]ed|granted|asserted|in\s+force|covered|extended|applied)"
+    r"|\bnot\s+yet\s+in\s+force\b"
+    r"|\bCC\s*BY\s*4\.0\s+PENDING\b"
+    r"|\bEXCLUDED\s+FROM\s+THE\s+CC\s*BY\b"
+    r"|\bPENDING\s+COAUTHOR\s+AUTHORIZATION\b"
+    r"|\blicensing\s+is\s+PENDING\b"
+    r"|\brequires\s+separate\s+written\s+authorization\b"
+    r"|\bhas\s+not\s+been\s+recorded\b"
+    r"|\bwithhold\w*"
+    r"|\b(?:is|are|was|were)\s+(?:not|never)\s+"
+    r"(?:licen[sc]ed|granted|asserted|covered|released|distributed|"
+    r"made\s+available)\b"
+    r"|\bmust\s+(?:never|not)\s+be\s+read\s+as\s+licensing\b"
+    r"|\bmust\s+NOT\s+be\s+presented\b",
+    re.I)
+
+#: An explicit AFFIRMATIVE grant, used ONLY to break the tie in a sentence that
+#: does both - "X is licensed under CC BY 4.0, and Y is not licensed" - where
+#: the fail-closed answer is to read the sentence as a grant and count X.
+_SCOPE_GRANT_RX = re.compile(
+    r"\b(?:is|are)\s+licen[sc]ed\b"
+    r"|\b(?:is|are)\s+covered\s+by\s+the\s+grant\b"
+    r"|\bthe\s+grant\s+reaches\b"
+    r"|\bLicensed\s+Material\s+is\b",
+    re.I)
+
+
+def _scope_polarity(sentence):
+    """``"deny"`` for an explicit denial of the grant, ``"grant"`` otherwise.
+
+    The polarity is part of the COUNTING KEY, which is the whole point. The
+    previous guard counted "sentences mentioning CC BY and naming this path"
+    and compared the count before and after. A denial and a grant are both such
+    a sentence, so rewriting
+
+        No CC BY 4.0 licence is asserted over assets/other/Figure_09.png.
+
+    into
+
+        assets/other/Figure_09.png is licensed under CC BY 4.0.
+
+    left the count at one, the delta at zero, and an unrelated eighth artwork
+    licensed without a single guard firing. With polarity in the key the second
+    sentence is a NEW ``("grant", ...)`` observation and is refused.
+    """
+    if not _SCOPE_DENIAL_RX.search(sentence):
+        return "grant"
+    # A sentence that denies AND grants is read as a GRANT. "X is licensed
+    # under CC BY 4.0, and Y is not licensed" would otherwise be dismissed as
+    # a denial and X would go uncounted, which is the same fail-open trade in
+    # a different disguise.
+    return "grant" if _SCOPE_GRANT_RX.search(sentence) else "deny"
+
+
+def _scope_token_claim(token, registered, declared):
+    """What a path-like token CLAIMS, or None when it claims nothing.
+
+    Returns a stable description used as the counting key. ``None`` means the
+    token is a citation of a record - the receipt, a manifest, the guard module
+    - rather than a claim about a work, and is not the licence guard's
+    business.
+
+    Everything the classifier cannot place resolves to a REFUSAL, not to
+    silence. An extension it has never heard of, a URL, a drive-absolute path
+    and an undeclared directory glob are each a claim over something that
+    cannot be checked against a digest, so each one gets a key.
+    """
+    # Strip surrounding punctuation, but NEVER a leading root marker: '/' and
+    # '~' are what distinguish "/assets/..." from "assets/...", and stripping
+    # them here would undo the tokenizer repair one line later.
+    raw = token.strip().strip("`'\"(),;:")
+    raw = raw.rstrip("`'\"(),;:.")
+    if not raw:
+        return None
+    lowered = raw.lower()
+
+    # ROOT-ANCHORED forms name something that is NOT a repository-relative
+    # path, and are refused as themselves rather than normalized onto one.
+    # "/assets/frozen_figures/fig01/Figure_01.png" is a path on the machine's
+    # filesystem root, "~/..." is a path in whoever's home directory happens to
+    # be running this, and "//host/share/..." is on another machine entirely.
+    # None of them is the registered work, and the approval reaches files in
+    # THIS repository identified by complete path and SHA-256.
+    for pattern, kind in _ROOT_ANCHORED_KINDS:
+        if pattern.match(raw):
+            return f"{kind}: {raw}"
+
+    # A URL and a drive-absolute path name something OUTSIDE this repository.
+    # Neither may ever be normalized onto a registered repository path.
+    external = None
+    if re.match(r"\A[A-Za-z][A-Za-z0-9+.-]*://", raw):
+        external = "URL"
+    elif re.match(r"\A[A-Za-z]:[\\/]", raw):
+        external = "absolute path"
+
+    path = _normalized_repo_path(raw)
+    if not path:
+        return None
+    final = path.rstrip("/").rsplit("/", 1)[-1]
+    stem, dot, ext = final.rpartition(".")
+    ext = ext.lower() if dot else ""
+    globbed = "*" in path
+    rooted = "/" in path.rstrip("/")
+
+    # Prose that merely LOOKS dotted. "CC BY 4.0", "v1.0.0", "e.g", an initial
+    # and an abbreviation are not filenames, and reporting them would bury the
+    # one finding that matters under a page of noise. Only applied to tokens
+    # carrying no directory component, where the ambiguity is real.
+    if not rooted and not globbed:
+        if not ext or ext.isdigit() or not ext.isalpha() or len(stem) < 2:
+            return None
+        if ext not in _ARTWORK_EXTENSIONS and not re.search(r"[_\d]", stem):
+            return None
+
+    # A DOCUMENT named in an affirmative grant is refused outright. It cannot
+    # be one of the seven works, so there is no digest to check it against and
+    # nothing that could make the grant reviewable - and a manuscript or deck
+    # carries rights the authors do not hold and never asked about.
+    if ext in _DOCUMENT_EXTENSIONS:
+        return (f"{path} (a .{ext} document, which is not artwork the "
+                f"authorization covers and carries rights of its own)")
+
+    # A citation of a RECORD - the receipt the grant rests on, a manifest, the
+    # guard module - is not a claim about a work.
+    if ext in _REFERENCE_EXTENSIONS and not globbed:
+        return None
+
+    # A URL and a drive-absolute path name something OUTSIDE this repository,
+    # so neither is ever compared against the registered set. Only those that
+    # actually claim a work or a class are reported; a licence deed's own URL
+    # names no artwork.
+    if external:
+        if ext in _ARTWORK_EXTENSIONS or globbed or (ext and ext.isalpha()):
+            return f"{external}: {raw}"
+        return None
+
+    if path in registered:
+        return None
+    if globbed or not ext:
+        if path.rstrip("/*") in declared:
+            return None
+        return f"undeclared directory or glob scope: {path}"
+    if ext not in _ARTWORK_EXTENSIONS:
+        return (f"{path} (unrecognised extension .{ext}, so it names nothing "
+                f"that can be checked against a digest)")
+    if not rooted:
+        return f"{path} (bare filename, not a repository path)"
+    return path
+
+
+def declared_artwork_scopes(contract):
+    """The directory scopes the contract declares, verified against the tree.
+
+    A licence table legitimately writes ``assets/frozen_figures/fig01/**``
+    rather than naming both files in it. That is only safe when the directory
+    contains NO artwork but registered artwork, so the declaration is checked,
+    not trusted: every artwork file the tree actually holds under a declared
+    scope must be one of the seven. A declaration that reaches an eighth work
+    is refused here, where it is one list, instead of being discovered later in
+    prose.
+    """
+    registered = {_normalized_repo_path(p)
+                  for p in (contract.get("ccby_artwork_paths") or [])}
+    declared = []
+    for token in contract.get("ccby_artwork_scope_globs") or []:
+        declared.append(_normalized_repo_path(token).rstrip("/*"))
+    return sorted({d for d in declared if d}), registered
+
+
+def _assert_declared_scopes_hold_only_registered_artwork(repo_root, contract):
+    """A declared ``dir/**`` must contain the registered works and NOTHING else.
+
+    Writing ``assets/frozen_figures/fig01/**`` in a licence table is shorthand
+    for "both files in here". The shorthand is only true while that is all the
+    directory holds, and the directory is not frozen - a later commit adds a
+    README, a caption, a source ``.svg``, a thumbnail, and the sentence that
+    was reviewed as a grant over two approved images silently becomes a grant
+    over five things nobody showed the coauthor.
+
+    Until r3m this only refused files whose EXTENSION was in the artwork list,
+    which is the same anticipate-the-attack weakness the reviewed-prose pins
+    exist to escape: an unknown image format, a ``.txt`` caption that is itself
+    copyrightable, or an extensionless file all passed. So the rule is now
+    exhaustive and stated positively - the set of paths under a declared scope
+    must EQUAL the set of registered works under it:
+
+    * an extra file of ANY kind is refused, artwork or not;
+    * a subdirectory is refused, because ``/**`` reaches through it;
+    * anything that is not a REGULAR FILE - a symlink, junction, FIFO, device -
+      is refused rather than followed, so a link pointing at unapproved work
+      cannot be laundered into the scope by sitting inside it; and
+    * a registered work that has gone MISSING is refused, because the scope no
+      longer stands for what it was reviewed to stand for.
+    """
+    import stat as _stat
+    declared, registered = declared_artwork_scopes(contract)
+    if not declared:
+        return
+    root = Path(repo_root)
+    for scope in declared:
+        base = root / scope
+        try:
+            base_info = os.lstat(str(base))
+        except OSError as exc:
+            raise FinalizerError(
+                "CCBY_SCOPE_DECLARATION_UNVERIFIABLE",
+                f"declared artwork scope {scope!r} could not be inspected "
+                f"({exc}), so what it reaches cannot be checked")
+        if not _stat.S_ISDIR(base_info.st_mode):
+            raise FinalizerError(
+                "CCBY_SCOPE_DECLARATION_UNVERIFIABLE",
+                f"declared artwork scope {scope!r} is not a real directory in "
+                f"this tree (mode {base_info.st_mode:#o}); a link or a file "
+                f"where a scope directory was declared is refused rather than "
+                f"followed")
+
+        want = {r for r in registered
+                if r == scope or r.startswith(scope + "/")}
+        found = set()
+        for path in sorted(base.rglob("*")):
+            rel = path.relative_to(root).as_posix()
+            try:
+                info = os.lstat(str(path))
+            except OSError as exc:                   # pragma: no cover - raced
+                raise FinalizerError(
+                    "CCBY_SCOPE_DECLARATION_UNVERIFIABLE",
+                    f"{rel} under declared artwork scope {scope!r} could not "
+                    f"be inspected: {exc}")
+            if not _stat.S_ISREG(info.st_mode):
+                raise FinalizerError(
+                    "CCBY_SCOPE_DECLARATION_TOO_BROAD",
+                    f"declared artwork scope {scope!r} reaches {rel}, which is "
+                    f"not a regular file (mode {info.st_mode:#o}). A directory "
+                    f"scope stands for the registered works inside it; a "
+                    f"subdirectory, symlink, junction or special object is "
+                    f"refused rather than followed")
+            if rel not in want:
+                raise FinalizerError(
+                    "CCBY_SCOPE_DECLARATION_TOO_BROAD",
+                    f"declared artwork scope {scope!r} reaches {rel}, which is "
+                    f"not one of the {len(registered)} registered artwork "
+                    f"assets; a directory scope may only stand for registered "
+                    f"works, so ANY additional file placed here - artwork or "
+                    f"not - widens a reviewed grant without review")
+            found.add(rel)
+        if found != want:
+            raise FinalizerError(
+                "CCBY_SCOPE_DECLARATION_UNVERIFIABLE",
+                f"declared artwork scope {scope!r} should hold exactly "
+                f"{sorted(want)} but holds {sorted(found)}; a scope that no "
+                f"longer contains the works it was reviewed to stand for does "
+                f"not mean what the licence prose says it means")
+
+
+def _assert_publication_row_scope(contract):
+    """Read what the ACTIVE publication row's scope token CLAIMS.
+
+    This row is a licence surface like any other - it is the one published to
+    readers of ``publication_outputs/README.md`` - but until 4D-r3n it was the
+    only one the semantic guard never saw. Its digest proved it was the
+    reviewed row; its marker proved it would classify as ACTIVE. Neither asks
+    what its scope token identifies as Licensed Material. So it wrote
+    ``assets/frozen_figures/**`` - an undeclared glob reaching everything under
+    that directory - which would have been refused instantly in any licence
+    record.
+
+    A ROW IS NOT PROSE, and running the sentence-scoped guard over it does not
+    work: ``_sentences`` splits on the full stop in ``(Fig. 1, 4)``, which puts
+    the scope cell in one fragment and the CC BY clause in another, so a
+    sentence-scoped check sees a scope with no licence beside it and a licence
+    with no scope, and passes. A table row is ONE record - its cells are read
+    together by any human reading the table - so it is judged whole.
+
+    An ABSOLUTE check, not a delta: the builder emits this row, so there is no
+    "before" and every claim in it is new.
+    """
+    row = ((contract.get("publication_outputs_artwork_row") or {})
+           .get("active") or "")
+    if not row or not CCBY_RX.search(row):
+        return
+    if _scope_polarity(row) != "grant":
+        return
+    declared, registered = declared_artwork_scopes(contract)
+    registered.discard("")
+    if not registered:
+        return
+    claims = []
+    for token in _SCOPE_TOKEN_RX.findall(row):
+        key = _scope_token_claim(token, registered, set(declared))
+        if key is not None:
+            claims.append(key)
+    claims.extend(f"open-ended scope: {p!r}"
+                  for p in _open_ended_scope_phrases(row))
+    if claims:
+        raise FinalizerError(
+            "CCBY_SCOPE_UNREGISTERED_ASSET",
+            f"publication_outputs_artwork_row.active identifies "
+            f"{sorted(set(claims))} as Licensed Material. The published row "
+            f"may name only the {len(registered)} registered artwork assets "
+            f"and the declared directory scopes that stand for them")
+
+
+def _assert_no_unregistered_artwork_scope(rel, original, updated, contract):
+    """Activation may not put an EIGHTH artwork file under CC BY.
+
+    DEFENCE IN DEPTH. The authority on what the activation grants is
+    :data:`REVIEWED_ACTIVATION_DESTINATIONS`, which pins the reviewed wording
+    of each surface by digest and needs no pattern to anticipate an attack.
+    This guard exists underneath it, so that prose reaching a licence record by
+    some other route is still read for what it claims.
+
+    What it refuses is a sentence that AFFIRMATIVELY identifies Licensed
+    Material the authorization does not cover. Three properties, each of which
+    was once a bypass:
+
+    * POLARITY. Only affirmative grants count. Counting every sentence that
+      merely mentions CC BY made a denial and a grant the same observation, so
+      rewriting "no CC BY 4.0 licence is asserted over assets/other/
+      Figure_09.png" into "assets/other/Figure_09.png is licensed under CC BY
+      4.0" left the count unchanged and licensed an unrelated eighth work.
+    * IDENTITY. The comparison is PATH-EXACT against complete normalized
+      repository paths. A basename is not a path, so ``assets/other/
+      Figure_01.png`` is a different file from the registered one; a bare
+      ``Figure_01.png`` names no path and can be checked against no digest; a
+      URL and a drive-absolute path name something outside the tree entirely
+      and are never folded onto a registered path.
+    * COVERAGE. A token this code cannot place is refused rather than skipped.
+      An unrecognised extension used to make a work invisible, and a directory
+      glob stood for whatever happened to be in the directory; a glob is now
+      accepted only where the contract declares it AND the tree confirms that
+      nothing but registered artwork lives under it.
+
+    What it does NOT police is what CC BY 4.0 itself permits. The licence
+    grants reproduction, technical format changes and adaptation of the
+    Licensed Material, and saying so is a true statement about the licence's
+    terms rather than a claim that some further work is Licensed Material. Only
+    the identification of Licensed Material is this guard's business.
+
+    A delta, not an absolute count: sibling rows in these tables carry their
+    own long-standing grants over other figures, and this guard is about what
+    ACTIVATION adds.
+    """
+    declared, registered = declared_artwork_scopes(contract)
+    registered.discard("")
+    if not registered:
+        return
+    declared_set = set(declared)
+
+    def unregistered_grants(text):
+        counts = {}
+        for sentence in _sentences(text):
+            if not CCBY_RX.search(sentence):
+                continue
+            # POLARITY FIRST. A denial is not a grant, and counting the two
+            # together is what let a denial be rewritten into a grant for free.
+            if _scope_polarity(sentence) != "grant":
+                continue
+            for token in _SCOPE_TOKEN_RX.findall(sentence):
+                key = _scope_token_claim(token, registered, declared_set)
+                if key is None:
+                    continue
+                counts[key] = counts.get(key, 0) + 1
+            for phrase in _open_ended_scope_phrases(sentence):
+                counts[f"open-ended scope: {phrase!r}"] = (
+                    counts.get(f"open-ended scope: {phrase!r}", 0) + 1)
+        return counts
+
+    was = unregistered_grants(original.decode("utf-8", "replace"))
+    now = unregistered_grants(updated.decode("utf-8", "replace"))
+    widened = sorted(n for n, c in now.items() if c > was.get(n, 0))
+    if widened:
+        raise FinalizerError(
+            "CCBY_SCOPE_UNREGISTERED_ASSET",
+            f"{rel}: activation newly identifies {widened} as Licensed "
+            f"Material. The approval reaches the {len(registered)} registered "
+            f"artwork assets, named by COMPLETE REPOSITORY PATH and SHA-256, "
+            f"and byte-identical copies of them. It does not reach a "
+            f"same-named file elsewhere, a bare filename, a path outside this "
+            f"repository, or an undeclared directory. (CC BY 4.0's own "
+            f"permission to adapt the Licensed Material is not affected by "
+            f"this refusal, and stating it is not what fired here.)")
 
 
 def compose_edits(identity_edits, ccby_edits):
@@ -1685,9 +3194,58 @@ def build_authorization_receipt(repo_root, contract, record, *, starting_head,
                 f"{rel} is licensed by this receipt but is not in the tree")
         artwork[rel] = sha256_file(path)
     repo = contract["repository"]
+    if record.get("approval_source") == SOURCE_EXTERNAL:
+        # The record this receipt will REST ON must be committed, unmodified,
+        # and exactly what the resolved approval says it is - checked HERE as
+        # well as in the guards, because the builder is the last place the two
+        # could still diverge and the first place a receipt exists at all.
+        rel = record["approval_record_path"]
+        blob_sha1, blob = _tracked_blob(root, rel)
+        if blob_sha1 is None:
+            raise FinalizerError(
+                "RECEIPT_APPROVAL_RECORD_UNTRACKED",
+                f"{rel} is not tracked at HEAD; a receipt may not rest on an "
+                f"approval record that was never committed")
+        if blob_sha1 != record["approval_record_blob_sha1"]:
+            raise FinalizerError(
+                "RECEIPT_APPROVAL_RECORD_MISMATCH",
+                f"{rel} is committed as blob {blob_sha1}, the resolved "
+                f"approval was read from blob "
+                f"{record['approval_record_blob_sha1']}")
+        if sha256_bytes(blob) != record["approval_record_sha256"]:
+            raise FinalizerError(
+                "RECEIPT_APPROVAL_RECORD_MISMATCH",
+                f"{rel} at HEAD hashes {sha256_bytes(blob)}, the resolved "
+                f"approval hashes {record['approval_record_sha256']}")
+        # NO comment id, NO permalink, NO pull request. There is no comment,
+        # and a receipt that invented those fields to satisfy one schema would
+        # be a receipt that points at evidence which does not exist.
+        return {
+            "schema_version":
+                contract["authorization_receipt"]["schema_version"],
+            "repository": f"{repo['owner']}/{repo['name']}",
+            "approval_source": SOURCE_EXTERNAL,
+            "source_type": record["source_type"],
+            "approval_date": record["approval_date"],
+            "approved_text": record["approved_text"],
+            "approved_text_sha256": record["approved_text_sha256"],
+            "licensed_artwork": artwork,
+            "approval_record_path": record["approval_record_path"],
+            "approval_record_sha256": record["approval_record_sha256"],
+            "approval_record_blob_sha1": record["approval_record_blob_sha1"],
+            "evidence_filename": record["evidence_filename"],
+            "evidence_sha256": record["evidence_sha256"],
+            "evidence_bytes": record["evidence_bytes"],
+            "custodian": record["custodian"],
+            "attested_at": record["attested_at"],
+            "activated_at": activated_at,
+            "finalizer_version": contract["finalizer_version"],
+            "starting_head": starting_head,
+        }
     return {
         "schema_version": contract["authorization_receipt"]["schema_version"],
         "repository": f"{repo['owner']}/{repo['name']}",
+        "approval_source": SOURCE_GITHUB,
         "pull_request": repo["pull_request"],
         "permalink": record["permalink"],
         "issue_url": record.get("issue_url", ""),
@@ -3480,7 +5038,7 @@ def validation_acceptance_issues(summary, contract=None):
 # ---------------------------------------------------------------------------
 def preflight(repo_root, expect_branch, expect_head, *, contract,
               github=None, candidate_archive=None, final_docx_dir=None,
-              aptos_font=None):
+              aptos_font=None, approval_evidence=None):
     """Verify every invariant finalization depends on. Writes nothing, ever."""
     report = Report("preflight")
     root = Path(repo_root).resolve()
@@ -3565,6 +5123,14 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
                 (contract.get("superseded_official_archive") or {}).get("path"))
 
     # --- pull request and the D6 gate --------------------------------------
+    # WHICH approval source this run rests on is decided ONCE, here, and the
+    # same way finalize decides it. PR metadata below is verified through
+    # GitHub either way - it is a fact about the repository, not about the
+    # approval - but the COMMENT authorization methods are reached only when
+    # the GitHub route is the selected source.
+    selected, _sel_rel, _sel_present, _sel_issues = select_approval_source(
+        root, contract)
+    report.note("approval_source_selected", selected)
     client = github if github is not None else GitHubCLI()
     try:
         pr = client.pull_request(repo["owner"], repo["name"],
@@ -3589,14 +5155,21 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
                         f"pull request head {(pr.get('head') or {}).get('sha')}"
                         f" != local HEAD {head}")
 
-        record, issues = find_authorization(client, contract)
-        for code, why in issues:
-            report.fail(code, why)
-        report.note("d6_authorization_present", record is not None)
-        if record is not None:
-            report.note("d6_permalink", record["permalink"])
-            report.note("d6_comment_id", record["comment_id"])
-            report.note("d6_body_sha256", record["body_sha256"])
+        if selected == SOURCE_GITHUB:
+            record, issues = find_authorization(client, contract)
+            for code, why in issues:
+                report.fail(code, why)
+            report.note("d6_authorization_present", record is not None)
+            if record is not None:
+                report.note("d6_permalink", record["permalink"])
+                report.note("d6_comment_id", record["comment_id"])
+                report.note("d6_body_sha256", record["body_sha256"])
+        else:
+            # The external route is selected, so there is no comment to find
+            # and asking for one would report the release blocked on evidence
+            # this release does not rest on.
+            report.note("d6_authorization_present", "not consulted: the "
+                        "committed approval record is the selected source")
     except FinalizerError as exc:
         report.fail(exc.code, exc.why)
 
@@ -3651,6 +5224,49 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
     report.note("protected_records",
                 list(contract["protected_historical_records"]))
     for code, why in _assert_protected_blobs_intact(root, contract):
+        report.fail(code, why)
+
+    # --- the professional approval route ------------------------------------
+    # Reported whether or not GitHub was reachable, because this is the route
+    # the authors actually intend to use and a reviewer must be able to see its
+    # state from a read-only run.
+    ext_spec = external_evidence_spec(contract)
+    sources = contract.get("approval_sources") or {}
+    report.note("approval_sources_enabled", list(sources.get("enabled") or []))
+    report.note("approval_source_preferred", sources.get("preferred"))
+    if ext_spec:
+        rec_rel, rec_present = approval_record_state(root, contract)
+        report.note("approval_record_path", rec_rel)
+        report.note("approval_record_present", rec_present)
+        if rec_present:
+            rec, rec_issues = find_external_approval(
+                root, contract, approval_evidence)
+            for code, why in rec_issues:
+                report.fail(code, why)
+            report.note("approval_record_valid", rec is not None)
+            if rec is not None:
+                report.note("approval_source", rec["approval_source"])
+                report.note("approval_source_type", rec["source_type"])
+                report.note("approval_evidence_sha256", rec["evidence_sha256"])
+        elif selected != SOURCE_GITHUB:
+            # No record, and no OTHER enabled route that could qualify.
+            # RELEASE_BLOCKED_D6 means exactly that - neither enabled route
+            # qualifies - and not merely "this particular route has no
+            # evidence yet", which is what it meant until r3m and which fired
+            # even when a valid GitHub authorization was standing.
+            report.fail(
+                "RELEASE_BLOCKED_D6",
+                f"{rec_rel} does not exist: no coauthor approval has been "
+                f"recorded by any route. This is the expected state until Dr. "
+                f"Najibi approves by email or on the signed form and the "
+                f"custodian commits the approval record")
+        else:
+            report.note("approval_record_valid",
+                        "absent; the GitHub comment route is the selected "
+                        "source for this run")
+
+    # Neither enabled route can qualify: say so once, in the D6 code.
+    for code, why in _sel_issues:
         report.fail(code, why)
 
     # --- the receipt must not pre-exist -------------------------------------
@@ -3773,37 +5389,298 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
                         f"{contract['aptos_font_sha256']}; a different face "
                         f"is a substitution, not the pinned font")
 
-    # --- the activation plan nobody has authored ---------------------------
+    # --- the activation plan, which is authored but authorizes nothing -----
+    # It is authored today, so this no longer fires. It stays because the
+    # wording is the authors' and may be rewritten before finalization, and a
+    # revision that emptied the plan must stop the release rather than let the
+    # finalizer invent licence prose of its own.
     if not (contract.get("ccby_activation_plan") or {}).get("authored"):
         report.fail("CCBY_ACTIVATION_PLAN_UNAUTHORED",
                     "no author-written CC BY activation wording exists in the "
                     "contract; the finalizer will not invent licence prose")
 
+    # --- the reviewed legal prose, pinned in code --------------------------
+    # Reported HERE as well as at activation time so that a contract edit which
+    # rewrites what the licence grants is visible in a read-only preflight,
+    # rather than surfacing only once somebody runs the gated finalization.
+    for code, why in reviewed_activation_issues(contract):
+        report.fail(code, why)
+    report.note("reviewed_activation_destinations",
+                sorted(REVIEWED_ACTIVATION_DESTINATIONS))
+    # The code-owned SCOPE pins, on the same principle: which WORKS the licence
+    # reaches is as much a read-only fact as what the prose says about them.
+    for code, why in reviewed_scope_issues(contract):
+        report.fail(code, why)
+    report.note("reviewed_ccby_artwork_identities",
+                sorted(REVIEWED_CCBY_ARTWORK_IDENTITIES))
+    report.note("reviewed_ccby_scope_globs",
+                sorted(REVIEWED_CCBY_SCOPE_GLOBS))
+    try:
+        _assert_declared_scopes_hold_only_registered_artwork(root, contract)
+        report.note("declared_artwork_scopes",
+                    declared_artwork_scopes(contract)[0])
+    except FinalizerError as exc:
+        report.fail(exc.code, exc.why)
+
     return report
+
+
+def _json_string_paths(node, prefix=""):
+    """Every string in a parsed JSON document, with its dotted path.
+
+    Object KEYS are yielded as well as values, under a ``#key`` suffix that no
+    declared field can ever spell: a digest smuggled in as a key is still a
+    digest sitting in the contract, and it must not pass merely because the
+    walk only looked at values.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            here = f"{prefix}.{key}" if prefix else str(key)
+            yield f"{here}#key", str(key)
+            yield from _json_string_paths(value, here)
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from _json_string_paths(item, f"{prefix}[{index}]")
+    elif isinstance(node, str):
+        yield prefix, node
+
+
+def _resolve_dotted(document, dotted):
+    """Resolve a dotted path through nested objects, or None if it is absent."""
+    node = document
+    for part in str(dotted).split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+def contract_identity_exemption_issues(root, contract, old):
+    """Police the ONE tracked file that legitimately names other identities.
+
+    The trusted contract has to name the superseded archive it preserves and
+    the pre-D6 technical source it rebuilds from, and both are named by their
+    SHA-256 and content-root hash. Those digests are the entire point of those
+    two blocks, so the blanket stray scan below reports the contract as a ninth
+    identity-bearing file. The two obvious ways out are both wrong: exempting
+    the FILE would let a current-release pointer hide anywhere inside it, and
+    adding it to the eight-file replacement map would have the next
+    finalization rewrite records that exist to state historical fact.
+
+    So the exemption is FIELD-level, and the permitted fields are the exact
+    four dotted paths pinned in :data:`CONTRACT_IDENTITY_EXEMPT_FIELDS`. The
+    contract must DECLARE that set exactly - it does not choose it - and the
+    value at each declared path must BE a digest, not merely contain one.
+    Anything identity-shaped anywhere else in the contract - a sibling field
+    inside an exempt block, a note, an object key - is an ordinary mismatch.
+
+    Two families of digest are scanned, not one. The CURRENT release pointer
+    is scanned because a stale pointer hiding here is the whole reason the
+    blanket scan exists. The four DECLARED values are scanned as well, because
+    a contract that names the candidate's digest truthfully in one place and
+    then repeats it in a note is still a file carrying an unaccounted-for
+    identity - and before this the scan simply never looked for them.
+
+    Returns ``(issues, claimed)``. ``claimed`` is False when the contract
+    declares no exemption at all, and the caller then treats the contract like
+    every other tracked file, exactly as it did before this existed.
+    """
+    spec = contract.get("contract_identity_exemption") or {}
+    if not spec:
+        return [], False
+
+    issues = []
+    declared = [str(d) for d in (spec.get("declared_fields") or [])]
+    if not declared:
+        return [("CONTRACT_IDENTITY_EXEMPTION_INVALID",
+                 "contract_identity_exemption declares no fields; an "
+                 "exemption that names nothing is not a declaration")], True
+    for dotted in declared:
+        block = dotted.split(".")[0]
+        if block not in CONTRACT_IDENTITY_EXEMPT_ROOTS:
+            issues.append((
+                "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+                f"{dotted} is rooted at {block!r}, which is not one of the "
+                f"historical/candidate blocks "
+                f"{list(CONTRACT_IDENTITY_EXEMPT_ROOTS)}; the exemption may "
+                f"not be widened by editing the contract"))
+
+    path = Path(root) / TRACKED_CONTRACT_REL
+    try:
+        raw = path.read_bytes()
+        document = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        issues.append((
+            "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+            f"{TRACKED_CONTRACT_REL} could not be read as JSON, so its "
+            f"identity references cannot be accounted for: "
+            f"{type(exc).__name__}: {exc}"))
+        return issues, True
+    if not isinstance(document, dict):
+        issues.append((
+            "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+            f"{TRACKED_CONTRACT_REL} is not a JSON object"))
+        return issues, True
+
+    # A declared field that holds nothing, or holds prose, is not a record of
+    # an identity - and an exemption granted to it would be a hole. Checked
+    # BEFORE the set comparison below, so that a declaration naming a real but
+    # non-identity field is diagnosed as what it is rather than as arithmetic.
+    for dotted in declared:
+        value = _resolve_dotted(document, dotted)
+        if not isinstance(value, str) or not _HEX64_RX.match(value):
+            issues.append((
+                "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+                f"declared field {dotted} does not hold a 64-hex digest in "
+                f"{TRACKED_CONTRACT_REL}: {value!r}"))
+
+    issues.extend(_exemption_declaration_set_issues(declared))
+
+    # One scan per DISTINCT digest. Two families are registered:
+    #
+    #   * the current release pointer, which may sit at ANY declared path -
+    #     the superseded archive IS what the records point at today, and a
+    #     future contract may record it as the candidate instead;
+    #   * each declared value, which may sit only at the declared path(s) that
+    #     actually hold it.
+    #
+    # Registering both into one map means a digest that is both is granted the
+    # union rather than being reported twice under two names.
+    registered, labels = {}, {}
+    for field in IDENTITY_POINTER_FIELDS:
+        token = old[field]
+        registered.setdefault(token, set()).update(declared)
+        labels.setdefault(token, f"the current {field}")
+    for dotted in declared:
+        value = _resolve_dotted(document, dotted)
+        if isinstance(value, str) and _HEX64_RX.match(value):
+            registered.setdefault(value, set()).add(dotted)
+            labels.setdefault(value, f"the digest declared at {dotted}")
+
+    for token in sorted(registered):
+        allowed, what = registered[token], labels[token]
+        accounted = 0
+        for where, text in _json_string_paths(document):
+            if token not in text:
+                continue
+            accounted += text.count(token)
+            if where not in allowed or text != token:
+                issues.append((
+                    "IDENTITY_MAPPING_MISMATCH",
+                    f"{TRACKED_CONTRACT_REL} carries {what} at {where}, which "
+                    f"the exemption does not register for it; only "
+                    f"{sorted(allowed)} may hold that digest, and only as the "
+                    f"whole value"))
+        # The structured walk is what grants the exemption, so anything the
+        # walk cannot see must not be excused by it. Duplicate object keys
+        # collapse on parse, and a digest in the dropped copy would otherwise
+        # be invisible here and present in the bytes.
+        in_bytes = raw.count(token.encode("utf-8"))
+        if in_bytes != accounted:
+            issues.append((
+                "IDENTITY_MAPPING_MISMATCH",
+                f"{TRACKED_CONTRACT_REL} contains {what} {in_bytes} time(s) "
+                f"in its bytes but {accounted} time(s) in its parsed "
+                f"structure; an occurrence the structured check cannot see is "
+                f"not exempt"))
+    return issues, True
+
+
+def _exemption_declaration_set_issues(declared):
+    """The declaration must be the pinned set - exactly, and without repeats.
+
+    Set equality is the point. ``extra`` catches the newly declared sibling
+    under an already-permitted section, which the block-level rule could not
+    see; ``missing`` catches a declaration quietly narrowed until the real
+    contract's own truthful records start reading as strays.
+    """
+    issues = []
+    repeated = sorted({d for d in declared if declared.count(d) > 1})
+    if repeated:
+        issues.append((
+            "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+            f"contract_identity_exemption declares {repeated} more than once; "
+            f"the declaration is a set of exact paths, and a repeated entry "
+            f"blurs how many distinct fields are actually exempt"))
+    extra = sorted(set(declared) - set(CONTRACT_IDENTITY_EXEMPT_FIELDS))
+    missing = sorted(set(CONTRACT_IDENTITY_EXEMPT_FIELDS) - set(declared))
+    if extra or missing:
+        issues.append((
+            "CONTRACT_IDENTITY_EXEMPTION_INVALID",
+            f"contract_identity_exemption must declare exactly "
+            f"{list(CONTRACT_IDENTITY_EXEMPT_FIELDS)}; undeclared-but-present "
+            f"{extra}, declared-but-absent {missing}. The exempt paths are "
+            f"pinned in release_finalizer.py, so declaring another field - "
+            f"including a sibling inside an already-permitted section - "
+            f"widens nothing and is refused"))
+    return issues
 
 
 def verify_identity_mapping(root, contract, old, report):
     """Confirm the eight-file / fifty-six-reference map against the real tree.
 
-    Also confirms the map is EXHAUSTIVE: a ninth tracked file carrying the
-    identity would be left behind contradicting the archive, so finding one is
-    a failure rather than a curiosity.
+    Exhaustive in BOTH directions. Across files: a ninth tracked file carrying
+    the identity would be left behind contradicting the archive, so finding one
+    is a failure rather than a curiosity. Within a mapped file: every identity
+    field is counted, and a field the contract does not declare for that file
+    must occur zero times. The single exception is the trusted contract, which
+    is accounted for field by field rather than excused; see
+    :func:`contract_identity_exemption_issues`.
     """
     root = Path(root)
     spec = contract["identity"]["files"]
+    # The contract records the superseded and candidate identities as fact. An
+    # identity update rewrites every file in this map, so the contract being in
+    # it would mean the next finalization rewriting those historical records.
+    if TRACKED_CONTRACT_REL in spec:
+        report.fail(
+            "IDENTITY_MAPPING_MISMATCH",
+            f"{TRACKED_CONTRACT_REL} is in the identity replacement map; the "
+            f"trusted contract records historical and candidate identities as "
+            f"fact and must never be rewritten by an identity update")
+    # The contract may RECORD the identity field names, but it does not get to
+    # choose them: the per-file check below counts the pinned four, so a
+    # contract listing three would otherwise read as agreement while quietly
+    # exempting the fourth from ever being counted.
+    recorded_fields = contract["identity"].get("fields")
+    if recorded_fields is not None and \
+            sorted(recorded_fields) != sorted(IDENTITY_FIELDS):
+        report.fail("IDENTITY_MAPPING_MISMATCH",
+                    f"identity.fields records {sorted(recorded_fields)}, but "
+                    f"the identity is {sorted(IDENTITY_FIELDS)}")
     files_ok, refs = 0, 0
+    # EVERY identity field is counted in every mapped file, not just the ones
+    # that file declares. A declared count of 21 proved the 21 were there; it
+    # said nothing about a twenty-second reference through a DIFFERENT field.
+    # An undeclared reference inside a mapped file is the worst of both worlds:
+    # the file is rewritten by the identity update, and that reference is not
+    # in the plan, so it survives pointing at the superseded archive.
     for rel, fields in sorted(spec.items()):
         path = root / rel
         if not path.is_file():
             report.fail("IDENTITY_MAPPING_MISMATCH", f"{rel} is missing")
             continue
         data = path.read_bytes()
-        for field, expected in sorted(fields.items()):
-            found = data.count(old[field].encode("utf-8"))
-            if found != expected:
+        for field in sorted(set(IDENTITY_FIELDS) | set(fields)):
+            token = old.get(field)
+            if token is None:
+                report.fail("IDENTITY_MAPPING_MISMATCH",
+                            f"{rel}: {field} is not one of the identity "
+                            f"fields the package record supplies, so its "
+                            f"references cannot be counted")
+                continue
+            expected = fields.get(field, 0)
+            found = data.count(token.encode("utf-8"))
+            if found != expected and field in fields:
                 report.fail("IDENTITY_MAPPING_MISMATCH",
                             f"{rel}: {field} occurs {found} time(s), contract "
                             f"requires {expected}")
+            elif found != expected:
+                report.fail("IDENTITY_MAPPING_MISMATCH",
+                            f"{rel}: {field} occurs {found} time(s) but the "
+                            f"contract declares no {field} for this file; an "
+                            f"undeclared identity reference inside a mapped "
+                            f"file is rewritten without ever being counted")
             refs += found
         files_ok += 1
     report.note("identity_files", files_ok)
@@ -3817,16 +5694,30 @@ def verify_identity_mapping(root, contract, old, report):
                     f"{refs} reference(s), expected "
                     f"{contract['identity']['expected_reference_count']}")
 
+    exemption_issues, exemption_claimed = contract_identity_exemption_issues(
+        root, contract, old)
+    for code, why in exemption_issues:
+        report.fail(code, why)
+    report.note("contract_identity_exemption",
+                sorted((contract.get("contract_identity_exemption") or {})
+                       .get("declared_fields") or [])
+                if exemption_claimed else "not claimed")
+
     strays = []
     for rel in git(root, "ls-files").splitlines():
         if rel in spec or rel in contract["protected_historical_records"]:
+            continue
+        if exemption_claimed and rel == TRACKED_CONTRACT_REL:
+            # Accounted for field by field just above, not excused: that check
+            # fails on an identity anywhere the contract has not declared, so
+            # skipping the blanket scan here removes no coverage.
             continue
         try:
             data = (root / rel).read_bytes()
         except OSError:
             continue
         if any(old[f].encode("utf-8") in data
-               for f in ("archive_sha256", "content_root_hash")):
+               for f in IDENTITY_POINTER_FIELDS):
             strays.append(rel)
     if strays:
         report.fail("IDENTITY_MAPPING_MISMATCH",
@@ -3977,7 +5868,7 @@ def _utc_now_iso():
 def finalize(repo_root, expect_branch, expect_head, *, contract,
              candidate_archive, release_staging, github=None,
              final_docx_dir=None, aptos_font=None, python_exe=None,
-             confirm=None, activated_at=None):
+             confirm=None, activated_at=None, approval_evidence=None):
     """Apply the release finalization, or change nothing at all."""
     report = Report("finalize")
     root = Path(repo_root).resolve()
@@ -3998,24 +5889,38 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
     # 1. Every preflight invariant, rechecked.
     pre = preflight(root, expect_branch, expect_head, contract=contract,
                     github=github, candidate_archive=candidate_archive,
-                    final_docx_dir=final_docx_dir, aptos_font=aptos_font)
+                    final_docx_dir=final_docx_dir, aptos_font=aptos_font,
+                    approval_evidence=approval_evidence)
     report.note("preflight", pre.as_dict())
     for code in pre.codes:
         report.fail(code, pre.detail.get(code, ""))
     if not pre.ok:
         return report
 
-    # 2-5. The authorization itself, fetched live and validated.
+    # 2-5. The approval itself, resolved from exactly ONE discriminated
+    #      source. Which one is decided by observable state, never by a flag:
+    #      a committed approval record IS the professional route, and where one
+    #      exists no GitHub comment is consulted, asked for or required.
     client = github if github is not None else GitHubCLI()
-    try:
-        record, issues = find_authorization(client, contract)
-    except FinalizerError as exc:
-        return report.fail(exc.code, exc.why)
+    selected, _rec_rel, _rec_present, _sel_issues = select_approval_source(
+        root, contract)
+    use_external = selected == SOURCE_EXTERNAL
+    report.note("approval_source_selected", selected)
+    if use_external:
+        record, issues = find_external_approval(root, contract,
+                                                approval_evidence)
+    elif selected == SOURCE_GITHUB:
+        try:
+            record, issues = find_authorization(client, contract)
+        except FinalizerError as exc:
+            return report.fail(exc.code, exc.why)
+    else:
+        record, issues = None, list(_sel_issues)
     for code, why in issues:
         report.fail(code, why)
     if record is None:
         return report.fail("RELEASE_BLOCKED_D6",
-                           "no qualifying live authorization comment")
+                           "no qualifying coauthor approval")
     report.note("authorization", record)
 
     run_id = new_run_id()
@@ -4126,7 +6031,9 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
             #    than the wall clock) keeps the receipt validated in the
             #    disposable copy byte-identical to the one written to the real
             #    tree, and makes the receipt reproducible.
-            effective_at = activated_at or record["updated_at"]
+            effective_at = activated_at or (
+                record["attested_at"] if use_external
+                else record["updated_at"])
             receipt = build_authorization_receipt(
                 root, contract, record, starting_head=expect_head,
                 activated_at=effective_at)
@@ -4139,10 +6046,30 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                                      receipt_issues[0][1])
             receipt_edit = Edit(receipt_rel, None, receipt_bytes(receipt),
                                 {"receipt": 1}, 1, creates=True)
-            report.note("authorization_receipt",
-                        {"path": receipt_rel,
-                         "body_sha256": receipt["body_sha256"],
-                         "comment_id": receipt["comment_id"]})
+            # SOURCE-AWARE. An external receipt carries no comment id and no
+            # body, because there is no comment - indexing those on it raised
+            # KeyError from inside the finalization, AFTER the archive had been
+            # built, and reported a crash where a clean report belonged. The
+            # note records what the receipt actually rests on.
+            if receipt.get("approval_source") == SOURCE_EXTERNAL:
+                receipt_note = {
+                    "path": receipt_rel,
+                    "approval_source": SOURCE_EXTERNAL,
+                    "source_type": receipt["source_type"],
+                    "approval_record_path": receipt["approval_record_path"],
+                    "approval_record_sha256":
+                        receipt["approval_record_sha256"],
+                    "approval_record_blob_sha1":
+                        receipt["approval_record_blob_sha1"],
+                    "evidence_sha256": receipt["evidence_sha256"],
+                    "custodian": receipt["custodian"]}
+            else:
+                receipt_note = {
+                    "path": receipt_rel,
+                    "approval_source": SOURCE_GITHUB,
+                    "body_sha256": receipt["body_sha256"],
+                    "comment_id": receipt["comment_id"]}
+            report.note("authorization_receipt", receipt_note)
 
             # 7. Validate in a disposable full copy against a FRESH extraction
             #    of the final archive, then require zero of everything.
@@ -4188,24 +6115,38 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
 
             # 8. Immediately before writing: re-fetch the authorization, recheck
             #    the live refs and the PR, and confirm nothing on disk moved.
-            fresh, fresh_issues = find_authorization(client, contract)
+            if use_external:
+                # The tracked record is re-read from disk and the ORIGINAL
+                # evidence re-hashed, so a record edited or an evidence file
+                # swapped during the long build is caught here rather than
+                # recorded in the receipt as though it had always said this.
+                fresh, fresh_issues = find_external_approval(
+                    root, contract, approval_evidence)
+            else:
+                fresh, fresh_issues = find_authorization(client, contract)
             if fresh is None or fresh_issues:
                 raise FinalizerError(
                     "AUTHZ_WITHDRAWN_BEFORE_WRITE",
-                    f"the authorization no longer qualifies at write time: "
+                    f"the approval no longer qualifies at write time: "
                     f"{fresh_issues}")
             # EVERY identity field of the authorization, not four of them. An
             # edit that changes only `updated_at`, moves the permalink to a
             # different comment, or repoints `issue_url` at another issue is a
             # different authorization from the one that was validated, and the
             # receipt about to be written records all of these.
-            for field in ("comment_id", "login", "body", "body_sha256",
-                          "created_at", "updated_at", "permalink",
-                          "issue_url"):
+            identity_fields = (
+                ("source_type", "approval_date", "approved_text",
+                 "approved_text_sha256", "approval_record_sha256",
+                 "approval_record_blob_sha1", "evidence_sha256",
+                 "evidence_bytes", "custodian", "attested_at")
+                if use_external else
+                ("comment_id", "login", "body", "body_sha256",
+                 "created_at", "updated_at", "permalink", "issue_url"))
+            for field in identity_fields:
                 if fresh[field] != record[field]:
                     raise FinalizerError(
                         "AUTHZ_CHANGED_BEFORE_WRITE",
-                        f"authorization {field} changed between validation "
+                        f"approval {field} changed between validation "
                         f"and write: {record[field]!r} -> {fresh[field]!r}")
             _assert_live_refs_unmoved(root, contract, expect_head)
 
@@ -4252,7 +6193,14 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
 
             # The trusted contract, the artwork, the protected records and both
             # archives - all rechecked with nothing left to happen afterwards.
-            _, live_contract_identity = load_trusted_contract(root)
+            # Consistent with whatever the ENTRY POINT accepted. `main` loads
+            # with the seam off, so a synthetic contract can never have got
+            # this far in production; re-refusing it here would only break the
+            # fixtures that legitimately drive this path.
+            _, live_contract_identity = load_trusted_contract(
+                root,
+                allow_synthetic_fixture=_artwork.is_synthetic_contract(
+                    contract))
             report.note("trusted_contract_at_write", live_contract_identity)
             for rel, want in sorted(contract["figures"].items()):
                 got = sha256_file(root / rel)
@@ -5592,6 +7540,11 @@ def build_parser():
         p.add_argument("--candidate-archive")
         p.add_argument("--final-docx-dir")
         p.add_argument("--aptos-font")
+        # The ORIGINAL approval evidence - the preserved email or the signed
+        # form - read from wherever the custodian keeps it, OUTSIDE the
+        # repository. It is a path and nothing else: there is deliberately no
+        # flag that asserts approval, and no way to supply the approved text.
+        p.add_argument("--approval-evidence")
         p.add_argument("--format", choices=("text", "json", "both"),
                        default="both")
 
@@ -5627,7 +7580,8 @@ def main(argv=None):
     common = dict(contract=contract,
                   candidate_archive=args.candidate_archive,
                   final_docx_dir=args.final_docx_dir,
-                  aptos_font=args.aptos_font)
+                  aptos_font=args.aptos_font,
+                  approval_evidence=args.approval_evidence)
     if args.mode == "preflight":
         report = preflight(args.repo_root, args.expect_branch,
                            args.expect_head, **common)
