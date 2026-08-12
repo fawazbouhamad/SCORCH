@@ -77,7 +77,8 @@ def _read(rel):
 @pytest.fixture(scope="module")
 def package():
     manifest = json.loads(
-        _read("remediation/corrected_outputs/SHA256_MANIFEST.json"))
+        _read("provenance/corrections/tmax_weighted_centroids/"
+              "corrected_outputs/SHA256_MANIFEST.json"))
     return manifest["relocation"]["packages"][PACKAGE_ID]
 
 

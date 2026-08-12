@@ -225,7 +225,8 @@ def synthetic(tmp_path):
         p.write_text(text, encoding="utf-8", newline="\n")
 
     # 8 identity files / 56 references, mirroring the real distribution.
-    write("remediation/corrected_outputs/SHA256_MANIFEST.json", json.dumps({
+    write("provenance/corrections/tmax_weighted_centroids/"
+          "corrected_outputs/SHA256_MANIFEST.json", json.dumps({
         "relocation": {"packages": {"PKG-DATA-V1": {
             "archive_filename": ARCHIVE_NAME, "archive_sha256": OLD_SHA,
             "archive_bytes": 1234, "content_root_hash": OLD_ROOT,
@@ -238,22 +239,25 @@ def synthetic(tmp_path):
     write("docs/RELOCATED_ARTIFACTS.csv", "\n".join(rows) + "\n")
     write("docs/CANONICAL_SCIENCE.json", json.dumps(
         {"archive": ARCHIVE_NAME, "sha256": OLD_SHA, "bytes": 1234}, indent=2))
-    write("legacy_defective_figure09/README.md",
+    write("provenance/legacy/figure09/README.md",
           f"{ARCHIVE_NAME}\n{OLD_SHA}\n{ARCHIVE_NAME}\n")
     # The collision case: this ONE file carries both the archive identity and
     # the licence wording, so the two edit plans overlap on it.
     write("assets/manuscript_final/README.md",
           f"{MANUSCRIPT_PENDING} Deposit: {ARCHIVE_NAME}\n")
-    write("remediation/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
+    write("provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/"
+          "XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
           f"{ARCHIVE_NAME}\n")
     write("tests/test_public_consistency_guards.py",
           f'ARCHIVE = "{ARCHIVE_NAME}"\n')
     write("tests/test_stale_provenance.py", f'ARCHIVE = "{ARCHIVE_NAME}"\n')
 
     hist = "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c"
-    write("remediation/corrected/event_global_max_algorithm/"
+    write("provenance/corrections/tmax_weighted_centroids/corrected/"
+          "event_global_max_algorithm/"
           "build_manifest.json", json.dumps({"netcdf_sha256": hist}))
-    write("remediation/freeze/freeze_manifest_pre.json",
+    write("provenance/corrections/tmax_weighted_centroids/freeze/"
+          "freeze_manifest_pre.json",
           json.dumps({"netcdf_sha256": hist}))
 
     for rel in ("docs/LICENSES_AND_ATTRIBUTION.md",
@@ -336,12 +340,14 @@ def synthetic(tmp_path):
         "finalizer_version": "4D-r1-test",
         "identity": {
             "package_record":
-                "remediation/corrected_outputs/SHA256_MANIFEST.json",
+                "provenance/corrections/tmax_weighted_centroids/"
+                "corrected_outputs/SHA256_MANIFEST.json",
             "package_id": "PKG-DATA-V1",
             "final_archive_filename": ARCHIVE_NAME,
             "expected_file_count": 8, "expected_reference_count": 56,
             "files": {
-                "remediation/corrected_outputs/SHA256_MANIFEST.json": {
+                "provenance/corrections/tmax_weighted_centroids/"
+                "corrected_outputs/SHA256_MANIFEST.json": {
                     "archive_filename": 1, "archive_sha256": 1,
                     "archive_bytes": 1, "content_root_hash": 1},
                 "docs/RELOCATED_ARTIFACTS.csv": {
@@ -349,19 +355,22 @@ def synthetic(tmp_path):
                 "docs/CANONICAL_SCIENCE.json": {
                     "archive_filename": 1, "archive_sha256": 1,
                     "archive_bytes": 1},
-                "legacy_defective_figure09/README.md": {
+                "provenance/legacy/figure09/README.md": {
                     "archive_filename": 2, "archive_sha256": 1},
                 "assets/manuscript_final/README.md": {"archive_filename": 1},
-                "remediation/xlsx_equivalence/"
+                "provenance/corrections/tmax_weighted_centroids/"
+                "xlsx_equivalence/"
                 "XLSX_SEMANTIC_EQUIVALENCE_REPORT.md": {
                     "archive_filename": 1},
                 "tests/test_public_consistency_guards.py": {
                     "archive_filename": 1},
                 "tests/test_stale_provenance.py": {"archive_filename": 1}}},
         "protected_historical_records": [
-            "remediation/corrected/event_global_max_algorithm/"
+            "provenance/corrections/tmax_weighted_centroids/corrected/"
+            "event_global_max_algorithm/"
             "build_manifest.json",
-            "remediation/freeze/freeze_manifest_pre.json"],
+            "provenance/corrections/tmax_weighted_centroids/freeze/"
+            "freeze_manifest_pre.json"],
         "historical_netcdf_sha256": hist,
         "licence_records": ["docs/LICENSES_AND_ATTRIBUTION.md",
                             "assets/frozen_figures/README.md",
@@ -849,7 +858,8 @@ def test_extra_occurrence_makes_the_count_ambiguous_and_fails(synthetic):
 
 def test_protected_historical_record_can_never_be_planned(synthetic):
     synthetic["contract"]["identity"]["files"][
-        "remediation/freeze/freeze_manifest_pre.json"] = {"archive_sha256": 1}
+        "provenance/corrections/tmax_weighted_centroids/freeze/"
+        "freeze_manifest_pre.json"] = {"archive_sha256": 1}
     with pytest.raises(rf.FinalizerError) as exc:
         rf.plan_identity_edits(synthetic["root"], synthetic["contract"],
                                old_identity(), new_identity())
@@ -6818,9 +6828,10 @@ def test_each_declared_digest_at_its_own_registered_path_passes(synthetic):
     # the one where an unnoticed digest would do the most damage.
     ("tests/test_public_consistency_guards.py", "archive_sha256"),
     ("assets/manuscript_final/README.md", "content_root_hash"),
-    ("remediation/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
+    ("provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/"
+     "XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
      "archive_sha256"),
-    ("legacy_defective_figure09/README.md", "content_root_hash"),
+    ("provenance/legacy/figure09/README.md", "content_root_hash"),
 ])
 def test_an_undeclared_identity_inside_a_mapped_file_is_refused(synthetic, rel,
                                                                 field):

@@ -4,7 +4,10 @@ Evidence for the `approved_removal` record of
 
 `remediation/corrected/event_global_max_algorithm/scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx`
 
-in `remediation/corrected_outputs/SHA256_MANIFEST.json`.
+(the workbook's historical repository path, which is the record's key; the
+evidence directory itself now lives under
+`provenance/corrections/tmax_weighted_centroids/`) in
+`provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json`.
 
 **Verdict: SEMANTIC EQUIVALENCE PASSES.** The workbook carried no information the
 canonical CSV beside it does not.
@@ -21,7 +24,7 @@ records every superseded claim.
 From the repository root:
 
 ```
-python remediation/xlsx_equivalence/compare_master_csv_xlsx.py
+python provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/compare_master_csv_xlsx.py
 ```
 
 The script re-derives every number below from a fresh extraction of the workbook;
@@ -47,7 +50,7 @@ unreadable workbook yields a verdict to act on rather than an unhandled crash.
 
 Not byte-identical to each other, and never expected to be: one is a ZIP-container
 spreadsheet, the other plain text. Both scopes declared by
-`remediation/corrected_outputs/SHA256_MANIFEST.json` are retained permanently,
+`provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json` are retained permanently,
 whatever the relocation state.
 
 | Artifact | Scope | Bytes | SHA-256 |
@@ -290,9 +293,9 @@ actions:
 |---|---|---|
 | `scripts/pipeline/build_event_global_max_master.py` | generated output | **No change.** It names the workbook it *writes* beneath `SCORCH_OUT_DIR`. Optional XLSX generation is retained. |
 | `scripts/pipeline/reclassify_event_types_global_max.py` | generated output | **No change.** Same reproduced-output path. |
-| `remediation/corrected/event_global_max_algorithm/build_manifest.json` | historical freeze manifest | **Preserved byte-for-byte.** Records where the artifact was written at build time. |
-| `remediation/freeze/freeze_manifest_pre.json` | historical freeze manifest | **Preserved byte-for-byte.** Records the freeze-time hash at the base commit. |
-| `remediation/corrected_outputs/SHA256_MANIFEST.json` | current manifest | **Updated, not deleted.** Both byte identities retained; `relocation.files[…xlsx].state = "approved_removal"` with approval, reason and a pointer to this report. |
+| `provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/build_manifest.json` | historical freeze manifest | **Preserved byte-for-byte.** Records where the artifact was written at build time. |
+| `provenance/corrections/tmax_weighted_centroids/freeze/freeze_manifest_pre.json` | historical freeze manifest | **Preserved byte-for-byte.** Records the freeze-time hash at the base commit. |
+| `provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json` | current manifest | **Updated, not deleted.** Both byte identities retained; `relocation.files[…xlsx].state = "approved_removal"` with approval, reason and a pointer to this report. |
 
 Readers are unaffected. `scripts/figures/common/_clean_paths.py` binds the master
 via `data_file(…, "catalogs")` to the **CSV**, and derives `MASTER_XLSX` only for
@@ -308,7 +311,7 @@ HEAD:<path>` reproduces the declared values.
 ## 8. Removal record
 
 The repository copy was removed under author decision D7. Both byte identities
-remain permanently recorded in `remediation/corrected_outputs/SHA256_MANIFEST.json`,
+remain permanently recorded in `provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json`,
 whose own `relocation.validation_rules` require a recorded approval and reason
 before absence is legal. The removal is **not** a relocation: the workbook is not a
 member of the processed-data archive under a relocation record, so `package` and

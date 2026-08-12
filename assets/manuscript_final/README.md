@@ -49,7 +49,7 @@ deposit, and the shipped `Figure_09.png` is the deterministic width-1950
 LANCZOS downscale produced by
 `scripts/figures/common/make_manuscript_artwork.py`. The superseded
 arithmetic-mean rasters are historical only and no longer sit in this
-repository: `legacy_defective_figure09/` retains only its explanatory
+repository: `provenance/legacy/figure09/` retains only its explanatory
 pointer README, and the rasters themselves are staged at
 `provenance_evidence/legacy_defective_figure09/` inside the LOCAL,
 UNPUBLISHED processed-data archive candidate. They are not deposited,

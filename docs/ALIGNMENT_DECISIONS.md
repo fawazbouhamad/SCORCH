@@ -403,7 +403,7 @@ produced:
   untouched), SUPERSEDED by the FINAL v1.0.0 documents;
 * clean-room and R environment logs, retained in the private alignment
   staging area (not part of this release tree);
-* `legacy_defective_figure09/`: superseded defective artifacts, clearly
+* `provenance/legacy/figure09/`: superseded defective artifacts, clearly
   labelled and excluded from canonical publication outputs. They WERE shipped
   in the release tree at the time of this alignment round; they have SINCE
   been relocated, so the repository directory now retains only its
@@ -435,7 +435,7 @@ numerical conclusion changed.**
 | C | All statements describing the defective Figure 9 as "published" reworded to "superseded pre-release manuscript candidate" (the project was never publicly released). Legitimate bibliographic/future-journal uses of "published" untouched. |
 | D | The time-sensitive "no public tag exists" claim replaced by the durable invariant: before publication, the public `v1.0.0` tag must resolve to the final canonical release commit and tree. (Audit-time fact, recorded externally: origin/v1.0.0 pointed at the stale commit `3c894e8f` and had not been moved.) |
 | E | GitHub/Zenodo lifecycle prose in `.zenodo.json`, `CITATION.cff`, `README.md`, `docs/` made lifecycle-neutral or explicitly pre-publication; DOIs and version unchanged; machine-readable relationship fields retained. |
-| F | Stale references into the retired alignment staging tree (the never-shipped `release_staging/ALIGNMENT_V1_0_1_...` working directory) replaced by the shipped `legacy_defective_figure09/` path and the external-evidence `evidence/R_environment.log` reference; dangling research-tree module/producer paths in `CANONICAL_SCIENCE.json` re-pointed to the shipped release paths with verified hashes, research-tree originals kept as explicitly external references. |
+| F | Stale references into the retired alignment staging tree (the never-shipped `release_staging/ALIGNMENT_V1_0_1_...` working directory) replaced by the shipped legacy Figure 9 pointer path (then `legacy_defective_figure09/`, now `provenance/legacy/figure09/`) and the external-evidence `evidence/R_environment.log` reference; dangling research-tree module/producer paths in `CANONICAL_SCIENCE.json` re-pointed to the shipped release paths with verified hashes, research-tree originals kept as explicitly external references. |
 | G | "V12" no longer described as the current release anywhere; it survives only as an explicitly historical internal pre-release label. Public identity: SCORCH v1.0.0. |
 | H | Deposit-copy claims qualified: byte-identity statements for `table01/` refer to the corrected LOCAL staging copy of the Zenodo data deposit; the ONLINE data draft still carried pre-correction table01 files at audit time and its synchronization is a required manual release step. |
 | Guards | `tests/test_stale_provenance.py` (16 tests in R2, 22 after the R3 additions, 56 after the R4 normalization-hardening and its parameterized evasion/allowance fixtures) added so future builds fail on any recurrence, plus `tests/test_final_docx_geometry.py` (20 R5 final-DOCX display-geometry and content-identity guards); suite now 246 collected tests. |

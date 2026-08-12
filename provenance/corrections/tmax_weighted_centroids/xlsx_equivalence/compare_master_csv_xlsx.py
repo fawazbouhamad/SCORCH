@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
 """Semantic-equivalence check: master cluster/ellipse CSV vs the informational XLSX.
 
-The XLSX at
+The XLSX historically tracked at
 
     remediation/corrected/event_global_max_algorithm/
         scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx
 
+(that directory now lives at
+``provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/``)
 was an informational duplicate of the canonical CSV beside it.  This script is
-the reproducible evidence behind the ``approved_removal`` record for that path
-in ``remediation/corrected_outputs/SHA256_MANIFEST.json``.  It re-derives the
+the reproducible evidence behind the ``approved_removal`` record for that
+historical path in
+``provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json``.  It re-derives the
 comparison from a *fresh* extraction of the workbook on every run: nothing is
 cached and no previous result is consulted.
 
 Run from the repository root::
 
-    python remediation/xlsx_equivalence/compare_master_csv_xlsx.py
+    python provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/compare_master_csv_xlsx.py
 
 The workbook is not required to be present in the repository.  Once the
 approved removal has been applied the canonical copy lives in the processed-data
 deposit; point the script at an extracted deposit with::
 
     SCORCH_DATA_DIR=<extracted deposit root> \
-        python remediation/xlsx_equivalence/compare_master_csv_xlsx.py
+        python provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/compare_master_csv_xlsx.py
 
 Pass criterion (declared, not discovered)
 -----------------------------------------
@@ -83,11 +86,13 @@ import sys
 import zipfile
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[4]
 
-CSV_REL = ("remediation/corrected/event_global_max_algorithm/"
+CSV_REL = ("provenance/corrections/tmax_weighted_centroids/corrected/"
+           "event_global_max_algorithm/"
            "scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv")
-XLSX_REL = ("remediation/corrected/event_global_max_algorithm/"
+XLSX_REL = ("provenance/corrections/tmax_weighted_centroids/corrected/"
+            "event_global_max_algorithm/"
             "scorch_new_algorithm_master_cluster_ellipse_event_global_max.xlsx")
 DEPOSIT_CSV_REL = ("catalogs/"
                    "scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv")

@@ -1200,8 +1200,8 @@ via `isolation_probe_modules`.
 
 ## 8. Records the tool will never rewrite
 
-* `remediation/corrected/event_global_max_algorithm/build_manifest.json`
-* `remediation/freeze/freeze_manifest_pre.json`
+* `provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/build_manifest.json`
+* `provenance/corrections/tmax_weighted_centroids/freeze/freeze_manifest_pre.json`
 
 Both carry a superseded NetCDF hash as **historical fact**. No guard reads
 them for current identity, and rewriting them would falsify provenance.

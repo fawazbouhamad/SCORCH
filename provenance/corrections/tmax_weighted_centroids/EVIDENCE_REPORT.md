@@ -21,7 +21,7 @@ Date: 2026-08-07 · Prepared under the direction and responsibility of Fawaz Bou
   (`<PYTHON-3.12.10>/python.exe`),
   R 4.5.1 + spatstat 3.x (`<R-4.5.1>/bin/Rscript.exe`),
   git 2.54.0.windows.1, Windows 11. Package versions captured in
-  `remediation/corrected/event_global_max_algorithm/build_manifest.json`
+  `provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/build_manifest.json`
   (`dependency_versions`).
 * Processed-data deposit: `<TMPDIR>/scorch_dep_v100/scorch_processed_data_v1.0.0`
   with **93/93 files verified against its SHA256SUMS (0 mismatch, 0 missing)**.
@@ -137,9 +137,9 @@ they are unaffected, and their inputs are unchanged.
 ## 11. Frozen-artifact verification
 
 * Pre-implementation freeze manifest:
-  `remediation/freeze/freeze_manifest_pre.json` (126 files: 94 deposit +
+  `provenance/corrections/tmax_weighted_centroids/freeze/freeze_manifest_pre.json` (126 files: 94 deposit +
   32 release-tree frozen artifacts, SHA-256 each) and
-  `remediation/freeze/baseline_verification.json` (all §8 baseline values
+  `provenance/corrections/tmax_weighted_centroids/freeze/baseline_verification.json` (all §8 baseline values
   verified: counts 1800/15738/371/395/51/760; types 3-4-20-24 events,
   3-4-75-313 event-days, 3-13-185-559 structures; median area
   1.310172e6 km², max 6.507975e6 km², median ratio 0.5738; daily tail
@@ -187,7 +187,7 @@ they are unaffected, and their inputs are unchanged.
 
 ## 13–15. Displacement audit
 
-`remediation/audit/centroid_displacement_audit_760.csv` (760 rows: date,
+`provenance/corrections/tmax_weighted_centroids/audit/centroid_displacement_audit_760.csv` (760 rows: date,
 event id/type, structure id, member count, both coordinate pairs, WGS84
 geodesic displacement + bearing, old/new nearest analysis cell + change
 flag, old/new sector + change flag, member Tmax min/max/mean/sd, total
@@ -226,7 +226,7 @@ in the km frame (test-verified); daily-largest and event-largest structure
 ## 18. Figure 3 footprint (before → after)
 
 Point-in-ellipse footprint over the 1,800 valid cells, σ=1.25, all 760
-ellipses (`remediation/audit/fig3_footprint_before_after.json`):
+ellipses (`provenance/corrections/tmax_weighted_centroids/audit/fig3_footprint_before_after.json`):
 max overlap 280 → **279** footprints; argmax cell (41.5°E, 31.5°N) →
 **(43.5°E, 30.5°N)**; covered cells 1683 → 1674; mean 71.66 → 71.29.
 Figure 3 regenerated with all centroids/axes/ellipses at weighted centres,
@@ -285,13 +285,13 @@ Pooled (rank convention: pandas ascending fractional rank, average ties;
 | area-weighted rank median | 0.6550 | 0.6801 |
 
 Per-fold refits (betas in `fold_metrics.csv`) all completed; per-fold and
-pooled outputs in `remediation/corrected_outputs/validation_kfold/`.
+pooled outputs in `provenance/corrections/tmax_weighted_centroids/corrected_outputs/validation_kfold/`.
 Interpretation preserved: occurrence-level validation of the first-order
 spatial trend (not external validation).
 
 ## 22–23. Regenerated vs verified-unchanged artifacts
 
-Regenerated (hashes: `remediation/corrected_outputs/SHA256_MANIFEST.json`,
+Regenerated (hashes: `provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json`,
 29 artifacts): corrected master catalog CSV/XLSX (+ build manifest with
 machine-readable weighting metadata), LGCP inputs and refit tables,
 variant3 surface, CV tables, Figures 3/5/6/7/12, Figure S4, CV figure,
@@ -307,7 +307,7 @@ inputs untouched; hashes preserved in the freeze manifest).
 
 ## 24. Manuscript impact inventory
 
-See `remediation/MANUSCRIPT_IMPACT_INVENTORY.md`. The canonical manuscript
+See `provenance/corrections/tmax_weighted_centroids/MANUSCRIPT_IMPACT_INVENTORY.md`. The canonical manuscript
 `SCORCH_Manuscript_FINAL_v1.0.0(1).docx`
 (SHA-256 `9e140b9ea8927ae3b69c4e50afb8301006e8802dcf3e601f1c80c511ca3ca2e3`)
 was **not edited**.

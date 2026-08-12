@@ -379,7 +379,7 @@ SWEEP_FILES = [
     "docs/REPRODUCIBILITY_MATRIX.csv", "docs/REPRODUCIBILITY_REPORT.md",
     "docs/FIGURE_PROVENANCE.csv", "docs/ALIGNMENT_DECISIONS.md",
     "docs/SANITIZATION_NOTES.md", "CHANGELOG.md", "README.md",
-    "remediation/MANUSCRIPT_IMPACT_INVENTORY.md",
+    "provenance/corrections/tmax_weighted_centroids/MANUSCRIPT_IMPACT_INVENTORY.md",
 ]
 
 # A sentence is a sentence regardless of hard wrapping, so the text is
@@ -645,9 +645,13 @@ EXPECTED_MANIFEST_ENTRIES = 29
 EXPECTED_EOL_DIFFERENCES = 21
 
 
+PACKAGE_RECORD = ("provenance/corrections/tmax_weighted_centroids/"
+                  "corrected_outputs/SHA256_MANIFEST.json")
+
+
 @pytest.fixture(scope="module")
 def manifest():
-    return json.loads(_read("remediation/corrected_outputs/SHA256_MANIFEST.json"))
+    return json.loads(_read(PACKAGE_RECORD))
 
 
 def test_manifest_declares_both_scopes_with_equal_path_sets(manifest):
@@ -831,7 +835,7 @@ def test_manifest_rejects_duplicate_json_keys():
                 seen_dupes.append(k)
         return dict(pairs)
 
-    json.loads(_read("remediation/corrected_outputs/SHA256_MANIFEST.json"),
+    json.loads(_read(PACKAGE_RECORD),
                object_pairs_hook=hook)
     assert not seen_dupes, f"duplicate JSON keys in manifest: {seen_dupes}"
 
@@ -1614,7 +1618,7 @@ def test_gpl_software_row_does_not_swallow_the_artwork():
 # 11. The data-archive candidate is LOCAL. No record may imply otherwise.
 # ---------------------------------------------------------------------------
 POINTER_RECORDS = [
-    "legacy_defective_figure09/README.md",
+    "provenance/legacy/figure09/README.md",
     "assets/manuscript_final/README.md",
 ]
 
@@ -1737,7 +1741,15 @@ def test_empty_reproduction_classes_are_not_presented_as_populated():
 # 13. The defective Figure 9 rasters left the Git tree. Structural truth
 #     first; wording second.
 # ---------------------------------------------------------------------------
-LEGACY_FIG9_DIR = "legacy_defective_figure09"
+LEGACY_FIG9_DIR = "provenance/legacy/figure09"
+
+# The rasters' historical directory name survives only inside immutable
+# archive-member paths (provenance_evidence/...) and historical crosswalk
+# keys. Sentences citing those must still be inspected, and the token must
+# still be stripped before asking whether the surrounding prose carries its
+# own historical label, because the name itself contains "legacy". Built from
+# adjacent literals so scanning this module's source never matches it.
+LEGACY_FIG9_HISTORICAL_DIRNAME = "legacy_defective_" "figure09"
 
 LEGACY_RASTER_NAMES = (
     "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
@@ -1783,6 +1795,7 @@ def test_no_record_claims_the_legacy_rasters_are_still_shipped(rel):
     inspected, problems = 0, []
     for sent in _sentences(text):
         if not (LEGACY_FIG9_DIR in sent
+                or LEGACY_FIG9_HISTORICAL_DIRNAME in sent
                 or any(n in sent for n in LEGACY_RASTER_NAMES)):
             continue
         inspected += 1
@@ -1792,7 +1805,8 @@ def test_no_record_claims_the_legacy_rasters_are_still_shipped(rel):
         # historical label has to come from the surrounding prose, so the
         # subject tokens are removed before asking whether one is present.
         stripped = sent
-        for token in (*LEGACY_RASTER_NAMES, LEGACY_FIG9_DIR):
+        for token in (*LEGACY_RASTER_NAMES, LEGACY_FIG9_DIR,
+                      LEGACY_FIG9_HISTORICAL_DIRNAME):
             stripped = stripped.replace(token, " ")
         if HIST_CLAUSE.search(stripped) or RELOCATED_RX.search(stripped):
             continue
@@ -1872,3 +1886,182 @@ def test_superseded_figS1_baseline_is_labelled_superseded(canonical):
     assert s1["reproduction_class"] == "data_generated", (
         "Fig. S.1 must remain data_generated: its panels are regenerated "
         "from the deposited GHCN-Daily and ERA5 series")
+
+
+# ---------------------------------------------------------------------------
+# 15. Repository layout is PINNED. The provenance reorganization moved the
+#     correction evidence and the legacy Figure 9 pointer under provenance/;
+#     the root directory set, the provenance structure, the retired root
+#     directories and the surviving historical literals are all fixed here.
+# ---------------------------------------------------------------------------
+EXPECTED_ROOT_DIRS = {
+    "assets", "configs", "data", "docs", "environment", "provenance",
+    "scripts", "src", "tests",
+}
+
+EXPECTED_ROOT_FILES = {
+    ".gitattributes", ".gitignore", ".zenodo.json", "CHANGELOG.md",
+    "CITATION.cff", "CONTRIBUTING.md", "LICENSE", "Makefile", "README.md",
+    "environment.yml", "pyproject.toml", "run_reproduction.py",
+}
+
+# Built from adjacent literals so scanning THIS module's source never matches.
+RETIRED_ROOT_DIRS = ("remediation", "legacy_defective_" "figure09")
+
+PROVENANCE_ROOT = "provenance"
+CORRECTIONS_DIR = "provenance/corrections/tmax_weighted_centroids"
+LEGACY_FIG9_POINTER_DIR = "provenance/legacy/figure09"
+
+# Every evidence file the reorganization moved, plus the directory's own
+# README. Loss of any of these is loss of scientific evidence.
+PROVENANCE_TRACKED_FILES = sorted(
+    [f"{CORRECTIONS_DIR}/{rel}" for rel in (
+        "EVIDENCE_REPORT.md",
+        "MANUSCRIPT_IMPACT_INVENTORY.md",
+        "audit/audit_map_old_vs_new_centroids.png",
+        "audit/centroid_displacement_audit_760.csv",
+        "audit/displacement_by_area.csv",
+        "audit/displacement_by_membercount.csv",
+        "audit/displacement_by_multiplicity.csv",
+        "audit/displacement_by_type.csv",
+        "audit/displacement_by_year.csv",
+        "audit/displacement_statistics.json",
+        "audit/fig3_footprint_before_after.json",
+        "audit/top20_displacements.csv",
+        "corrected/event_global_max_algorithm/build_manifest.json",
+        "corrected/event_global_max_algorithm/"
+        "event_global_max_parameters.csv",
+        "corrected/event_global_max_algorithm/"
+        "kernel_selfcheck_daily_canonical.csv",
+        "corrected_outputs/SHA256_MANIFEST.json",
+        "evidence.json",
+        "freeze/baseline_verification.json",
+        "freeze/freeze_manifest_pre.json",
+        "xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md",
+        "xlsx_equivalence/compare_master_csv_xlsx.py",
+    )]
+    + [f"{LEGACY_FIG9_POINTER_DIR}/README.md", f"{PROVENANCE_ROOT}/README.md"]
+)
+
+# A retired root path may survive ONLY as a historical identifier or inside a
+# byte-preserved historical record - never as a live repository reference.
+# Each entry pins the exact number of permitted matches; growth fails.
+STALE_PATH_ALLOWLIST = {
+    # Labelled then/now mention in the forensic remediation record.
+    "docs/ALIGNMENT_DECISIONS.md": 1,
+    # The frozen-collection history note names the two retired directories
+    # the reorganization moved; that history is the note's subject.
+    "scripts/release/finalizer_contract.json": 2,
+    # old_repository_path column: pre-relocation historical identifiers.
+    "docs/RELOCATED_ARTIFACTS.csv": 18,
+    # Byte-preserved historical freeze manifest (protected record).
+    f"{CORRECTIONS_DIR}/corrected/event_global_max_algorithm/"
+    "build_manifest.json": 2,
+    # Historical relocation/removal keys and the commit-bound supersedes note.
+    f"{CORRECTIONS_DIR}/corrected_outputs/SHA256_MANIFEST.json": 104,
+    # The approved_removal record's historical key.
+    f"{CORRECTIONS_DIR}/xlsx_equivalence/"
+    "XLSX_SEMANTIC_EQUIVALENCE_REPORT.md": 1,
+    # Docstring identification of the workbook's historical path.
+    f"{CORRECTIONS_DIR}/xlsx_equivalence/compare_master_csv_xlsx.py": 1,
+    # "Former repository path" table column.
+    f"{LEGACY_FIG9_POINTER_DIR}/README.md": 2,
+    # LEGACY_FIG9_RASTERS historical crosswalk keys.
+    "tests/test_stale_provenance.py": 2,
+}
+
+_STALE_SCAN_SKIP_SUFFIXES = (".png", ".pdf", ".zip", ".nc", ".npz", ".xlsx",
+                             ".docx", ".pyc", ".ttf")
+
+# "(?<!provenance_evidence/)" exempts immutable archive MEMBER paths, which
+# legitimately carry the historical directory name inside both real archives.
+_STALE_PATH_RX = re.compile(
+    "(?<!provenance_evidence/)legacy_defective_" "figure09"
+    "|remediation[/\\\\]")
+
+
+def _tracked_text_files():
+    if (REPO / ".git").exists():
+        out = subprocess.run(["git", "ls-files"], cwd=REPO,
+                             capture_output=True, text=True,
+                             check=True).stdout
+        rels = [p for p in out.splitlines() if p.strip()]
+    else:  # source extraction: scan the pinned layout instead of Git
+        rels = [f for f in EXPECTED_ROOT_FILES if (REPO / f).is_file()]
+        for d in EXPECTED_ROOT_DIRS:
+            rels.extend(
+                str(p.relative_to(REPO)).replace("\\", "/")
+                for p in (REPO / d).rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts)
+    return [r for r in rels
+            if not r.lower().endswith(_STALE_SCAN_SKIP_SUFFIXES)]
+
+
+def test_root_layout_is_exactly_the_pinned_set():
+    if (REPO / ".git").exists():
+        out = subprocess.run(["git", "ls-files"], cwd=REPO,
+                             capture_output=True, text=True,
+                             check=True).stdout
+        tracked = [p for p in out.splitlines() if p.strip()]
+        dirs = {p.split("/", 1)[0] for p in tracked if "/" in p}
+        files = {p for p in tracked if "/" not in p}
+        assert dirs == EXPECTED_ROOT_DIRS, (
+            f"tracked root directories drifted: "
+            f"unexpected={sorted(dirs - EXPECTED_ROOT_DIRS)} "
+            f"missing={sorted(EXPECTED_ROOT_DIRS - dirs)}")
+        assert files == EXPECTED_ROOT_FILES, (
+            f"tracked root files drifted: "
+            f"unexpected={sorted(files - EXPECTED_ROOT_FILES)} "
+            f"missing={sorted(EXPECTED_ROOT_FILES - files)}")
+    else:
+        for d in EXPECTED_ROOT_DIRS:
+            assert (REPO / d).is_dir(), f"expected root directory missing: {d}"
+        for f in EXPECTED_ROOT_FILES:
+            assert (REPO / f).is_file(), f"expected root file missing: {f}"
+    for d in RETIRED_ROOT_DIRS:
+        assert not (REPO / d).exists(), (
+            f"retired root directory {d}/ is back; its contents live under "
+            f"provenance/ now")
+
+
+def test_provenance_structure_holds_every_evidence_file():
+    assert (REPO / CORRECTIONS_DIR).is_dir()
+    assert (REPO / LEGACY_FIG9_POINTER_DIR).is_dir()
+    missing = [rel for rel in PROVENANCE_TRACKED_FILES
+               if not (REPO / rel).is_file()]
+    assert not missing, f"provenance evidence files lost: {missing}"
+    if (REPO / ".git").exists():
+        out = subprocess.run(["git", "ls-files", PROVENANCE_ROOT], cwd=REPO,
+                             capture_output=True, text=True,
+                             check=True).stdout
+        tracked = sorted(p for p in out.splitlines() if p.strip())
+        assert tracked == PROVENANCE_TRACKED_FILES, (
+            f"provenance/ tracked set drifted: "
+            f"unexpected={sorted(set(tracked) - set(PROVENANCE_TRACKED_FILES))} "
+            f"missing={sorted(set(PROVENANCE_TRACKED_FILES) - set(tracked))}")
+
+
+def test_no_live_reference_uses_a_retired_path():
+    """Zero tolerance outside the pinned historical allowlist."""
+    problems = []
+    seen_allowlisted = set()
+    for rel in _tracked_text_files():
+        text = (REPO / rel).read_text(encoding="utf-8", errors="ignore")
+        n = len(_STALE_PATH_RX.findall(text))
+        allowed = STALE_PATH_ALLOWLIST.get(rel)
+        if allowed is None:
+            if n:
+                problems.append(f"{rel}: {n} retired-path reference(s)")
+        else:
+            seen_allowlisted.add(rel)
+            if n != allowed:
+                problems.append(
+                    f"{rel}: {n} retired-path matches, allowlist pins "
+                    f"exactly {allowed}")
+    assert not problems, (
+        "retired pre-reorganization paths referenced outside the historical "
+        "allowlist: " + " ;; ".join(problems))
+    missing = set(STALE_PATH_ALLOWLIST) - seen_allowlisted
+    assert not missing, (
+        f"allowlisted files were never scanned - the allowlist is stale or "
+        f"the scan lost coverage: {sorted(missing)}")

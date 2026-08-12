@@ -44,7 +44,8 @@ np = pytest.importorskip("numpy")
 pd = pytest.importorskip("pandas")
 
 REPO = Path(__file__).resolve().parents[1]
-PROGRAM = REPO / "remediation" / "xlsx_equivalence" / "compare_master_csv_xlsx.py"
+PROGRAM = (REPO / "provenance" / "corrections" / "tmax_weighted_centroids"
+           / "xlsx_equivalence" / "compare_master_csv_xlsx.py")
 
 STEM = "scorch_new_algorithm_master_cluster_ellipse_event_global_max"
 CSV_NAME = f"{STEM}.csv"

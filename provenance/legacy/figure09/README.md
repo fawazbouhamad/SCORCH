@@ -1,4 +1,4 @@
-# `legacy_defective_figure09/` - superseded pre-release Figure 9 artifacts
+# `provenance/legacy/figure09/` - superseded pre-release Figure 9 artifacts
 
 **HISTORICAL ONLY. These images are scientifically DEFECTIVE and are excluded
 from all canonical publication outputs.** They are archived so that the

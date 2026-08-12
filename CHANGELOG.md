@@ -33,7 +33,7 @@ with a silent unweighted fallback).
   Table 1, area tails (frozen-column comparison at rel <= 1e-12).
 * Regenerated: Figures 3, 5, 6, 7, 12; LGCP variant3 refit; k-fold CV
   (seed 20260704, identical folds); Appendix D products; sector counts.
-* Evidence packet: `remediation/` (freeze manifest, 760-row displacement
+* Evidence packet: `provenance/corrections/tmax_weighted_centroids/` (freeze manifest, 760-row displacement
   audit, before/after results, manuscript impact inventory).
 
 ### Pre-release corrections (2026-08-04)
@@ -107,7 +107,7 @@ pre-release candidates, never published.
   (Event 4: -21.101 deg instead of the correct +68.98532754765856 deg).
   Panels 9(a)/(b), event areas and axis ratios are unchanged. The two
   superseded rasters have since been relocated out of the repository:
-  `legacy_defective_figure09/` now holds only its explanatory pointer
+  `provenance/legacy/figure09/` now holds only its explanatory pointer
   README, and the rasters themselves are staged at
   `provenance_evidence/legacy_defective_figure09/` inside the LOCAL,
   UNPUBLISHED processed-data archive candidate. They are not deposited,

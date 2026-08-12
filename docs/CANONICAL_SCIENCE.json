@@ -216,7 +216,7 @@
     "corrected_manuscript_embed_sha256": "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431",
     "legacy_defective_full_resolution_sha256": "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
     "legacy_defective_embed_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
-    "legacy_archive_location": "provenance_evidence/legacy_defective_figure09/ inside the LOCAL, UNPUBLISHED processed-data archive candidate (scorch_processed_data_v1.0.0.zip). The repository directory legacy_defective_figure09/ now retains ONLY its explanatory pointer README; the two rasters are not in the Git tree. Excluded from all canonical publication outputs. NOT deposited, NOT published, NOT publicly retrievable.",
+    "legacy_archive_location": "provenance_evidence/legacy_defective_figure09/ inside the LOCAL, UNPUBLISHED processed-data archive candidate (scorch_processed_data_v1.0.0.zip). The repository directory provenance/legacy/figure09/ now retains ONLY its explanatory pointer README; the two rasters are not in the Git tree. Excluded from all canonical publication outputs. NOT deposited, NOT published, NOT publicly retrievable.",
     "event4_before_deg": -21.10137813712798,
     "event4_after_deg": 68.98532754765856,
     "panel_pixel_hashes": {

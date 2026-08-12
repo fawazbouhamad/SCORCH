@@ -152,8 +152,7 @@ values give a quick, non-canonical run.
 | `scripts/` | Executable workflows and release tools |
 | `src/` | The Python package |
 | `tests/` | Verification and regression tests |
-| `remediation/` | Retained scientific correction evidence |
-| `legacy_defective_figure09/` | Archival pointer for removed defective Figure 9 files |
+| `provenance/` | Scientific correction evidence and legacy artifact records |
 
 Per-figure provenance is machine-readable: see
 [docs/FIGURE_PROVENANCE.csv](docs/FIGURE_PROVENANCE.csv),
@@ -181,9 +180,9 @@ the NOAA/NCEI source and use terms; both are set out in
 
 | Check | Result |
 |---|---|
-| Frozen release test collection | 1,258 tests; sorted node-ID SHA-256 `818edfb7386ab8223f1d31435ea49f8d73a73805b54191eeba1341ec54c5fc16` |
-| Source-only profile | 1,212 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
-| Fully configured profile | 1,256 pass, with 2 expected pre-finalization identity check failures |
+| Frozen release test collection | 1,261 tests; sorted node-ID SHA-256 `bc3709c63ec859047813d761a964eddfab386379b90ecb751e8c8296be036077` |
+| Source-only profile | 1,215 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
+| Fully configured profile | 1,259 pass, with 2 expected pre-finalization identity check failures |
 | NetCDF release gate | Pass against the corrected candidate archive |
 | Fast reproduction route | 33/33 stages pass, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages pass, weighted-centroid stage executing 760/760 |

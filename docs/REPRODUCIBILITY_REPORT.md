@@ -212,7 +212,7 @@ axial mean (`scripts/figures/common/scorch_axial.py`), the reproduced
 embed `7859acbd...` is its deterministic width-1950 LANCZOS downscale
 (`make_manuscript_artwork.py`). The superseded arithmetic-mean artifacts
 (full-resolution `4cb3b38a...`, embed `b023c6e5...`) are HISTORICAL ONLY,
-archived under `legacy_defective_figure09/` and excluded from publication
+archived under `provenance/legacy/figure09/` and excluded from publication
 outputs.
 
 **EXECUTED, three distinct artifacts (Figure 8).** For this figure the

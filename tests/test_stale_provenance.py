@@ -72,7 +72,7 @@ ACTIVE_DOC_GLOBS = (
     "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CITATION.cff",
     ".zenodo.json", "docs/*.md", "docs/*.csv", "docs/*.json",
     "assets/frozen_figures/README.md", "assets/manuscript_final/README.md",
-    "legacy_defective_figure09/README.md",
+    "provenance/legacy/figure09/README.md",
 )
 
 
@@ -259,10 +259,13 @@ def test_all_version_fields_are_1_0_0():
 _EXTERNAL_LABELS = ("research repository", "research tree", "external",
                     "not shipped", "research working tree")
 _PATH_PREFIXES = ("scripts/", "docs/", "assets/", "src/", "tests/",
-                  "configs/", "environment/", "legacy_defective_figure09")
+                  "configs/", "environment/", "provenance/")
+# "provenance" is matched with a lookbehind-free alternation; the archive
+# member prefix "provenance_evidence/..." matches only its leading
+# "provenance" token, which resolves to the real provenance/ directory.
 _PATH_RE = re.compile(
     r"(?:scripts|docs|assets|src|tests|configs|environment|"
-    r"legacy_defective_figure09)(?:/[\w.\-]+)*")
+    r"provenance)(?:/[\w.\-]+)*")
 
 
 def _iter_json_strings(node):
@@ -305,7 +308,7 @@ def test_key_active_paths_exist():
     # test_relocated_legacy_figure9_rasters_are_accounted_for below, not by an
     # existence assertion here.
     for rel in (
-        "legacy_defective_figure09/README.md",
+        "provenance/legacy/figure09/README.md",
         "scripts/figures/common/scorch_axial.py",
         "scripts/figures/common/ellipse_pca.py",
         "scripts/figures/figA1/make_figA1_sigma_matrices.py",
@@ -318,6 +321,10 @@ def test_key_active_paths_exist():
         assert (ROOT / rel).exists(), f"active release path missing: {rel}"
 
 
+# Keys are the rasters' HISTORICAL pre-relocation repository paths, exactly as
+# the crosswalk's old_repository_path column records them; values name
+# immutable archive members. Neither may be rewritten to the current
+# provenance/legacy/figure09/ layout: the rasters never lived there.
 LEGACY_FIG9_RASTERS = {
     "legacy_defective_figure09/"
     "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png": (
@@ -343,7 +350,7 @@ def test_relocated_legacy_figure9_rasters_are_accounted_for():
     """
     rows = {r["old_repository_path"]: r
             for r in _csv_rows(ROOT / "docs" / "RELOCATED_ARTIFACTS.csv")}
-    readme = _read(ROOT / "legacy_defective_figure09" / "README.md")
+    readme = _read(ROOT / "provenance" / "legacy" / "figure09" / "README.md")
     assert "10.5281/zenodo.21717752" in readme, (
         "the pointer README must carry the reserved data DOI")
     assert "scorch_processed_data_v1.0.0.zip" in readme
