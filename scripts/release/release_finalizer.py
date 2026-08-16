@@ -4266,6 +4266,19 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         "executed_nodeid_count": len(executed),
         "not_executed": sorted(set(collected) - set(executed)),
         "executed_not_collected": sorted(set(executed) - set(collected)),
+        # WHICH tests failed, skipped or errored - not merely how many. A
+        # blocking report that says "the disposable run reported 40 failed"
+        # and nothing else sends the operator to reproduce a 13-minute
+        # finalization just to learn the names. The tail is capped at a few
+        # thousand characters and the summary lines are the first thing it
+        # loses, so the names are recorded here instead.
+        "failed_nodeids": sorted(
+            {r.nodeid for r in stats.get("failed", []) if hasattr(r, "nodeid")}),
+        "error_nodeids": sorted(
+            {r.nodeid for r in stats.get("error", []) if hasattr(r, "nodeid")}),
+        "skipped_nodeids": sorted(
+            {r.nodeid for r in stats.get("skipped", [])
+             if hasattr(r, "nodeid")}),
     }
     target = os.environ.get("SCORCH_PYTEST_SUMMARY")
     if target:
@@ -4646,13 +4659,23 @@ def validation_acceptance_issues(summary, contract=None):
     """Release acceptance: zero of everything, and nothing left unrun."""
     issues = list(frozen_collection_issues(summary, contract)) \
         if contract is not None else []
+    #: Which node-ID list names the tests behind each tally, where one exists.
+    named = {"failed": "failed_nodeids", "errors": "error_nodeids",
+             "skipped": "skipped_nodeids"}
     for key in ("failed", "errors", "xfailed", "xpassed", "skipped"):
         value = summary.get(key, 1)
         if value:
+            # NAME them. "reported 40 failed" is a number an operator cannot
+            # act on; the node IDs are what they need to reproduce one of them
+            # instead of the whole finalization.
+            nodeids = summary.get(named.get(key, ""), []) or []
+            shown = (": " + ", ".join(nodeids[:8])
+                     + (f" (+{len(nodeids) - 8} more)"
+                        if len(nodeids) > 8 else "")) if nodeids else ""
             issues.append((
                 "VALIDATION_RUN_FAILED",
                 f"release acceptance requires zero {key}; the disposable run "
-                f"reported {value}"))
+                f"reported {value}{shown}"))
     if summary.get("exit_code", 1) != 0:
         issues.append(("VALIDATION_RUN_FAILED",
                        f"pytest exited {summary.get('exit_code')}"))

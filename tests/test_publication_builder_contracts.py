@@ -772,6 +772,33 @@ def _incoming_marker(root):
     return ALPHA_MARKER if ACTIVE_MARKER in registered else ACTIVE_MARKER
 
 
+def _real_activation_applied(root=REPO):
+    """True when the REAL authored activation has already been applied.
+
+    The synthetic machinery below rewrites the PENDING prose into a TEST-ONLY
+    clause. A real finalization replaces that SAME prose with the AUTHORED
+    destination, which neither transform table knows - so once that has
+    happened there is no block left for a synthetic activation to retire.
+
+    These tests belong to the frozen release collection, so they also run
+    inside the disposable validation copy of an activated release. There they
+    have nothing to transform, and they say so and return rather than failing
+    on a premise that no longer holds or skipping (acceptance requires zero
+    skips). The activated state is proved instead by the state-aware guards in
+    tests/test_release_finalizer.py section 8a.
+    """
+    als = _als()
+    contract = als.load_trusted_contract(root)
+    for item in contract["ccby_activation_plan"]["replacements"]:
+        rel = item["file"]
+        if rel.startswith("archive:"):
+            continue
+        path = Path(root) / rel
+        if path.is_file() and item["to"] in path.read_text(encoding="utf-8"):
+            return True
+    return False
+
+
 def _current_source_block(root, index, marker):
     """``(rel, block)``: the block a fresh activation would retire right now.
 
@@ -799,6 +826,8 @@ def test_activation_changes_only_the_artwork_blocks(tmp_path):
     silently rewriting unrelated prose that happens to contain the marker.
     The only way to see that is to compare the entire tree.
     """
+    if _real_activation_applied():
+        return
     als = _als()
     guards = _guards()
     marker = _incoming_marker(REPO)
@@ -896,10 +925,13 @@ def test_the_real_modules_pass_by_subprocess_in_an_active_repository(
     import subprocess
     import sys
 
-    if os.environ.get("SCORCH_NESTED_ACTIVE_RUN"):
-        # Already inside a disposable ACTIVE repository. Recursing would fork
-        # a copy of a copy forever. This returns rather than skipping, because
-        # the ACTIVE run must report zero skips.
+    if os.environ.get("SCORCH_NESTED_ACTIVE_RUN") or \
+            _real_activation_applied():
+        # Already inside a disposable ACTIVE repository - either because this
+        # run forked one (recursing would fork a copy of a copy forever), or
+        # because a real finalization built this tree and the synthetic
+        # activation has no PENDING block left to retire. Returns rather than
+        # skipping, because the ACTIVE run must report zero skips.
         return
 
     root = _disposable_active_repository(tmp_path)
@@ -1030,7 +1062,11 @@ def test_the_real_modules_pass_from_an_ALREADY_ACTIVE_source(tmp_path):
     every record became unclassifiable.
     """
     import os
-    if os.environ.get("SCORCH_NESTED_ACTIVE_RUN"):
+    if os.environ.get("SCORCH_NESTED_ACTIVE_RUN") or \
+            _real_activation_applied():
+        # Same two reasons as above: a nested copy would recurse forever, and a
+        # really-activated tree has no PENDING block for the synthetic
+        # transform to retire. Returns rather than skipping.
         return
 
     als = _als()

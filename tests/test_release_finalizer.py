@@ -1209,12 +1209,21 @@ def test_shipped_contract_never_ships_a_pre_APPLIED_activation():
         "the authored wording is missing; if it was removed deliberately, "
         "restore the pre-authoring assertions with it")
     assert plan["replacements"], "an authored plan with no replacements"
-    # The receipt is the ONLY thing that turns a plan into a grant, and it must
-    # not exist until a real finalization fetched a real authorization.
+    # The receipt is the ONLY thing that turns a plan into a grant. Before a
+    # finalization it must not exist; after one it must VALIDATE. Neither state
+    # permits a receipt that is merely present.
     receipt = REPO / real["licence_receipt"]["tracked_path"]
-    assert not receipt.exists(), (
-        f"{receipt} exists: an authorization receipt is present in a tree "
-        f"that has never run a real finalization")
+    if _real_licence_state() == rf._artwork.PENDING:
+        assert not receipt.exists(), (
+            f"{receipt} exists: a licence receipt is present in a tree that "
+            f"has never run a real finalization")
+    else:
+        assert receipt.is_file(), (
+            "the tree reads ACTIVE but carries no receipt; the grant would "
+            "rest on nothing")
+        assert rf._artwork.validate_receipt(
+            rf._artwork.loads_strict(receipt.read_text(encoding="utf-8")),
+            real, REPO) == []
 
 
 # ---------------------------------------------------------------------------
@@ -1235,14 +1244,54 @@ def _real_contract():
     return rf.load_contract()
 
 
+def _real_licence_state():
+    """The real tree's artwork licence state: PENDING or ACTIVE.
+
+    Section 8a is part of the FROZEN RELEASE COLLECTION, so it runs in both
+    states: in this repository before finalization, where the licence is
+    PENDING and the activation is a draft of a future edit; and inside the
+    disposable validation copy a real finalization builds, where that edit has
+    already been applied and the licence is ACTIVE.
+
+    A test that assumed PENDING would make a correct finalization unable to
+    validate itself - the release would be gated on a run that can only pass
+    while the release has not happened. Each test below therefore states what
+    must hold in EACH state rather than asserting the tree has not moved.
+    """
+    als = rf._artwork
+    state, _issues, _detail = als.artwork_licence_state(REPO, _real_contract())
+    return state
+
+
 def _surface_text(rel, contract):
-    """The current bytes of one licence surface, tracked or archive member."""
+    """The current bytes of one licence surface, tracked or archive member.
+
+    The archive surface lives inside a zip rather than in the tree, and WHICH
+    zip depends on where this run is happening:
+
+    * in this repository, the pinned pre-finalization candidate under
+      ``release_staging/`` - the deposit as it stands before activation;
+    * in a disposable validation copy, that candidate is absent, because
+      ``release_staging/`` is git-ignored and therefore never cloned. What IS
+      present there is the FINAL archive the finalization just built, named by
+      ``SCORCH_DATA_ARCHIVE``. It is the same licence surface, in the state
+      that tree is in, so it is read instead.
+
+    Only when neither exists is the test skipped, which is the source-only
+    profile's business. A release-accepted run configures the archive, so it
+    reaches no skip - and acceptance requires zero.
+    """
     if rel.startswith(rf.ARCHIVE_FILE_PREFIX):
         member = rel[len(rf.ARCHIVE_FILE_PREFIX):]
         candidate = (REPO / "release_staging" /
                      contract["technical_source_candidate"]["filename"])
         if not candidate.is_file():
-            pytest.skip(f"{candidate.name} is not present locally")
+            configured = os.environ.get("SCORCH_DATA_ARCHIVE", "")
+            if configured and Path(configured).is_file():
+                with zipfile.ZipFile(configured) as zf:
+                    return zf.read(member).decode("utf-8")
+            pytest.skip(f"{candidate.name} is not present locally and no "
+                        f"SCORCH_DATA_ARCHIVE is configured")
         with zipfile.ZipFile(candidate) as zf:
             return zf.read(member).decode("utf-8")
     return (REPO / rel).read_text(encoding="utf-8")
@@ -1264,8 +1313,19 @@ def test_the_authored_plan_covers_exactly_the_five_licence_surfaces():
 
 
 def test_the_production_planner_accepts_the_authored_plan():
-    """The real planner, on the real tree. It plans; it writes nothing."""
+    """The real planner, on the real tree. It plans; it writes nothing.
+
+    Once the activation HAS been applied the planner must refuse rather than
+    plan it again: the active marker is already in the records, so a second
+    plan could not tell the activated state from the current one. That refusal
+    is the correct behaviour, and it is asserted here rather than skipped.
+    """
     contract = _real_contract()
+    if _real_licence_state() == rf._artwork.ACTIVE:
+        with pytest.raises(rf.FinalizerError) as exc:
+            rf.plan_ccby_activation(REPO, contract)
+        assert exc.value.code == "CCBY_ACTIVE_MARKER_PRE_EXISTING", exc.value
+        return
     edits, transition = rf.plan_ccby_activation(REPO, contract)
     assert {e.rel for e in edits} == set(contract["licence_records"])
     assert transition["file"] == (rf.ARCHIVE_FILE_PREFIX +
@@ -1281,6 +1341,21 @@ def test_each_authored_transition_activates_its_own_surface(index):
     item = sorted(contract["ccby_activation_plan"]["replacements"],
                   key=lambda i: i["file"])[index]
     text = _surface_text(item["file"], contract)
+    if _real_licence_state() == als.ACTIVE:
+        # Already applied. The transition is no longer available to simulate,
+        # so what must hold is its RESULT: the destination block is present
+        # exactly once, no pending marker survives, and the surface classifies
+        # as granting. This covers the archive surface too - in an activated
+        # tree `_surface_text` reads the FINAL archive, whose licence member
+        # the finalization rewrote in the same transaction.
+        assert text.count(item["to"]) == 1, (
+            f"{item['file']}: the activated destination block does not occur "
+            f"exactly once in an ACTIVE tree")
+        stale = [m for m in contract["artwork_licence_markers"]["pending"]
+                 if m in text]
+        assert not stale, f"{item['file']}: pending markers survive: {stale}"
+        assert als.classify_claim(text, contract) == als.ACTIVE
+        return
     assert text.count(item["from"]) == 1, (
         f"{item['file']}: the authored source block no longer occurs exactly "
         f"once; the record drifted away from the plan")
@@ -1469,8 +1544,19 @@ def test_a_pre_existing_grant_over_another_figure_is_not_a_widening(synthetic):
 
 
 def test_the_real_activation_plan_passes_every_scope_guard():
-    """Planned against the REAL tree, through the production planner."""
+    """Planned against the REAL tree, through the production planner.
+
+    Once applied, the plan cannot be re-planned - and what the scope guards
+    must then hold over is the RESULT, so each activated record is checked
+    against the same unregistered-artwork guard in place.
+    """
     contract = _real_contract()
+    if _real_licence_state() == rf._artwork.ACTIVE:
+        for rel in contract["licence_records"]:
+            current = (REPO / rel).read_bytes()
+            rf._assert_no_unregistered_artwork_scope(
+                rel, current, current, contract)
+        return
     edits, archive_transition = rf.plan_ccby_activation(REPO, contract)
 
     assert archive_transition is not None
@@ -1493,43 +1579,61 @@ def test_the_authored_marker_is_registrable_and_not_test_only():
     assert als.registrable_active_markers(contract) == markers
 
 
-def test_authoring_the_plan_activated_nothing():
-    """The proof that this is a draft: the real tree is still PENDING.
+def test_every_licence_surface_agrees_with_the_repository_state():
+    """The five surfaces move TOGETHER, in whichever state the tree is in.
 
-    Every real record still withholds the grant, every registered pending
-    marker is still there, and no receipt exists. If this ever fails, an
-    activation happened outside a gated finalization.
+    Before a finalization every record withholds the grant and no receipt
+    exists; after one every record asserts it and the receipt validates. What
+    is never permitted is disagreement - a record granting while another
+    withholds is how a published contradiction gets made.
     """
     als = rf._artwork
     contract = _real_contract()
     state, issues, _detail = als.artwork_licence_state(REPO, contract)
-    assert state == als.PENDING, (state, issues)
+    assert state in (als.PENDING, als.ACTIVE), (state, issues)
     assert not issues, issues
+    receipt = REPO / contract["licence_receipt"]["tracked_path"]
     for rel in contract["licence_records"]:
         assert als.classify_claim((REPO / rel).read_text(encoding="utf-8"),
-                                  contract) == als.PENDING, rel
-    receipt = REPO / contract["licence_receipt"]["tracked_path"]
-    assert not receipt.exists(), f"{receipt} exists"
+                                  contract) == state, rel
+    if state == als.PENDING:
+        assert not receipt.exists(), f"{receipt} exists in a PENDING tree"
+    else:
+        assert receipt.is_file(), "ACTIVE with no receipt"
 
 
-def test_the_authored_marker_is_absent_from_every_real_record():
-    """A marker already in the tree could not distinguish before from after."""
+def test_the_authored_marker_appears_exactly_where_the_state_says():
+    """A marker present before activation could not distinguish before from
+    after; a marker absent after it would mean nothing was activated."""
     als = rf._artwork
     contract = _real_contract()
+    active = _real_licence_state() == als.ACTIVE
     for rel in contract["licence_records"]:
         blocks = als.normalized_blocks(
             (REPO / rel).read_text(encoding="utf-8"))
         for marker in contract["artwork_licence_markers"]["active"]:
-            assert als.normalize_prose(marker) not in blocks, (rel, marker)
+            present = als.normalize_prose(marker) in blocks
+            assert present is active, (rel, marker, "present" if present
+                                       else "absent")
 
 
-def test_the_publication_builder_still_serves_the_pending_row():
-    """An authored ACTIVE row must not change what is published today."""
+def test_the_publication_builder_serves_the_row_the_state_requires():
+    """The builder publishes the repository's ACTUAL licence state.
+
+    An authored ACTIVE row must not change what is published while the licence
+    is still pending - and must be exactly what is published once it is not.
+    """
     als = rf._artwork
     contract = _real_contract()
     row = als.publication_artwork_row(REPO, contract)
-    assert row == contract["publication_outputs_artwork_row"]["pending"]
-    assert "PENDING" in row.upper()
+    spec = contract["publication_outputs_artwork_row"]
+    if _real_licence_state() == als.PENDING:
+        assert row == spec["pending"]
+        assert "PENDING" in row.upper()
+    else:
+        assert row == spec["active"]
+        assert "PENDING" not in row.upper()
+        assert contract["licence_declaration"]["public_credit"] in row
 
 
 def test_activation_outside_the_licence_records_is_refused(synthetic):
@@ -7993,7 +8097,19 @@ def test_a_declared_test_fixture_is_exempt_and_the_real_one_is_not(synthetic):
 
 
 def test_the_real_activation_plan_survives_every_guard():
-    """The corrected wording plans cleanly - pins, scopes and prose guards."""
+    """The corrected wording plans cleanly - pins, scopes and prose guards.
+
+    In an already-ACTIVE tree the plan has been applied and the planner
+    correctly refuses to plan it twice; the pins and scope guards are still
+    checked, because those run before the pre-existing-marker test.
+    """
+    if _real_licence_state() == rf._artwork.ACTIVE:
+        assert rf.reviewed_activation_issues(REAL_CONTRACT) == []
+        assert rf.reviewed_scope_issues(REAL_CONTRACT) == []
+        with pytest.raises(rf.FinalizerError) as exc:
+            rf.plan_ccby_activation(str(REPO), REAL_CONTRACT)
+        assert exc.value.code == "CCBY_ACTIVE_MARKER_PRE_EXISTING", exc.value
+        return
     edits, transition = rf.plan_ccby_activation(str(REPO), REAL_CONTRACT)
     assert sorted(e.rel for e in edits) == sorted(
         REAL_CONTRACT["licence_records"])
