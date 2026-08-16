@@ -4561,8 +4561,216 @@ def _pinned_interpreter_issues(python_exe, contract):
     return issues
 
 
+def _tracked_digests(root):
+    """``{rel: sha256}`` for every tracked file in ``root``, as it stands."""
+    listing = _git_capture(["-C", str(root), "ls-files", "-z"],
+                           why=f"listing tracked files in {root}")
+    if isinstance(listing, bytes):
+        listing = listing.decode("utf-8", "surrogateescape")
+    digests = {}
+    for rel in [r for r in listing.split("\0") if r]:
+        path = Path(root) / rel
+        if path.is_file():
+            digests[rel] = sha256_file(path)
+    return digests
+
+
+def _tree_manifest(root):
+    """``{relative posix path: (bytes, sha256)}`` for a whole directory."""
+    root = Path(root)
+    manifest = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        manifest[path.relative_to(root).as_posix()] = (len(data),
+                                                       sha256_bytes(data))
+    return manifest
+
+
+def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
+                              contract, candidate_archive=None):
+    """Materialise the clone's DERIVED inputs, from the release alone.
+
+    The acceptance suite needs a ``publication_outputs/`` tree. Inheriting the
+    operator's copy would make the run a test of the developer's desk rather
+    than of the release, so the clone builds its own:
+
+    1. the canonical reproduction pipeline runs from the FRESH EXTRACTION of
+       the finalized archive into a fresh, run-owned ``reproduced/``;
+    2. the publication builder then writes ``publication_outputs/`` inside the
+       clone, with root, reproduction and destination all passed EXPLICITLY -
+       no environment default decides where anything is read or written;
+    3. both must exit 0;
+    4. the builder runs a SECOND time into a separate directory and the two
+       trees are compared file-for-file, because a publication tree that is
+       not reproducible proves nothing about the release;
+    5. every tracked path is re-hashed and required to be unchanged, so
+       preparation can create ignored outputs and cannot touch the release.
+
+    A pipeline that cannot rebuild these inputs is a REPRODUCIBILITY DEFECT and
+    is reported as one, naming what is missing. Allowlisting the derived output
+    instead would hide exactly the defect this stage exists to detect.
+    """
+    spec = (contract or {}).get("validation_preparation") or {}
+    if not spec:                                 # pragma: no cover - contract
+        return {"prepared": False,
+                "why": "no validation_preparation is contracted"}
+    copy_root = Path(copy_root)
+    work = Path(work)
+    entry = spec.get("reproduction_entry", "run_reproduction.py")
+    if not (copy_root / entry).is_file():
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_INPUT_MISSING",
+            f"{entry} is not in the validation clone; the reproduction "
+            f"pipeline cannot be run and publication_outputs/ cannot be "
+            f"regenerated from the release")
+    builder = spec.get("publication_builder",
+                       "scripts/publication/build_publication_outputs.py")
+    if not (copy_root / builder).is_file():
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_INPUT_MISSING",
+            f"{builder} is not in the validation clone")
+
+    # The directory NAMES come from the contract, with no literal fallback.
+    # A hardcoded output-path constant is exactly what
+    # test_no_hardcoded_repo_reproduced_paths refuses, and rightly: a script
+    # that writes to a fixed name ignores the destination it was given. These
+    # two are run-owned subdirectories of this run's work area - deliberately
+    # NOT the operator's SCORCH_OUT_DIR, because validation must build its own
+    # outputs rather than write into anybody's working tree.
+    repro_dirname = spec.get("reproduction_out_dirname")
+    pub_dirname = spec.get("publication_out_dirname")
+    if not repro_dirname or not pub_dirname:     # pragma: no cover - contract
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_UNCONFIGURED",
+            "validation_preparation must name both the reproduction and the "
+            "publication output directories; a default compiled into the "
+            "finalizer would be an output path no contract could redirect")
+    reproduced = work / repro_dirname
+    published = copy_root / pub_dirname
+    second = work / "publication_outputs_rebuild"
+    for path in (reproduced, second):
+        if path.exists():                        # pragma: no cover - fresh run
+            raise FinalizerError(
+                "VALIDATION_PREPARATION_OCCUPIED",
+                f"{path} already exists; preparation writes only into fresh "
+                f"run-owned directories")
+    if published.exists():
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_OCCUPIED",
+            f"{published} already exists in the clone. It must be BUILT here, "
+            f"never inherited - an existing tree would mean the operator's "
+            f"publication outputs reached the validation copy")
+    reproduced.mkdir(parents=True)
+    second.mkdir(parents=True)
+
+    # The tracked baseline is taken AFTER the occupancy refusals, so an
+    # inherited publication tree is reported as itself rather than as whatever
+    # a git command happens to say about a directory that is not a clone yet.
+    before = _tracked_digests(copy_root)
+
+    home = work / "prep_home"
+    for sub in ("", ".config", ".cache", ".local/share", ".matplotlib"):
+        (home / sub).mkdir(parents=True, exist_ok=True)
+    env = _hermetic_env(home)
+    for key in _CLEAR_ALWAYS:
+        env.pop(key, None)
+    env.update({
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": "src",
+        "SCORCH_DATA_DIR": str(extraction),
+        "SCORCH_CANONICAL_DATA_DIR": str(extraction),
+    })
+
+    def run(argv, what):
+        proc = subprocess.run([str(python_exe)] + argv, cwd=str(copy_root),
+                              env=env, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise FinalizerError(
+                "VALIDATION_PREPARATION_FAILED",
+                f"{what} exited {proc.returncode} in the validation clone; "
+                f"the release cannot be accepted on inputs it could not "
+                f"rebuild. tail: "
+                f"{(proc.stdout[-1500:] + proc.stderr[-1500:]).strip()}")
+        return proc
+
+    # The pipeline has a publication-assembly stage of its own. It is pointed
+    # at a SCRATCH directory, not at the clone's publication_outputs/, so that
+    # the tree the suite reads is the one built by the explicit builder call
+    # below - with root, reproduction and destination all named on the command
+    # line rather than defaulted from the environment.
+    pipeline_pub = work / "pipeline_publication_stage"
+    repro = run([entry, spec.get("reproduction_tier", "fast"),
+                 "--data-dir", str(extraction),
+                 "--out-dir", str(reproduced),
+                 "--pub-dir", str(pipeline_pub)],
+                "the canonical reproduction pipeline")
+    build = run([builder, "--root", str(copy_root),
+                 "--reproduced-dir", str(reproduced),
+                 "--out-dir", str(published)],
+                "the publication builder")
+    if not published.is_dir():
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_FAILED",
+            f"the publication builder reported success but {published} does "
+            f"not exist")
+    first_manifest = _tree_manifest(published)
+    if not first_manifest:
+        raise FinalizerError(
+            "VALIDATION_PREPARATION_FAILED",
+            f"{published} is empty after a successful build")
+
+    result = {
+        "prepared": True,
+        "extraction": str(extraction),
+        repro_dirname: str(reproduced),
+        "publication_outputs": str(published),
+        "publication_files": len(first_manifest),
+        "reproduction_tail": repro.stdout[-600:],
+        "builder_tail": build.stdout[-600:],
+    }
+
+    if spec.get("require_deterministic_publication_rebuild", True):
+        run([builder, "--root", str(copy_root),
+             "--reproduced-dir", str(reproduced),
+             "--out-dir", str(second)],
+            "the publication builder (determinism rebuild)")
+        rebuilt = _tree_manifest(second)
+        if rebuilt != first_manifest:
+            only_first = sorted(set(first_manifest) - set(rebuilt))
+            only_second = sorted(set(rebuilt) - set(first_manifest))
+            differing = sorted(r for r in set(first_manifest) & set(rebuilt)
+                               if first_manifest[r] != rebuilt[r])
+            raise FinalizerError(
+                "VALIDATION_PREPARATION_NONDETERMINISTIC",
+                f"two builds of publication_outputs/ from the same "
+                f"reproduction differ: {len(differing)} file(s) with "
+                f"different bytes {differing[:5]}, {len(only_first)} only in "
+                f"the first {only_first[:5]}, {len(only_second)} only in the "
+                f"second {only_second[:5]}")
+        result["deterministic_rebuild"] = True
+        result["rebuild_files"] = len(rebuilt)
+
+    if spec.get("require_tracked_paths_unchanged", True):
+        after = _tracked_digests(copy_root)
+        if after != before:
+            moved = sorted(r for r in set(before) & set(after)
+                           if before[r] != after[r])
+            gone = sorted(set(before) - set(after))
+            new = sorted(set(after) - set(before))
+            raise FinalizerError(
+                "VALIDATION_PREPARATION_TOUCHED_THE_RELEASE",
+                f"preparation modified tracked content: {len(moved)} changed "
+                f"{moved[:5]}, {len(gone)} removed {gone[:5]}, {len(new)} "
+                f"added {new[:5]}")
+        result["tracked_paths_unchanged"] = len(before)
+    return result
+
+
 def run_validation(copy_root, python_exe, final_archive, extraction, *,
-                   final_docx_dir=None, aptos_font=None, summary_path):
+                   final_docx_dir=None, aptos_font=None, summary_path,
+                   candidate_archive=None):
     """Run the full suite in the disposable copy against the FINAL archive.
 
     The previous version validated against whatever data the ambient
@@ -4591,6 +4799,14 @@ def run_validation(copy_root, python_exe, final_archive, extraction, *,
         env.pop(key, None)
 
     env.update({
+        # TWO TYPED ARCHIVES, never interchangeable. SCORCH_DATA_ARCHIVE is the
+        # FINALIZED output this release is accepted on - already activated, and
+        # what the identity and acceptance guards read. SCORCH_CANDIDATE_ARCHIVE
+        # is the pre-finalization INPUT the deposit-notice transition is applied
+        # to. Pointing the transition tests at the finalized archive would ask
+        # them to apply an activation to an already-activated notice, which is
+        # not the same test and does not pass; pointing the identity guards at
+        # the candidate would accept the wrong bytes as the release.
         "SCORCH_DATA_ARCHIVE": str(final_archive),
         "SCORCH_DATA_DIR": str(extraction),
         "SCORCH_CANONICAL_DATA_DIR": str(extraction),
@@ -4598,6 +4814,8 @@ def run_validation(copy_root, python_exe, final_archive, extraction, *,
         "SCORCH_OUT_DIR": str(copy_root / "publication_outputs"),
         "SCORCH_PYTEST_SUMMARY": str(summary_path),
     })
+    if candidate_archive:
+        env["SCORCH_CANDIDATE_ARCHIVE"] = str(candidate_archive)
     if final_docx_dir:
         env["SCORCH_FINAL_DOCX_DIR"] = str(final_docx_dir)
     if aptos_font:
@@ -5707,14 +5925,34 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                     f"after activation the state is {state}: {state_issues}")
 
             extraction = extract_archive(final_path, work / "final_extract")
+            # The clone builds its own derived inputs from that extraction and
+            # the committed repository - it inherits none of them. This is
+            # where a reproducibility defect surfaces, before any acceptance
+            # tally can be mistaken for one.
+            report.note("validation_preparation",
+                        prepare_validation_inputs(
+                            copy_root, python_exe, extraction, work,
+                            contract=contract,
+                            candidate_archive=candidate_archive))
             report.note("isolation_diagnostics",
                         isolation_diagnostics(
                             copy_root, python_exe,
                             isolation_probe_modules(contract)))
+            # The pre-finalization candidate, as it stands INSIDE the clone -
+            # admitted by the hash-and-size-pinned allowlist, never the
+            # operator's path.
+            candidate_in_copy = None
+            for entry in ((contract.get("validation_copy") or {})
+                          .get("ignored_allowlist") or []):
+                rel = entry.get("path", "")
+                if rel.endswith(".zip") and (copy_root / rel).is_file():
+                    candidate_in_copy = copy_root / rel
+                    break
             summary = run_validation(
                 copy_root, python_exe, final_path, extraction,
                 final_docx_dir=final_docx_dir, aptos_font=aptos_font,
-                summary_path=work / "pytest_summary.json")
+                summary_path=work / "pytest_summary.json",
+                candidate_archive=candidate_in_copy)
             report.note("validation", summary)
             for code, why in validation_acceptance_issues(summary, contract):
                 raise FinalizerError(code, why)
@@ -7095,19 +7333,72 @@ def _copy_repository(src, dest, contract=None, expected_head=None,
     admitted = []
     for entry in allowed:
         rel = entry.get("path")
+        # A pin may be given INLINE or BY REFERENCE to a digest the contract
+        # already carries. The candidate archive is pinned once, in
+        # technical_source_candidate; repeating that digest here would put the
+        # same value at two paths and break the identity map's rule that a
+        # declared digest appears only at its own registered path - the rule
+        # that lets an archive identity inside the contract be told apart from
+        # an identity reference the finalization must rewrite.
         want = entry.get("sha256")
-        if not rel or not want:
+        want_bytes = entry.get("bytes")
+        for key, ref in (("sha256", entry.get("sha256_ref")),
+                         ("bytes", entry.get("bytes_ref"))):
+            if not ref:
+                continue
+            resolved = _resolve_dotted(contract or {}, ref)
+            if resolved is None:
+                raise FinalizerError(
+                    "VALIDATION_ALLOWLIST_UNPINNED",
+                    f"the allowlist entry {rel!r} references {ref!r}, which "
+                    f"the contract does not carry")
+            if key == "sha256":
+                want = resolved
+            else:
+                want_bytes = resolved
+        # BOTH pins are mandatory. A digest alone identifies the bytes, but the
+        # size is the cheap independent check that catches a truncated or
+        # padded read before anything hashes it, and it is what makes
+        # "incorrectly sized" a refusal in its own right.
+        if not rel or not want or not isinstance(want_bytes, int) or \
+                isinstance(want_bytes, bool) or want_bytes <= 0:
             raise FinalizerError(
                 "VALIDATION_ALLOWLIST_UNPINNED",
-                f"the validation-copy allowlist entry {entry!r} carries no "
-                f"path/sha256 pair; an unpinned ignored artifact is exactly "
-                f"the arbitrary content this allowlist exists to exclude")
+                f"the validation-copy allowlist entry {entry!r} does not "
+                f"carry a path, a sha256 AND a positive integer byte count; "
+                f"an unpinned ignored artifact is exactly the arbitrary "
+                f"content this allowlist exists to exclude")
+        # A DIRECTORY or a GLOB is not an artifact. The allowlist admits single
+        # named regular files, so anything that reads as a pattern or a tree is
+        # refused before the filesystem is touched.
+        if any(ch in rel for ch in "*?[]") or rel.endswith("/"):
+            raise FinalizerError(
+                "VALIDATION_ALLOWLIST_UNPINNED",
+                f"the allowlist entry {rel!r} is a glob or a directory; only "
+                f"single named regular files may be admitted")
         source = src / rel
+        # LINKS ARE REFUSED AS THEMSELVES, not followed and not silently read
+        # as "missing". A symlink or junction at an allowlisted path is a
+        # redirection into content the pin was never taken over.
+        if os.path.islink(str(source)):
+            raise FinalizerError(
+                "VALIDATION_ALLOWLIST_NOT_REGULAR",
+                f"the allowlisted artifact {rel} is a link; an allowlist pin "
+                f"is taken over bytes, and a link is a name pointing at "
+                f"somebody else's")
+        if os.path.lexists(str(source)) and not os.path.isfile(str(source)):
+            raise FinalizerError(
+                "VALIDATION_ALLOWLIST_NOT_REGULAR",
+                f"the allowlisted artifact {rel} is not a regular file")
         data = _read_regular_file(source)
         if data is None:
             raise FinalizerError(
                 "VALIDATION_ALLOWLIST_MISSING",
                 f"the allowlisted artifact {rel} is not present in {src}")
+        if len(data) != want_bytes:
+            raise FinalizerError(
+                "VALIDATION_ALLOWLIST_MISMATCH",
+                f"{rel} is {len(data)} B, the contract pins {want_bytes} B")
         got = sha256_bytes(data)
         if got != want:
             raise FinalizerError(

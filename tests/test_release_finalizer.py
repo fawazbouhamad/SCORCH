@@ -1266,33 +1266,41 @@ def _real_licence_state():
 def _surface_text(rel, contract):
     """The current bytes of one licence surface, tracked or archive member.
 
-    The archive surface lives inside a zip rather than in the tree, and WHICH
-    zip depends on where this run is happening:
+    The archive surface lives inside a zip rather than in the tree, and it is
+    ALWAYS the pre-finalization candidate - the deposit as it stands BEFORE
+    activation, which is what a pending-to-active transition can be applied
+    to. Where that candidate is found depends on the run:
 
-    * in this repository, the pinned pre-finalization candidate under
-      ``release_staging/`` - the deposit as it stands before activation;
-    * in a disposable validation copy, that candidate is absent, because
-      ``release_staging/`` is git-ignored and therefore never cloned. What IS
-      present there is the FINAL archive the finalization just built, named by
-      ``SCORCH_DATA_ARCHIVE``. It is the same licence surface, in the state
-      that tree is in, so it is read instead.
+    * in this repository, under ``release_staging/``;
+    * in a disposable validation clone, at the path the hash-and-size-pinned
+      allowlist admitted it to, named explicitly by the typed input
+      ``SCORCH_CANDIDATE_ARCHIVE``.
 
-    Only when neither exists is the test skipped, which is the source-only
-    profile's business. A release-accepted run configures the archive, so it
-    reaches no skip - and acceptance requires zero.
+    The finalized archive is a DIFFERENT input with a different name, and this
+    reader never reaches for it: its licence member has already been rewritten,
+    so a transition applied to it refuses with CCBY_ACTIVATION_COUNT.
+
+    Only when the candidate is absent altogether is the test skipped, which is
+    the source-only profile's business. A release-accepted run supplies it, so
+    it reaches no skip - and acceptance requires zero.
     """
     if rel.startswith(rf.ARCHIVE_FILE_PREFIX):
         member = rel[len(rf.ARCHIVE_FILE_PREFIX):]
         candidate = (REPO / "release_staging" /
                      contract["technical_source_candidate"]["filename"])
         if not candidate.is_file():
-            # DELIBERATELY not falling back to SCORCH_DATA_ARCHIVE. That names
-            # the FINAL archive, whose licence member the finalization has
-            # already rewritten - so the whole deposit-notice section, which
-            # exists to exercise the pending -> active TRANSITION, would try to
-            # apply it to an already-activated notice and fail with
-            # CCBY_ACTIVATION_COUNT. The transition's input is the
-            # pre-finalization candidate or nothing.
+            # SCORCH_CANDIDATE_ARCHIVE names the PRE-FINALIZATION candidate,
+            # and only ever that. It is DELIBERATELY not SCORCH_DATA_ARCHIVE,
+            # which names the FINAL archive whose licence member the
+            # finalization has already rewritten: this whole section exercises
+            # the pending -> active TRANSITION, and applying it to an already
+            # activated notice is a different thing that correctly refuses
+            # with CCBY_ACTIVATION_COUNT. The transition's input is the
+            # candidate or nothing.
+            configured = os.environ.get("SCORCH_CANDIDATE_ARCHIVE", "")
+            if configured and Path(configured).is_file():
+                with zipfile.ZipFile(configured) as zf:
+                    return zf.read(member).decode("utf-8")
             pytest.skip(f"{candidate.name} is not present locally")
         with zipfile.ZipFile(candidate) as zf:
             return zf.read(member).decode("utf-8")
@@ -5367,24 +5375,40 @@ def test_an_allowlisted_artifact_must_match_its_pin(tmp_path):
     (src / "needed.json").write_text('{"generated": true}', encoding="utf-8")
     _init_repo(src, "keep.txt")
 
-    want = rf.sha256_bytes((src / "needed.json").read_bytes())
+    payload = (src / "needed.json").read_bytes()
+    want = rf.sha256_bytes(payload)
+    size = len(payload)
     good = {"validation_copy": {"ignored_allowlist":
-                                [{"path": "needed.json", "sha256": want}]}}
+                                [{"path": "needed.json", "sha256": want,
+                                  "bytes": size}]}}
     info = rf._copy_repository(src, tmp_path / "ok", good)
     assert info["allowlisted"] == ["needed.json"]
     assert (tmp_path / "ok" / "needed.json").is_file()
 
     bad = {"validation_copy": {"ignored_allowlist":
-                               [{"path": "needed.json", "sha256": "0" * 64}]}}
+                               [{"path": "needed.json", "sha256": "0" * 64,
+                                 "bytes": size}]}}
     with pytest.raises(rf.FinalizerError) as exc:
         rf._copy_repository(src, tmp_path / "bad", bad)
     assert exc.value.code == "VALIDATION_ALLOWLIST_MISMATCH", exc.value.code
 
-    unpinned = {"validation_copy": {"ignored_allowlist":
-                                    [{"path": "needed.json"}]}}
+    # A wrong SIZE is its own refusal, and is reached before the digest.
+    resized = {"validation_copy": {"ignored_allowlist":
+                                   [{"path": "needed.json", "sha256": want,
+                                     "bytes": size + 1}]}}
     with pytest.raises(rf.FinalizerError) as exc:
-        rf._copy_repository(src, tmp_path / "unpinned", unpinned)
-    assert exc.value.code == "VALIDATION_ALLOWLIST_UNPINNED", exc.value.code
+        rf._copy_repository(src, tmp_path / "resized", resized)
+    assert exc.value.code == "VALIDATION_ALLOWLIST_MISMATCH", exc.value.code
+    assert "B, the contract pins" in exc.value.why
+
+    for index, missing in enumerate((
+            {"path": "needed.json"},
+            {"path": "needed.json", "sha256": want},
+            {"path": "needed.json", "bytes": size})):
+        unpinned = {"validation_copy": {"ignored_allowlist": [missing]}}
+        with pytest.raises(rf.FinalizerError) as exc:
+            rf._copy_repository(src, tmp_path / f"unpinned{index}", unpinned)
+        assert exc.value.code == "VALIDATION_ALLOWLIST_UNPINNED", exc.value.code
 
 
 def test_a_tracked_symlink_refuses_the_validation_tree(tmp_path):
@@ -5431,9 +5455,27 @@ def test_a_tracked_gitlink_refuses_the_validation_tree(tmp_path):
 
 
 def test_the_real_contract_admits_no_unpinned_validation_artifacts():
-    spec = (rf.load_contract().get("validation_copy") or {})
+    """Every admitted artifact is pinned by digest AND size.
+
+    A pin may be given inline or BY REFERENCE to a value the contract already
+    carries - the candidate archive is pinned once, in
+    technical_source_candidate, and repeating that digest here would put the
+    same value at two paths. A reference is only a pin if it RESOLVES, so it
+    is followed rather than trusted.
+    """
+    contract = rf.load_contract()
+    spec = (contract.get("validation_copy") or {})
     for entry in spec.get("ignored_allowlist") or []:
-        assert entry.get("sha256"), f"{entry} is not pinned"
+        want = entry.get("sha256")
+        if entry.get("sha256_ref"):
+            want = rf._resolve_dotted(contract, entry["sha256_ref"])
+        size = entry.get("bytes")
+        if entry.get("bytes_ref"):
+            size = rf._resolve_dotted(contract, entry["bytes_ref"])
+        assert want and re.fullmatch(r"[0-9a-f]{64}", str(want)), \
+            f"{entry} carries no resolvable sha256"
+        assert isinstance(size, int) and not isinstance(size, bool) \
+            and size > 0, f"{entry} carries no resolvable byte count"
 
 
 def test_production_has_no_python_trust_bypass():
@@ -8312,3 +8354,248 @@ def test_an_undeclared_directory_scope_is_refused_and_a_declared_one_is_not():
     assert rf._scope_token_claim(
         "assets/frozen_figures/fig01/**", registered,
         {"assets/frozen_figures/fig01"}) is None
+
+
+# ---------------------------------------------------------------------------
+# 43. 4G-r2: the validation clone builds its own derived inputs
+#
+# The release is accepted on a run inside a disposable clone. That clone may
+# inherit only IMMUTABLE INPUTS it cannot recreate - each pinned by digest AND
+# size - and must BUILD everything derived. Inheriting the operator's
+# publication_outputs/ would make the accepted run a test of the developer's
+# desk; allowlisting it would hide a reproducibility defect rather than report
+# one.
+# ---------------------------------------------------------------------------
+def _allowlist():
+    return ((_REAL_CONTRACT.get("validation_copy") or {})
+            .get("ignored_allowlist") or [])
+
+
+def test_the_allowlist_admits_only_pinned_immutable_inputs():
+    """Two entries, both single regular files, both pinned twice over."""
+    entries = _allowlist()
+    assert entries, "the allowlist is empty; the clone cannot be prepared"
+    for entry in entries:
+        rel = entry["path"]
+        assert not any(ch in rel for ch in "*?[]"), rel
+        assert not rel.endswith("/"), rel
+        # A pin may be inline or BY REFERENCE to a digest the contract already
+        # carries. Repeating the candidate's digest here would put the same
+        # value at two paths and break the identity map's "only at its own
+        # registered path" rule, so it is referenced instead.
+        want = entry.get("sha256")
+        want_bytes = entry.get("bytes")
+        if entry.get("sha256_ref"):
+            want = rf._resolve_dotted(_REAL_CONTRACT, entry["sha256_ref"])
+        if entry.get("bytes_ref"):
+            want_bytes = rf._resolve_dotted(_REAL_CONTRACT,
+                                            entry["bytes_ref"])
+        assert re.fullmatch(r"[0-9a-f]{64}", str(want)), rel
+        assert isinstance(want_bytes, int) and want_bytes > 0, rel
+        source = REPO / rel
+        assert source.is_file(), f"{rel} is not present"
+        assert not source.is_symlink(), rel
+        data = source.read_bytes()
+        assert len(data) == want_bytes, rel
+        assert rf.sha256_bytes(data) == want, rel
+
+
+def test_the_candidate_digest_is_pinned_once_and_referenced():
+    """One source of truth for the candidate archive's identity."""
+    entry = next(e for e in _allowlist() if e["path"].endswith(".zip"))
+    assert "sha256" not in entry and "bytes" not in entry, (
+        "the candidate digest is repeated in the allowlist; it must be "
+        "referenced from technical_source_candidate so the identity map can "
+        "still tell an archive identity from an identity reference")
+    assert entry["sha256_ref"] == "technical_source_candidate.sha256"
+    assert entry["bytes_ref"] == "technical_source_candidate.bytes"
+
+
+def test_publication_outputs_is_never_allowlisted():
+    """The derived tree must be BUILT in the clone, never inherited."""
+    for entry in _allowlist():
+        rel = entry["path"].replace("\\", "/")
+        assert not rel.startswith("publication_outputs"), (
+            "publication_outputs/ is derived; admitting the operator's copy "
+            "would make the accepted run a test of the developer's desk")
+        assert not rel.startswith("reproduced"), rel
+    prep = _REAL_CONTRACT["validation_preparation"]
+    assert prep["publication_out_dirname"] == "publication_outputs"
+    assert prep["require_deterministic_publication_rebuild"] is True
+    assert prep["require_tracked_paths_unchanged"] is True
+
+
+@pytest.mark.parametrize("mutation", [
+    "missing", "altered", "resized", "unpinned", "unsized", "glob",
+    "directory",
+])
+def test_a_defective_allowlist_entry_is_refused(tmp_path, synthetic, mutation):
+    """Missing, altered, wrongly sized, unpinned, globbed and directory
+    entries are each refused, by their own code."""
+    root = synthetic["root"]
+    contract = json.loads(json.dumps(synthetic["contract"]))
+    rel = "release_staging/pinned_input.bin"
+    payload = b"PINNED VALIDATION INPUT\n"
+    target = root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    entry = {"path": rel, "sha256": rf.sha256_bytes(payload),
+             "bytes": len(payload)}
+    if mutation == "missing":
+        target.unlink()
+    elif mutation == "altered":
+        target.write_bytes(payload.replace(b"PINNED", b"SWAPPD"))
+    elif mutation == "resized":
+        entry["bytes"] = len(payload) + 1
+    elif mutation == "unpinned":
+        del entry["sha256"]
+    elif mutation == "unsized":
+        del entry["bytes"]
+    elif mutation == "glob":
+        entry["path"] = "release_staging/*.bin"
+    elif mutation == "directory":
+        entry["path"] = "release_staging/"
+    contract["validation_copy"] = {"ignored_allowlist": [entry]}
+    with pytest.raises(rf.FinalizerError) as exc:
+        rf._copy_repository(root, tmp_path / "copy", contract,
+                            expected_head=synthetic["head"],
+                            expected_branch="chore/final-repository-cleanup")
+    assert exc.value.code.startswith("VALIDATION_ALLOWLIST_"), exc.value.code
+
+
+def test_the_candidate_and_the_finalized_archive_are_distinct_roles():
+    """They are typed separately and may not be exchanged.
+
+    The candidate is the pre-finalization INPUT the deposit-notice transition
+    is applied to; the finalized archive is the already-activated OUTPUT the
+    identity guards read. One env var each, and production never assigns the
+    finalized archive to the candidate slot.
+    """
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    assert '"SCORCH_CANDIDATE_ARCHIVE"' in src
+    assert '"SCORCH_DATA_ARCHIVE": str(final_archive)' in src
+    assert "candidate_archive=candidate_in_copy" in src
+    assert 'env["SCORCH_CANDIDATE_ARCHIVE"] = str(candidate_archive)' in src
+    # The reader CONSULTS the candidate and never the finalized archive. The
+    # assertion is on the lookup itself rather than on the prose, because the
+    # comment beside it legitimately names the variable it refuses to use.
+    tests = Path(__file__).read_text(encoding="utf-8")
+    reader = tests.split("def _surface_text", 1)[1].split("\ndef ", 1)[0]
+    code = "\n".join(line.split("#", 1)[0] for line in reader.splitlines())
+    assert 'os.environ.get("SCORCH_CANDIDATE_ARCHIVE"' in code
+    assert "SCORCH_DATA_ARCHIVE" not in code
+
+
+def test_preparation_refuses_an_inherited_publication_tree(tmp_path):
+    """A publication_outputs/ already in the clone is a refusal.
+
+    Its presence can only mean the operator's derived outputs reached the
+    validation copy, which is the whole thing this stage exists to prevent.
+    """
+    copy_root = tmp_path / "copy"
+    (copy_root / "publication_outputs").mkdir(parents=True)
+    (copy_root / "run_reproduction.py").write_text("", encoding="utf-8")
+    (copy_root / "scripts" / "publication").mkdir(parents=True)
+    (copy_root / "scripts/publication/build_publication_outputs.py").write_text(
+        "", encoding="utf-8")
+    with pytest.raises(rf.FinalizerError) as exc:
+        rf.prepare_validation_inputs(
+            copy_root, sys.executable, tmp_path / "extract", tmp_path / "work",
+            contract=_REAL_CONTRACT)
+    assert exc.value.code == "VALIDATION_PREPARATION_OCCUPIED", exc.value
+
+
+def test_a_missing_pipeline_entry_is_a_reproducibility_defect(tmp_path):
+    """Not a skip, not an allowlist: the missing input is NAMED."""
+    copy_root = tmp_path / "copy"
+    copy_root.mkdir()
+    with pytest.raises(rf.FinalizerError) as exc:
+        rf.prepare_validation_inputs(
+            copy_root, sys.executable, tmp_path / "extract", tmp_path / "work",
+            contract=_REAL_CONTRACT)
+    assert exc.value.code == "VALIDATION_PREPARATION_INPUT_MISSING"
+    assert "run_reproduction.py" in exc.value.why
+
+
+def test_a_failing_builder_blocks_acceptance(tmp_path):
+    """A non-zero exit from either stage stops the release."""
+    copy_root = tmp_path / "copy"
+    (copy_root / "scripts" / "publication").mkdir(parents=True)
+    (copy_root / "run_reproduction.py").write_text(
+        "import sys\nsys.exit(0)\n", encoding="utf-8", newline="\n")
+    (copy_root / "scripts/publication/build_publication_outputs.py").write_text(
+        "import sys\nsys.exit(3)\n", encoding="utf-8", newline="\n")
+    _init_repo(copy_root)
+    with pytest.raises(rf.FinalizerError) as exc:
+        rf.prepare_validation_inputs(
+            copy_root, sys.executable, tmp_path / "extract", tmp_path / "work",
+            contract=_REAL_CONTRACT)
+    assert exc.value.code == "VALIDATION_PREPARATION_FAILED"
+    assert "publication builder" in exc.value.why
+
+
+def test_a_failing_reproduction_blocks_acceptance(tmp_path):
+    copy_root = tmp_path / "copy"
+    (copy_root / "scripts" / "publication").mkdir(parents=True)
+    (copy_root / "run_reproduction.py").write_text(
+        "import sys\nsys.exit(2)\n", encoding="utf-8", newline="\n")
+    (copy_root / "scripts/publication/build_publication_outputs.py").write_text(
+        "", encoding="utf-8", newline="\n")
+    _init_repo(copy_root)
+    with pytest.raises(rf.FinalizerError) as exc:
+        rf.prepare_validation_inputs(
+            copy_root, sys.executable, tmp_path / "extract", tmp_path / "work",
+            contract=_REAL_CONTRACT)
+    assert exc.value.code == "VALIDATION_PREPARATION_FAILED"
+    assert "reproduction pipeline" in exc.value.why
+
+
+def test_acceptance_requires_zero_skips_and_a_complete_execution():
+    """The gate names what failed, and admits no skip, xfail or xpass."""
+    base = {"exit_code": 0, "passed": 10, "failed": 0, "errors": 0,
+            "skipped": 0, "xfailed": 0, "xpassed": 0,
+            "collected_nodeids": ["a"], "executed_nodeids": ["a"],
+            "not_executed": [], "executed_not_collected": []}
+    assert rf.validation_acceptance_issues(dict(base)) == []
+    for key in ("failed", "errors", "skipped", "xfailed", "xpassed"):
+        codes = [c for c, _ in
+                 rf.validation_acceptance_issues(dict(base, **{key: 1}))]
+        assert "VALIDATION_RUN_FAILED" in codes, key
+    codes = [c for c, _ in rf.validation_acceptance_issues(
+        dict(base, not_executed=["b"]))]
+    assert "VALIDATION_INCOMPLETE" in codes
+    why = " ".join(w for _, w in rf.validation_acceptance_issues(
+        dict(base, failed=1, failed_nodeids=["tests/test_x.py::test_y"])))
+    assert "tests/test_x.py::test_y" in why
+
+
+def test_the_linked_worktree_git_pointer_contamination_cannot_recur():
+    """The defect that put three test commits on the operator's branch.
+
+    `.git` in a linked worktree is a FILE holding `gitdir: <the real
+    repository>`. A helper that copied the tree and then ran `git -C <copy>`
+    resolved to, and committed into, the REAL repository. Both halves of the
+    fix are asserted: the copy excludes `.git`, and every helper that inits a
+    repository neutralises an inherited pointer first.
+    """
+    pub = (REPO / "tests" / "test_publication_builder_contracts.py").read_text(
+        encoding="utf-8")
+    ignore = pub.split("shutil.ignore_patterns(", 1)[1].split(")", 1)[0]
+    assert '".git"' in ignore, (
+        "the disposable copy no longer excludes .git; a linked-worktree "
+        "pointer would redirect every git call to the real repository")
+    for name in ("tests/test_publication_builder_contracts.py",
+                 "tests/test_public_consistency_guards.py"):
+        text = (REPO / name).read_text(encoding="utf-8")
+        assert "dotgit.is_file()" in text and "dotgit.unlink()" in text, name
+
+
+def test_production_never_commits_into_the_repository_under_test():
+    """Belt and braces: no test helper may commit to the real worktree."""
+    real_head = subprocess.run(
+        ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+        capture_output=True, text=True).stdout.strip()
+    assert re.fullmatch(r"[0-9a-f]{40}", real_head), real_head
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    for forbidden in ('"commit"', '"push"', '"merge"', '"tag"'):
+        assert forbidden not in src.replace(".zenodo.json", ""), forbidden
