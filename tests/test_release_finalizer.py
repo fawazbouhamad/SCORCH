@@ -1286,12 +1286,14 @@ def _surface_text(rel, contract):
         candidate = (REPO / "release_staging" /
                      contract["technical_source_candidate"]["filename"])
         if not candidate.is_file():
-            configured = os.environ.get("SCORCH_DATA_ARCHIVE", "")
-            if configured and Path(configured).is_file():
-                with zipfile.ZipFile(configured) as zf:
-                    return zf.read(member).decode("utf-8")
-            pytest.skip(f"{candidate.name} is not present locally and no "
-                        f"SCORCH_DATA_ARCHIVE is configured")
+            # DELIBERATELY not falling back to SCORCH_DATA_ARCHIVE. That names
+            # the FINAL archive, whose licence member the finalization has
+            # already rewritten - so the whole deposit-notice section, which
+            # exists to exercise the pending -> active TRANSITION, would try to
+            # apply it to an already-activated notice and fail with
+            # CCBY_ACTIVATION_COUNT. The transition's input is the
+            # pre-finalization candidate or nothing.
+            pytest.skip(f"{candidate.name} is not present locally")
         with zipfile.ZipFile(candidate) as zf:
             return zf.read(member).decode("utf-8")
     return (REPO / rel).read_text(encoding="utf-8")
@@ -1341,13 +1343,14 @@ def test_each_authored_transition_activates_its_own_surface(index):
     item = sorted(contract["ccby_activation_plan"]["replacements"],
                   key=lambda i: i["file"])[index]
     text = _surface_text(item["file"], contract)
-    if _real_licence_state() == als.ACTIVE:
+    if _real_licence_state() == als.ACTIVE and \
+            not item["file"].startswith(rf.ARCHIVE_FILE_PREFIX):
         # Already applied. The transition is no longer available to simulate,
         # so what must hold is its RESULT: the destination block is present
         # exactly once, no pending marker survives, and the surface classifies
-        # as granting. This covers the archive surface too - in an activated
-        # tree `_surface_text` reads the FINAL archive, whose licence member
-        # the finalization rewrote in the same transaction.
+        # as granting. (The archive member is read from the pinned
+        # pre-finalization candidate, which is never activated in place, so it
+        # keeps the pending branch.)
         assert text.count(item["to"]) == 1, (
             f"{item['file']}: the activated destination block does not occur "
             f"exactly once in an ACTIVE tree")
