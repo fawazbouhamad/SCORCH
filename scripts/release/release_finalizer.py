@@ -4687,12 +4687,17 @@ def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
         proc = subprocess.run([str(python_exe)] + argv, cwd=str(copy_root),
                               env=env, capture_output=True, text=True)
         if proc.returncode != 0:
+            # A GENEROUS tail. This is the one place an operator learns why a
+            # release could not rebuild its own inputs, the work directory is
+            # gone by the time they read it, and the summary table these tools
+            # print last is exactly what a short tail keeps while discarding
+            # the error above it.
             raise FinalizerError(
                 "VALIDATION_PREPARATION_FAILED",
                 f"{what} exited {proc.returncode} in the validation clone; "
                 f"the release cannot be accepted on inputs it could not "
-                f"rebuild. tail: "
-                f"{(proc.stdout[-1500:] + proc.stderr[-1500:]).strip()}")
+                f"rebuild.\n--- stdout tail ---\n{proc.stdout[-9000:].strip()}"
+                f"\n--- stderr tail ---\n{proc.stderr[-4000:].strip()}")
         return proc
 
     # The pipeline has a publication-assembly stage of its own. It is pointed
