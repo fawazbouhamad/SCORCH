@@ -982,7 +982,7 @@ if str(_RELEASE_DIR) not in sys.path:
 
 import artwork_licence_state as _artwork  # noqa: E402  (sys.path set above)
 
-ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json"
+ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json"
 ARTWORK_LICENCE_PENDING = _artwork.PENDING
 ARTWORK_LICENCE_ACTIVE = _artwork.ACTIVE
 

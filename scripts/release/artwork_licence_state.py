@@ -25,7 +25,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.dont_write_bytecode = True
 
@@ -117,7 +116,7 @@ def load_trusted_contract(repo_root=None):
 def receipt_path(repo_root=None, contract=None):
     root = repository_root(repo_root)
     contract = contract if contract is not None else load_trusted_contract(root)
-    return root / contract["authorization_receipt"]["tracked_path"]
+    return root / contract["licence_receipt"]["tracked_path"]
 
 
 def resolve_receipt_path(repo_root=None, contract=None):
@@ -144,7 +143,7 @@ def resolve_receipt_path(repo_root=None, contract=None):
 
     root = repository_root(repo_root)
     contract = contract if contract is not None else load_trusted_contract(root)
-    rel = contract["authorization_receipt"]["tracked_path"]
+    rel = contract["licence_receipt"]["tracked_path"]
     path = root / rel
 
     try:
@@ -498,34 +497,13 @@ def safe_read_receipt(path, repo_root):
     return safe_read_within(repo_root, path)
 
 
-def volume_anchor(path):
-    """The VOLUME ROOT of an absolute path: ``C:\\`` or ``/``.
-
-    The external evidence file is not inside any repository, so there is no
-    tree to be contained by - but "outside the repository" must not become
-    "unchecked". Anchoring at the volume root means EVERY component of the
-    supplied path, from the drive letter down, is opened and inspected by the
-    same walk that protects the tracked receipt: a junction on any parent, a
-    symlink on the leaf, or a device where a file was expected is refused
-    where it sits.
-    """
-    path = Path(path)
-    if not path.is_absolute():
-        raise ReceiptOpenRefused(
-            f"{path} is not an absolute path; the original approval evidence "
-            f"is named absolutely so that every component of the name can be "
-            f"walked and checked")
-    return Path(path.anchor)
-
-
-def safe_read_external_evidence(path):
-    """Read the ORIGINAL approval evidence, component-safe and no-follow.
-
-    Same primitive as the receipt, anchored at the volume root instead of the
-    repository, because this file deliberately lives OUTSIDE the tree. Fails
-    closed: any refusal is a refusal, never a fallback to ``open()``.
-    """
-    return safe_read_within(volume_anchor(path), path)
+# There is deliberately NO reader for a file outside the repository. The
+# licence rests on a declaration by the artwork's own creator, committed inside
+# the tree and reviewable there; nothing is preserved in a private mailbox,
+# nothing is supplied on the command line at finalization time, and there is
+# therefore no path anchored outside the repository for anything to be read
+# from. Every surface this module reads is repository-contained and is checked
+# by `safe_read_within`.
 
 
 def read_receipt_bytes(path, repo_root=None):
@@ -541,18 +519,22 @@ def read_receipt_bytes(path, repo_root=None):
 # ---------------------------------------------------------------------------
 # Receipt validation - the whole point of this module
 # ---------------------------------------------------------------------------
-#: The receipt field that says HOW the approval was obtained, and its two
-#: values. Absent means the GitHub route: a receipt predating the second route
-#: cannot retroactively have said which one it used.
-SOURCE_FIELD = "approval_source"
-GITHUB_SOURCE = "github_pr_comment"
-EXTERNAL_SOURCE = "external_evidence"
+#: The receipt field that says WHERE the licence comes from, and its ONE value.
+#:
+#: There is exactly one source, because there is exactly one licensor. Fawaz
+#: Bouhamad created the Figure 1 and Figure 4 artwork and licenses it; the
+#: licence therefore rests on a declaration by its creator and on nothing else.
+#: No third party's permission is sought, so there is no second route for one to
+#: arrive by, and a receipt naming any other source is refused rather than
+#: interpreted.
+SOURCE_FIELD = "licence_source"
+CREATOR_SOURCE = "creator_declaration"
 
 
 def _strict_json(text):
     """``json.loads`` that REFUSES duplicate keys.
 
-    ``{"custodian": "someone else", "custodian": "Fawaz Bouhamad"}`` parses
+    ``{"creator": "someone else", "creator": "Fawaz Bouhamad"}`` parses
     silently in stock json and keeps the LAST value, so a record could carry a
     reviewed-looking field beside the one that actually takes effect.
     """
@@ -624,199 +606,131 @@ def _git_blob(root, rel):
     return blob_id, blob.stdout
 
 
-#: What each declared source type must actually LOOK LIKE on disk.
-#:
-#: The record says how the approval arrived; the evidence file is the thing
-#: that arrived. Nothing required the two to agree, so a record could declare
-#: ``approval_email`` - which the custodian attestation and the operator guide
-#: both describe as "the complete message with its full headers" - while the
-#: preserved file was a ``.docx`` or a screenshot ``.png``. Those are not the
-#: original message: they are a transcription of it, with the headers that
-#: carry the provenance discarded.
-#:
-#: A CONSISTENCY check and nothing more. It does not authenticate the mail, and
-#: no format check could - see the custodian trust model in the operator guide.
-#: It refuses the case where the record's own claim about what it preserved is
-#: contradicted by the file it preserved.
-EVIDENCE_FORMATS = {
-    "approval_email": (
-        frozenset("eml msg mbox mht mhtml emlx".split()),
-        "the complete original message as received - .eml, .msg or .mbox - "
-        "so that its headers are preserved. A PDF, a screenshot or a word "
-        "processor document is a transcription of a message, not the message"),
-    "signed_approval_form": (
-        frozenset("pdf png jpg jpeg tif tiff".split()),
-        "the signed form as scanned or exported - .pdf, or a .png/.jpg/.tiff "
-        "scan - so that the signature itself is preserved"),
-}
+def declaration_record_receipt_issues(receipt, contract, root):
+    """Prove the tracked creator declaration the receipt RESTS ON, at HEAD.
 
-
-def evidence_format_issues(source_type, filename, *, code):
-    """Refuse an evidence file whose format contradicts its declared source."""
-    spec = EVIDENCE_FORMATS.get(str(source_type))
-    if spec is None:
-        return []
-    allowed, expectation = spec
-    ext = Path(str(filename)).suffix.lower().lstrip(".")
-    if ext in allowed:
-        return []
-    return [(code,
-             f"the record declares source_type {source_type!r} but the "
-             f"preserved evidence is {filename!r} (.{ext or 'no extension'}). "
-             f"That source type means {expectation}")]
-
-
-def approval_record_receipt_issues(receipt, contract, root):
-    """Prove the tracked approval record the receipt RESTS ON, at HEAD.
-
-    An external receipt is a claim about a second file: "the approval this
-    licence rests on is recorded at <path>, whose bytes hash to <sha256> and
-    whose committed blob is <sha1>". Until r3m nothing checked that the file
-    existed - so a receipt naming a record that had never been written, or one
-    naming a record whose bytes had since been edited, still read as ACTIVE,
-    and the guards happily asserted CC BY over a coauthor's artwork on the
-    strength of a self-consistent JSON file somebody could type.
-
-    So the record is re-read here, from the tree, EVERY time a receipt is
+    A receipt is a claim about a second file: "the licence this repository
+    asserts is declared at <path>, whose bytes hash to <sha256> and whose
+    committed blob is <sha1>". Nothing may take that claim on trust, so the
+    declaration is re-read here, from the tree, EVERY time a receipt is
     validated - by the builder, by the guards, and by the finalizer:
 
     * read through the component-safe, no-follow walk, so a link at the path or
       a junction on any parent directory is a refusal and not a redirection;
-    * TRACKED at HEAD, because a record that exists only in a working copy has
-      no history, no review and no author;
-    * its bytes on disk EQUAL to the blob at HEAD, so the reviewed record and
-      the read record are the same object;
+    * TRACKED at HEAD, because a declaration that exists only in a working copy
+      has no history, no review and no author;
+    * its bytes on disk EQUAL to the blob at HEAD, so the reviewed declaration
+      and the read declaration are the same object;
     * its SHA-256 and its git blob identity RECOMPUTED and equal to the two the
       receipt commits to; and
-    * its approved paragraph, its seven-artwork scope, its evidence metadata
-      and its custodian attestation equal to the receipt's.
+    * its declared paragraph, its seven-artwork scope and its creator
+      attestation equal to the receipt's.
 
-    None of this authenticates the human approval - see the custodian trust
-    model in the operator guide. It establishes that the receipt and the
-    committed record are one consistent, unaltered pair.
+    This does not authenticate a human being. It establishes that the receipt
+    and the committed declaration are one consistent, unaltered pair, and that
+    the seven artwork identities the declaration binds still hold in the tree.
+    Because the licensor is the person running the release, there is no third
+    party whose consent could be forged here - only a scope that could be
+    widened, which is exactly what these checks refuse.
     """
     issues = []
-    ext = (contract.get("approval_sources") or {}).get(EXTERNAL_SOURCE) or {}
-    rel = ext.get("tracked_record_path")
+    spec = (contract.get("declaration_source") or {})
+    rel = spec.get("tracked_record_path")
     if not rel:
-        return [("RECEIPT_APPROVAL_RECORD_UNVERIFIABLE",
-                 "the contract enables external evidence but declares no "
-                 "tracked_record_path, so the record a receipt rests on cannot "
-                 "be located")]
+        return [("RECEIPT_DECLARATION_UNVERIFIABLE",
+                 "the contract declares no tracked_record_path, so the "
+                 "declaration a receipt rests on cannot be located")]
     root = Path(root)
     path = root / rel
 
     if not os.path.lexists(str(path)):
-        return [("RECEIPT_APPROVAL_RECORD_ABSENT",
+        return [("RECEIPT_DECLARATION_ABSENT",
                  f"the receipt rests on {rel}, which does not exist. A receipt "
-                 f"naming an approval record that is not in the tree is not "
+                 f"naming a creator declaration that is not in the tree is not "
                  f"evidence of anything")]
     try:
         disk = safe_read_within(root, path)
     except ReceiptOpenRefused as exc:
-        return [("RECEIPT_APPROVAL_RECORD_UNREADABLE",
+        return [("RECEIPT_DECLARATION_UNREADABLE",
                  f"{rel} could not be read safely: {exc.why}")]
 
     blob_id, blob = _git_blob(root, rel)
     if blob_id is None:
-        return [("RECEIPT_APPROVAL_RECORD_UNTRACKED",
-                 f"{rel} is not tracked at HEAD; an approval record that was "
-                 f"never committed has no history, no review and no author")]
+        return [("RECEIPT_DECLARATION_UNTRACKED",
+                 f"{rel} is not tracked at HEAD; a creator declaration that "
+                 f"was never committed has no history, no review and no "
+                 f"author")]
     if disk != blob:
-        return [("RECEIPT_APPROVAL_RECORD_MODIFIED",
+        return [("RECEIPT_DECLARATION_MODIFIED",
                  f"{rel} on disk ({sha256_hex(disk.decode('utf-8', 'replace'))}"
                  f", {len(disk)} B) differs from its committed blob {blob_id} "
-                 f"({len(blob)} B); the record being read is not the record "
+                 f"({len(blob)} B); the declaration being read is not the one "
                  f"that was reviewed and committed")]
 
     got_sha = hashlib.sha256(disk).hexdigest()
-    if receipt.get("approval_record_sha256") != got_sha:
+    if receipt.get("declaration_record_sha256") != got_sha:
         issues.append((
-            "RECEIPT_APPROVAL_RECORD_MISMATCH",
-            f"the receipt commits to approval_record_sha256 "
-            f"{receipt.get('approval_record_sha256')!r}; {rel} hashes "
+            "RECEIPT_DECLARATION_MISMATCH",
+            f"the receipt commits to declaration_record_sha256 "
+            f"{receipt.get('declaration_record_sha256')!r}; {rel} hashes "
             f"{got_sha}"))
-    if receipt.get("approval_record_blob_sha1") != blob_id:
+    if receipt.get("declaration_record_blob_sha1") != blob_id:
         issues.append((
-            "RECEIPT_APPROVAL_RECORD_MISMATCH",
-            f"the receipt commits to approval_record_blob_sha1 "
-            f"{receipt.get('approval_record_blob_sha1')!r}; {rel} is committed "
-            f"as blob {blob_id}"))
+            "RECEIPT_DECLARATION_MISMATCH",
+            f"the receipt commits to declaration_record_blob_sha1 "
+            f"{receipt.get('declaration_record_blob_sha1')!r}; {rel} is "
+            f"committed as blob {blob_id}"))
 
     try:
         record = _strict_json(disk.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
-        issues.append(("RECEIPT_APPROVAL_RECORD_MALFORMED",
+        issues.append(("RECEIPT_DECLARATION_MALFORMED",
                        f"{rel} is not a strict JSON object: {exc}"))
         return sorted(set(issues))
     if not isinstance(record, dict):
         return sorted(set(issues)) + [
-            ("RECEIPT_APPROVAL_RECORD_MALFORMED", f"{rel} is not an object")]
+            ("RECEIPT_DECLARATION_MALFORMED", f"{rel} is not an object")]
 
-    # --- the RECORD must be well-formed IN ITSELF ---------------------------
-    # Not merely consistent with the receipt. A record and a receipt that agree
-    # with each other can still both be wrong: the durable path validated only
-    # that they matched, so a committed record missing its custodian
-    # attestation entirely, or declaring an invented source_type, or carrying
-    # no schema_version, passed every check as long as the receipt written
-    # beside it repeated the same defect. `find_external_approval` applies
-    # these at finalization; they belong here too, because the builder and the
-    # guards read the receipt for years afterwards and never call it.
-    missing = [f for f in (ext.get("required_fields") or [])
+    # --- the DECLARATION must be well-formed IN ITSELF ----------------------
+    # Not merely consistent with the receipt. A declaration and a receipt that
+    # agree with each other can still both be wrong, and the builder and the
+    # guards read the receipt for years afterwards without ever calling the
+    # finalizer's resolver.
+    missing = [f for f in (spec.get("required_fields") or [])
                if f not in record]
     if missing:
-        issues.append(("RECEIPT_APPROVAL_RECORD_MALFORMED",
+        issues.append(("RECEIPT_DECLARATION_MALFORMED",
                        f"{rel} is missing required field(s) {missing}; a "
-                       f"receipt may not rest on an incomplete record"))
-    want_schema = ext.get("schema_version")
+                       f"receipt may not rest on an incomplete declaration"))
+    want_schema = spec.get("schema_version")
     if want_schema is not None and record.get("schema_version") != want_schema:
         issues.append((
-            "RECEIPT_APPROVAL_RECORD_SCHEMA_VERSION",
+            "RECEIPT_DECLARATION_SCHEMA_VERSION",
             f"{rel} declares schema_version "
             f"{record.get('schema_version')!r}, the contract admits "
             f"{want_schema!r}"))
-    allowed_types = ext.get("allowed_source_types") or []
-    if allowed_types and record.get("source_type") not in allowed_types:
-        issues.append((
-            "RECEIPT_APPROVAL_RECORD_SOURCE_TYPE",
-            f"{rel} declares source_type {record.get('source_type')!r}, which "
-            f"is not one of {allowed_types}"))
-    else:
-        # The record's claim about HOW the approval arrived, against the name
-        # of the file it says it preserved. Checked on the RECORD's filename,
-        # which is the one that outlives the finalization.
-        rec_evidence = record.get("evidence")
-        rec_evidence = rec_evidence if isinstance(rec_evidence, dict) else {}
-        issues.extend(evidence_format_issues(
-            record.get("source_type"),
-            rec_evidence.get("filename") or receipt.get("evidence_filename"),
-            code="RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT"))
 
-    # --- the receipt must say what the record says --------------------------
-    if str(record.get("source_type")) != str(receipt.get("source_type")):
+    # --- the receipt must say what the declaration says ---------------------
+    if str(record.get("declaration_date")) != \
+            str(receipt.get("declaration_date")):
         issues.append((
-            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-            f"receipt source_type={receipt.get('source_type')!r} but {rel} "
-            f"records {record.get('source_type')!r}"))
-    if str(record.get("approval_date")) != str(receipt.get("approval_date")):
+            "RECEIPT_DISAGREES_WITH_DECLARATION",
+            f"receipt declaration_date={receipt.get('declaration_date')!r} but "
+            f"{rel} records {record.get('declaration_date')!r}"))
+    if normalize_prose(str(record.get("declared_text") or "")) != \
+            normalize_prose(str(receipt.get("declared_text") or "")):
         issues.append((
-            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-            f"receipt approval_date={receipt.get('approval_date')!r} but {rel} "
-            f"records {record.get('approval_date')!r}"))
-    if normalize_prose(str(record.get("approved_text") or "")) != \
-            normalize_prose(str(receipt.get("approved_text") or "")):
-        issues.append((
-            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+            "RECEIPT_DISAGREES_WITH_DECLARATION",
             f"the paragraph the receipt carries is not the paragraph {rel} "
-            f"records as approved"))
+            f"records as declared"))
 
     want_paths = sorted(contract["ccby_artwork_paths"])
     rec_art = record.get("licensed_artwork")
     if not isinstance(rec_art, dict) or sorted(rec_art) != want_paths:
         got = sorted(rec_art) if isinstance(rec_art, dict) else rec_art
         issues.append((
-            "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-            f"{rel} approves {got!r}; the contracted scope is exactly "
+            "RECEIPT_DISAGREES_WITH_DECLARATION",
+            f"{rel} licenses {got!r}; the contracted scope is exactly "
             f"{want_paths}"))
     else:
         rcp_art = receipt.get("licensed_artwork")
@@ -824,65 +738,65 @@ def approval_record_receipt_issues(receipt, contract, root):
         for art_rel in want_paths:
             if rec_art[art_rel] != rcp_art.get(art_rel):
                 issues.append((
-                    "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-                    f"{art_rel}: {rel} approves {rec_art[art_rel]}, the "
-                    f"receipt licenses {rcp_art.get(art_rel)!r}. The approval "
-                    f"covers the bytes that were shown"))
+                    "RECEIPT_DISAGREES_WITH_DECLARATION",
+                    f"{art_rel}: {rel} licenses {rec_art[art_rel]}, the "
+                    f"receipt licenses {rcp_art.get(art_rel)!r}. The "
+                    f"declaration covers the bytes it identified"))
 
-    evidence = record.get("evidence")
-    evidence = evidence if isinstance(evidence, dict) else {}
-    for rec_field, rcp_field in (("filename", "evidence_filename"),
-                                 ("bytes", "evidence_bytes"),
-                                 ("sha256", "evidence_sha256")):
-        if evidence.get(rec_field) != receipt.get(rcp_field):
-            issues.append((
-                "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-                f"receipt {rcp_field}={receipt.get(rcp_field)!r} but {rel} "
-                f"records evidence.{rec_field}={evidence.get(rec_field)!r}"))
-
-    attestation = record.get("custodian_attestation")
+    attestation = record.get("creator_attestation")
     attestation = attestation if isinstance(attestation, dict) else {}
-    for rec_field, rcp_field in (("custodian", "custodian"),
-                                 ("attested_at", "attested_at")):
+    for rec_field, rcp_field in (("creator", "creator"),
+                                 ("declared_at", "declared_at")):
         if attestation.get(rec_field) != receipt.get(rcp_field):
             issues.append((
-                "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
+                "RECEIPT_DISAGREES_WITH_DECLARATION",
                 f"receipt {rcp_field}={receipt.get(rcp_field)!r} but {rel} "
-                f"records custodian_attestation.{rec_field}="
+                f"records creator_attestation.{rec_field}="
                 f"{attestation.get(rec_field)!r}"))
-    if normalize_prose(str(attestation.get("statement") or "")) != \
-            normalize_prose(str(ext.get("attestation_statement") or "")):
+    if attestation.get("creator") != spec.get("creator"):
         issues.append((
-            "RECEIPT_APPROVAL_RECORD_ATTESTATION",
-            f"the custodian attestation in {rel} is not EXACTLY the contracted "
+            "RECEIPT_DECLARATION_CREATOR",
+            f"{rel} names creator {attestation.get('creator')!r}, the contract "
+            f"names {spec.get('creator')!r} as the artwork's creator and sole "
+            f"licensor"))
+    if normalize_prose(str(attestation.get("statement") or "")) != \
+            normalize_prose(str(spec.get("attestation_statement") or "")):
+        issues.append((
+            "RECEIPT_DECLARATION_ATTESTATION",
+            f"the creator attestation in {rel} is not EXACTLY the contracted "
             f"statement"))
+    # Dr. Najibi is credited for scientific guidance and is NOT a licensor.
+    # The credit is checked for exact equality so that a declaration can
+    # neither drop the credit that is owed nor inflate it into a grant.
+    want_credit = spec.get("guidance_credit")
+    if want_credit is not None and \
+            record.get("scientific_guidance_credit") != want_credit:
+        issues.append((
+            "RECEIPT_DECLARATION_GUIDANCE_CREDIT",
+            f"{rel} records scientific_guidance_credit "
+            f"{record.get('scientific_guidance_credit')!r}; the contract "
+            f"credits {want_credit!r} for scientific guidance"))
     return sorted(set(issues))
 
 
-def _external_receipt_issues(receipt, contract, root, record=None):
-    """Every defect in a receipt written from a preserved email or a form.
+def _creator_receipt_issues(receipt, contract, root, record=None):
+    """Every defect in a receipt written from the creator's own declaration.
 
-    The GitHub receipt's authority is a live comment that can be re-fetched.
-    This one's authority is a TRACKED APPROVAL RECORD plus a private original,
-    so what it must prove is different: that it names the record it rests on by
-    both digests, that it names the evidence by digest and length, that the
-    paragraph it carries is the contracted one, and that the seven artwork
-    identities still hold in the tree. Nothing here can be satisfied by a
-    boolean, and nothing here can be written by hand without the record and the
-    evidence agreeing with it.
+    The receipt's authority is a TRACKED CREATOR DECLARATION, so what it must
+    prove is: that it names the declaration it rests on by both digests, that
+    the paragraph it carries is the contracted one, that it names Fawaz
+    Bouhamad as the creator and licensor, that it carries the scientific
+    guidance credit owed to Dr. Nasser Najibi without turning that credit into
+    a grant, and that the seven artwork identities still hold in the tree.
+    Nothing here can be satisfied by a boolean, and nothing here can be written
+    by hand without the committed declaration agreeing with it.
     """
     issues = []
-    spec = contract["authorization_receipt"]
+    spec = contract["licence_receipt"]
     repo = contract["repository"]
-    sources = (contract.get("approval_sources") or {})
-    ext = sources.get(EXTERNAL_SOURCE) or {}
+    decl = contract.get("declaration_source") or {}
 
-    if EXTERNAL_SOURCE not in (sources.get("enabled") or []):
-        issues.append(("RECEIPT_APPROVAL_SOURCE",
-                       f"the receipt claims {EXTERNAL_SOURCE!r} but that "
-                       f"source is not enabled in approval_sources.enabled"))
-    required = spec.get("required_fields_external_evidence") or []
-    for field in required:
+    for field in (spec.get("required_fields") or []):
         if field not in receipt:
             issues.append(("RECEIPT_FIELD_MISSING",
                            f"required field {field!r} is absent"))
@@ -897,48 +811,45 @@ def _external_receipt_issues(receipt, contract, root, record=None):
         issues.append(("RECEIPT_REPOSITORY",
                        f"repository {receipt['repository']!r} is not the "
                        f"contracted one"))
-    if receipt["source_type"] not in (ext.get("allowed_source_types") or []):
-        issues.append(("RECEIPT_SOURCE_TYPE",
-                       f"source_type {receipt['source_type']!r} is not one of "
-                       f"{ext.get('allowed_source_types')}"))
-    if receipt["approval_record_path"] != ext.get("tracked_record_path"):
-        issues.append(("RECEIPT_APPROVAL_RECORD_PATH",
-                       f"approval_record_path "
-                       f"{receipt['approval_record_path']!r} is not the "
-                       f"contracted {ext.get('tracked_record_path')!r}"))
-    if receipt["custodian"] != ext.get("custodian"):
-        issues.append(("RECEIPT_CUSTODIAN",
-                       f"custodian {receipt['custodian']!r} is not the "
-                       f"contracted {ext.get('custodian')!r}"))
+    if receipt["declaration_record_path"] != decl.get("tracked_record_path"):
+        issues.append(("RECEIPT_DECLARATION_PATH",
+                       f"declaration_record_path "
+                       f"{receipt['declaration_record_path']!r} is not the "
+                       f"contracted {decl.get('tracked_record_path')!r}"))
+    if receipt["creator"] != decl.get("creator"):
+        issues.append(("RECEIPT_CREATOR",
+                       f"creator {receipt['creator']!r} is not the contracted "
+                       f"{decl.get('creator')!r}"))
+    # The credit is a CREDIT. It names the person who gave scientific guidance
+    # and it must survive into the durable record, but it never makes that
+    # person a licensor - the receipt has no field in which they could become
+    # one, and this equality check keeps the credit from drifting into a claim.
+    if receipt["scientific_guidance_credit"] != decl.get("guidance_credit"):
+        issues.append(("RECEIPT_GUIDANCE_CREDIT",
+                       f"scientific_guidance_credit "
+                       f"{receipt['scientific_guidance_credit']!r} is not the "
+                       f"contracted {decl.get('guidance_credit')!r}"))
 
-    want_text = normalize_prose(contract["authorization"]["text"])
-    if normalize_prose(str(receipt["approved_text"])) != want_text:
-        issues.append(("RECEIPT_APPROVED_TEXT",
-                       "approved_text is not EXACTLY the contracted approval "
-                       "paragraph"))
-    if sha256_hex(receipt["approved_text"]) != receipt["approved_text_sha256"]:
-        issues.append(("RECEIPT_APPROVED_TEXT_SHA256",
-                       "approved_text_sha256 does not hash its own text"))
+    want_text = normalize_prose(contract["licence_declaration"]["text"])
+    if normalize_prose(str(receipt["declared_text"])) != want_text:
+        issues.append(("RECEIPT_DECLARED_TEXT",
+                       "declared_text is not EXACTLY the contracted "
+                       "declaration paragraph"))
+    if sha256_hex(receipt["declared_text"]) != receipt["declared_text_sha256"]:
+        issues.append(("RECEIPT_DECLARED_TEXT_SHA256",
+                       "declared_text_sha256 does not hash its own text"))
 
     for field, pattern, what in (
-            ("approval_record_sha256", r"[0-9a-f]{64}", "a 64-hex digest"),
-            ("evidence_sha256", r"[0-9a-f]{64}", "a 64-hex digest"),
-            ("approval_record_blob_sha1", r"[0-9a-f]{40}", "a 40-hex blob id"),
+            ("declaration_record_sha256", r"[0-9a-f]{64}", "a 64-hex digest"),
+            ("declaration_record_blob_sha1", r"[0-9a-f]{40}",
+             "a 40-hex blob id"),
             ("starting_head", r"[0-9a-f]{40}", "a 40-hex commit")):
         if not re.fullmatch(pattern, str(receipt[field] or "")):
             issues.append((f"RECEIPT_{field.upper()}",
                            f"{field} {receipt[field]!r} is not {what}"))
 
-    size = receipt["evidence_bytes"]
-    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
-        issues.append(("RECEIPT_EVIDENCE_BYTES",
-                       f"evidence_bytes {size!r} is not a positive integer"))
-    if not str(receipt["evidence_filename"] or "").strip():
-        issues.append(("RECEIPT_EVIDENCE_FILENAME",
-                       "evidence_filename is empty"))
-
     stamps = {}
-    for field in ("approval_date", "attested_at", "activated_at"):
+    for field in ("declaration_date", "declared_at", "activated_at"):
         value = str(receipt.get(field) or "")
         parsed = parse_timestamp(value) if value else None
         if parsed is None:
@@ -947,20 +858,20 @@ def _external_receipt_issues(receipt, contract, root, record=None):
                            f"instant"))
             continue
         stamps[field] = parsed
-    # The order the evidence chain actually happened in: the coauthor approved,
-    # the custodian attested to holding that approval, and only then did a
-    # finalization act on it.
-    if {"approval_date", "attested_at"} <= set(stamps) and \
-            stamps["attested_at"] < stamps["approval_date"]:
+    # The order this actually happened in: the creator dated the declaration,
+    # attested to it, and only then did a finalization act on it.
+    if {"declaration_date", "declared_at"} <= set(stamps) and \
+            stamps["declared_at"] < stamps["declaration_date"]:
         issues.append(("RECEIPT_TIMESTAMP_ORDER",
-                       f"attested_at {receipt['attested_at']} precedes the "
-                       f"approval it attests to ({receipt['approval_date']})"))
-    if {"attested_at", "activated_at"} <= set(stamps) and \
-            stamps["activated_at"] < stamps["attested_at"]:
+                       f"declared_at {receipt['declared_at']} precedes the "
+                       f"declaration it attests to "
+                       f"({receipt['declaration_date']})"))
+    if {"declared_at", "activated_at"} <= set(stamps) and \
+            stamps["activated_at"] < stamps["declared_at"]:
         issues.append(("RECEIPT_TIMESTAMP_ORDER",
                        f"activated_at {receipt['activated_at']} precedes the "
-                       f"custodian attestation ({receipt['attested_at']}); the "
-                       f"required order is approval_date <= attested_at <= "
+                       f"creator attestation ({receipt['declared_at']}); the "
+                       f"required order is declaration_date <= declared_at <= "
                        f"activated_at"))
 
     if receipt["finalizer_version"] != contract["finalizer_version"]:
@@ -988,221 +899,55 @@ def _external_receipt_issues(receipt, contract, root, record=None):
                     "RECEIPT_ARTWORK_MISMATCH",
                     f"{rel}: receipt records {artwork[rel]}, tree has {got}"))
 
-    # --- the TRACKED RECORD this receipt rests on, always -------------------
-    # Not conditional on `record`. The builder and the guards run long after
-    # any finalization and have no live approval to compare against, and they
+    # --- the TRACKED DECLARATION this receipt rests on, always --------------
+    # Not conditional on `record`. The builder and the guards run long after any
+    # finalization and have no resolved declaration to compare against, and they
     # are exactly the callers a hand-written receipt was aimed at.
-    issues.extend(approval_record_receipt_issues(receipt, contract, root))
+    issues.extend(declaration_record_receipt_issues(receipt, contract, root))
 
-    # --- the approval this run actually resolved, when we have one ----------
+    # --- the declaration this run actually resolved, when we have one -------
     if record is not None:
-        for field in ("source_type", "approval_date", "approved_text",
-                      "approved_text_sha256", "approval_record_path",
-                      "approval_record_sha256", "approval_record_blob_sha1",
-                      "evidence_filename", "evidence_sha256", "evidence_bytes",
-                      "custodian", "attested_at"):
+        for field in ("declaration_date", "declared_text",
+                      "declared_text_sha256", "declaration_record_path",
+                      "declaration_record_sha256",
+                      "declaration_record_blob_sha1", "creator", "declared_at",
+                      "scientific_guidance_credit"):
             if receipt.get(field) != record.get(field):
                 issues.append((
-                    "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD",
-                    f"receipt {field}={receipt.get(field)!r} but the approval "
-                    f"resolved from the tracked record and its original "
-                    f"evidence says {record.get(field)!r}"))
+                    "RECEIPT_DISAGREES_WITH_DECLARATION",
+                    f"receipt {field}={receipt.get(field)!r} but the "
+                    f"declaration resolved from the tracked record says "
+                    f"{record.get(field)!r}"))
     return sorted(set(issues))
 
 
 def validate_receipt(receipt, contract, repo_root=None, *, record=None):
     """Aggregate EVERY defect in a receipt. Returns sorted (code, why) tuples.
 
-    ``record`` is the live authorization when one is available (during a real
-    finalization). Without it the receipt is still validated against the
-    contract and the tree - which is what the builder and the guards do, long
-    after the API call that produced it.
+    ``record`` is the declaration resolved by this run when one is available
+    (during a real finalization). Without it the receipt is still validated
+    against the contract and the tree - which is what the builder and the
+    guards do, long after the finalization that produced it.
     """
     root = repository_root(repo_root)
-    issues = []
-    spec = contract["authorization_receipt"]
-    repo = contract["repository"]
 
     if not isinstance(receipt, dict):
         return [("RECEIPT_MALFORMED", "receipt is not a JSON object")]
 
-    # WHICH SOURCE licensed the artwork decides which fields a receipt must
-    # carry. A receipt written from a preserved email carries no comment id and
-    # no permalink, because there is no comment; requiring the GitHub field set
-    # of it would either refuse a valid approval or invite fabricated fields.
-    # A receipt with no discriminator at all is read as the GitHub route, which
-    # is what every receipt written before the second route existed would be.
-    source = receipt.get(SOURCE_FIELD, GITHUB_SOURCE)
-    if source not in (GITHUB_SOURCE, EXTERNAL_SOURCE):
-        return [("RECEIPT_APPROVAL_SOURCE",
-                 f"approval_source {source!r} is not one of "
-                 f"{(GITHUB_SOURCE, EXTERNAL_SOURCE)}")]
-    if source == EXTERNAL_SOURCE:
-        return sorted(set(_external_receipt_issues(receipt, contract, root,
-                                                   record)))
-
-    for field in spec["required_fields"]:
-        if field not in receipt:
-            issues.append(("RECEIPT_FIELD_MISSING",
-                           f"required field {field!r} is absent"))
-    if issues:
-        return sorted(set(issues))
-
-    want_login = contract["authorization"]["required_login"]
-    want_text = normalize_prose(contract["authorization"]["text"])
-
-    if receipt["schema_version"] != spec["schema_version"]:
-        issues.append(("RECEIPT_SCHEMA_VERSION",
-                       f"schema_version {receipt['schema_version']!r} != "
-                       f"{spec['schema_version']!r}"))
-    if receipt["repository"] != f"{repo['owner']}/{repo['name']}":
-        issues.append(("RECEIPT_REPOSITORY",
-                       f"repository {receipt['repository']!r} is not the "
-                       f"contracted one"))
-    # A positive, non-boolean INTEGER equal to the contracted number. In JSON,
-    # `true` and `1.0` both compare equal to 1, so a value check alone would
-    # accept either as the pull request this receipt belongs to.
-    pull_request = receipt["pull_request"]
-    if (isinstance(pull_request, bool)
-            or not isinstance(pull_request, int)
-            or pull_request <= 0
-            or pull_request != repo["pull_request"]):
-        issues.append(("RECEIPT_PULL_REQUEST",
-                       f"pull_request {pull_request!r} "
-                       f"({type(pull_request).__name__}) is not the positive "
-                       f"integer {repo['pull_request']!r}"))
-    if str(receipt["login"]).lower() != want_login.lower():
-        issues.append(("RECEIPT_LOGIN",
-                       f"login {receipt['login']!r} is not the contracted "
-                       f"{want_login!r}"))
-    if normalize_prose(receipt["body"]) != want_text:
-        issues.append(("RECEIPT_BODY",
-                       "body is not EXACTLY the contracted authorization text"))
-    if sha256_hex(receipt["body"]) != receipt["body_sha256"]:
-        issues.append(("RECEIPT_BODY_SHA256",
-                       "body_sha256 does not hash its own body"))
-    # comment_id must be a real positive integer, not "0", not True, not "12x".
-    comment_id = receipt["comment_id"]
-    if isinstance(comment_id, bool) or not isinstance(comment_id, int) or \
-            comment_id <= 0:
-        issues.append(("RECEIPT_COMMENT_ID",
-                       f"comment_id {comment_id!r} is not a positive integer"))
-
-    stamps = {}
-    for field in ("created_at", "updated_at", "activated_at"):
-        value = str(receipt.get(field) or "")
-        if not value:
-            issues.append((f"RECEIPT_{field.upper()}", f"{field} is empty"))
-            continue
-        parsed = parse_timestamp(value)
-        if parsed is None:
-            issues.append((f"RECEIPT_{field.upper()}",
-                           f"{field} {value!r} is not a real ISO-8601 UTC "
-                           f"instant"))
-            continue
-        stamps[field] = parsed
-    if {"created_at", "updated_at"} <= set(stamps) and \
-            stamps["created_at"] > stamps["updated_at"]:
-        issues.append(("RECEIPT_TIMESTAMP_ORDER",
-                       f"created_at {receipt['created_at']} is after "
-                       f"updated_at {receipt['updated_at']}"))
-    if {"updated_at", "activated_at"} <= set(stamps) and \
-            stamps["activated_at"] < stamps["updated_at"]:
-        issues.append(("RECEIPT_TIMESTAMP_ORDER",
-                       f"activated_at {receipt['activated_at']} precedes "
-                       f"updated_at {receipt['updated_at']}; the required "
-                       f"order is created_at <= updated_at <= activated_at"))
-    if {"created_at", "activated_at"} <= set(stamps) and \
-            stamps["activated_at"] < stamps["created_at"]:
-        issues.append(("RECEIPT_TIMESTAMP_ORDER",
-                       f"activated_at {receipt['activated_at']} precedes the "
-                       f"authorization it records ({receipt['created_at']})"))
-
-    # The API issue URL, exactly.
-    want_issue = (contract["authorization"].get("expected_issue_url")
-                  or f"https://api.github.com/repos/{repo['owner']}"
-                     f"/{repo['name']}/issues/{repo['pull_request']}")
-    if receipt.get("issue_url") != want_issue:
-        issues.append(("RECEIPT_ISSUE_URL",
-                       f"issue_url {receipt.get('issue_url')!r} is not "
-                       f"exactly {want_issue!r}"))
-    if receipt["finalizer_version"] != contract["finalizer_version"]:
-        issues.append(("RECEIPT_FINALIZER_VERSION",
-                       f"finalizer_version {receipt['finalizer_version']!r} "
-                       f"!= {contract['finalizer_version']!r}"))
-    if not re.fullmatch(r"[0-9a-f]{40}", str(receipt["starting_head"] or "")):
-        issues.append(("RECEIPT_STARTING_HEAD",
-                       f"starting_head {receipt['starting_head']!r} is not a "
-                       f"40-hex commit"))
-    issues.extend(_permalink_issues(receipt.get("permalink"), repo,
-                                    receipt.get("comment_id")))
-
-    # --- scope: EXACTLY the seven contracted artwork paths, hashes intact ---
-    artwork = receipt["licensed_artwork"]
-    want_paths = sorted(contract["ccby_artwork_paths"])
-    if not isinstance(artwork, dict) or sorted(artwork) != want_paths:
-        got = sorted(artwork) if isinstance(artwork, dict) else artwork
-        issues.append((
-            "RECEIPT_ARTWORK_SCOPE",
-            f"receipt licenses {got!r}; the contracted scope is exactly "
-            f"{want_paths}"))
-    else:
-        for rel in want_paths:
-            path = root / rel
-            if not path.is_file():
-                issues.append(("RECEIPT_ARTWORK_MISSING",
-                               f"{rel} is licensed by the receipt but absent"))
-                continue
-            got = sha256_file(path)
-            if artwork[rel] != got:
-                issues.append((
-                    "RECEIPT_ARTWORK_MISMATCH",
-                    f"{rel}: receipt records {artwork[rel]}, tree has {got}"))
-
-    # --- the live authorization, when we have one -------------------------
-    if record is not None:
-        for field in ("comment_id", "login", "body", "body_sha256",
-                      "created_at", "updated_at", "permalink", "issue_url"):
-            if receipt.get(field) != record.get(field):
-                issues.append((
-                    "RECEIPT_DISAGREES_WITH_LIVE_COMMENT",
-                    f"receipt {field}={receipt.get(field)!r} but the live "
-                    f"comment says {record.get(field)!r}"))
-    return sorted(set(issues))
-
-
-def _permalink_issues(url, repo, comment_id=None):
-    """The permalink must be an HTTPS github.com comment on the right PR.
-
-    The fragment must name the SAME comment the receipt records. A permalink
-    pointing at a different comment on the right pull request would otherwise
-    pass, and the durable evidence would point somewhere other than the
-    authorization it claims to record.
-    """
-    url = str(url or "")
-    parsed = urlparse(url)
-    want_path = f"/{repo['owner']}/{repo['name']}/pull/{repo['pull_request']}"
-    if parsed.scheme != "https":
-        return [("RECEIPT_PERMALINK", f"permalink {url!r} is not HTTPS")]
-    if parsed.netloc.lower() != "github.com":
-        return [("RECEIPT_PERMALINK",
-                 f"permalink host {parsed.netloc!r} is not github.com; a "
-                 f"foreign host whose PATH mentions the repository is not the "
-                 f"repository")]
-    if parsed.path != want_path:
-        return [("RECEIPT_PERMALINK",
-                 f"permalink path {parsed.path!r} is not {want_path!r}")]
-    if comment_id is not None and not isinstance(comment_id, bool) and \
-            isinstance(comment_id, int):
-        want_fragment = f"issuecomment-{comment_id}"
-        if parsed.fragment != want_fragment:
-            return [("RECEIPT_PERMALINK",
-                     f"permalink fragment {parsed.fragment!r} is not exactly "
-                     f"{want_fragment!r}")]
-    elif not parsed.fragment.startswith("issuecomment-"):
-        return [("RECEIPT_PERMALINK",
-                 f"permalink {url!r} is not a top-level issue comment")]
-    return []
+    # There is ONE licence source, so the discriminator has one legal value and
+    # is REQUIRED. Absence is not read as some earlier default: a receipt that
+    # does not say where the licence comes from is refused, and so is one that
+    # names a route this project does not use. Nothing here consults GitHub,
+    # asks a third party for permission, or accepts evidence from outside the
+    # repository, because the licensor is the person running the release.
+    source = receipt.get(SOURCE_FIELD)
+    if source != CREATOR_SOURCE:
+        return [("RECEIPT_LICENCE_SOURCE",
+                 f"{SOURCE_FIELD} {source!r} is not {CREATOR_SOURCE!r}; the "
+                 f"Figure 1 and Figure 4 artwork is licensed by its creator's "
+                 f"own declaration and by no other route")]
+    return sorted(set(_creator_receipt_issues(receipt, contract, root,
+                                              record)))
 
 
 # ---------------------------------------------------------------------------
@@ -1226,7 +971,7 @@ def artwork_licence_state(repo_root=None, contract=None, *,
 
     issues = []
     detail = {}
-    rel = contract["authorization_receipt"]["tracked_path"]
+    rel = contract["licence_receipt"]["tracked_path"]
     detail["_receipt_path"] = rel
     detail["_receipt_valid"] = False
 

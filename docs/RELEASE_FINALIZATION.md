@@ -1,17 +1,31 @@
-# Post-D6 release finalization - operator guide
+# Release finalization - operator guide
 
 This document describes `scripts/release/release_finalizer.py`, the tool that
-performs the SCORCH v1.0.0 release finalization once - and only once - coauthor
-Dr. Nasser Najibi has recorded durable written authorization to distribute the
-**jointly created** SCORCH Figure 1 and Figure 4 schematic artwork under
-CC BY 4.0. "Jointly created" is the wording of `authorization.text` itself: the
-proposed `authorization.text` asks Dr. Najibi to confirm that he is *a*
-copyright holder of that artwork. **No such authorization has yet been
-recorded.** That request is why his authorization is required at all, and why
-this guide never describes these two figures as one author's work.
+performs the SCORCH v1.0.0 release finalization once - and only once - the
+CC BY 4.0 licence over the Figure 1 and Figure 4 schematic artwork has been
+recorded in this repository by the artwork's creator.
+
+**Who licenses this artwork.** Fawaz Bouhamad created the Figure 1 and Figure 4
+schematic artwork and is its copyright holder and sole licensor. Dr. Nasser
+Najibi provided the scientific guidance, review and corrections behind those
+figures, remains a manuscript coauthor, and is credited for exactly that
+contribution. Dr. Najibi is not a copyright co-owner or licensor of the
+artwork. No email, signature, GitHub comment, evidence file or other written
+authorization is sought from them, and none is recorded anywhere in this
+release. Every activated licence surface carries this credit line verbatim:
+
+> Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific
+> guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
+
+**What the tool therefore verifies.** Not consent - the licensor is the person
+running the release - but SCOPE and INTEGRITY: that the creator's declaration
+is committed at HEAD, that its bytes equal the reviewed blob, that it pins
+exactly the seven registered artwork identities, that those identities still
+hold in the tree, and that the credit is carried without being turned into a
+second grant. Every one of those fails closed.
 
 **Status at the time of writing: the tooling is built and tested. It has NOT
-been run against the repository in `finalize` mode. The artwork authorization
+been run against the repository in `finalize` mode. The creator's declaration
 has not been recorded, so CC BY 4.0 over Figure 1 and Figure 4 remains PENDING
 and NOT YET IN FORCE, exactly as every licence record in this repository
 states.**
@@ -21,7 +35,7 @@ states.**
 | | `preflight` | `finalize` |
 |---|---|---|
 | writes to disk | never, including bytecode | only after every check passes |
-| needs the authorization | no | yes, resolved from the selected source: committed approval record plus supplied original evidence, or a GitHub comment fetched live twice. |
+| needs the declaration | no | yes, resolved from the tracked creator declaration committed in this repository |
 | safe to run now | yes | it will stop at the gate |
 
 ### The interpreter: name it, never inherit it
@@ -117,13 +131,13 @@ It verifies: the repository root, branch, HEAD and a clean tree; that
 `origin/<head branch>` equals local HEAD; that `origin/main` and the `v1.0.0`
 tag object and its peeled commit are all where the contract says; that the pull
 request is open, draft, unmerged and pointed at the expected base and head;
-the live D6 authorization status; the pinned SHA-256 of the Figure 1 and
+the licence declaration status; the pinned SHA-256 of the Figure 1 and
 Figure 4 assets and the archived-original and donor rasters; that all four
 licence records still withhold the artwork grant, reported as an explicit
 licensing STATE; the eight-file / fifty-six-reference identity map, including
 that no ninth tracked file carries the identity; that the two protected
 historical records still carry the superseded NetCDF hash they exist to record,
-**and that their tracked git blobs are unmoved**; that the D6 receipt does not
+**and that their tracked git blobs are unmoved**; that the licence receipt does not
 already exist; the candidate archive's identity, topology, self-coverage,
 NetCDF contract and agreement with the pinned technical source when one is
 supplied; the FINAL DOCX fixture pair; and the pinned Aptos Regular face.
@@ -160,10 +174,9 @@ bash:
   --repo-root <worktree> \
   --expect-branch chore/final-repository-cleanup \
   --expect-head <40-hex commit> \
-  --candidate-archive <the pinned pre-D6 candidate zip> \
+  --candidate-archive <the pinned corrected candidate zip> \
   --release-staging <explicit destination directory> \
   --final-docx-dir <dir> --aptos-font <ttf> \
-  --approval-evidence <preserved email or signed form, OUTSIDE the tree> \
   --confirm "FINALIZE SCORCH RELEASE"
 ```
 
@@ -175,11 +188,10 @@ $flags = @(
   '--repo-root',         '<worktree>',
   '--expect-branch',     'chore/final-repository-cleanup',
   '--expect-head',       '<40-hex commit>',
-  '--candidate-archive', '<the pinned pre-D6 candidate zip>',
+  '--candidate-archive', '<the pinned corrected candidate zip>',
   '--release-staging',   '<explicit destination directory>',
   '--final-docx-dir',    '<dir>',
   '--aptos-font',        '<ttf>',
-  '--approval-evidence', '<preserved email or signed form, OUTSIDE the tree>',
   '--confirm',           'FINALIZE SCORCH RELEASE'
 )
 & $PY312 scripts/release/release_finalizer.py @flags
@@ -188,194 +200,107 @@ $flags = @(
 `--release-staging` is **required and explicit**. The destination is never
 derived from the repository's parent directory.
 
-`--approval-evidence` names the ORIGINAL approval - the preserved email, or the
-signed form - wherever the custodian keeps it, which must be **outside** the
-repository. It is required whenever a tracked approval record exists, and it
-asserts nothing on its own: the bytes it names must hash to the value that
-committed record already fixed. `preflight` accepts the same flag, so the whole
-chain can be checked read-only before anything is run for real.
+There is deliberately **no flag that supplies, asserts or points at the artwork
+licence**. The grant rests on a declaration committed in this repository by the
+artwork's creator and reviewed like any other tracked file; a command-line flag
+that could stand in for it would be a way to license artwork from a shell.
 
-## 2. The approval gate
+## 2. The licence gate
 
-Two discriminated sources satisfy this gate, declared in `approval_sources` and
-recorded in the receipt as `approval_source`, so the durable evidence always
-says **how** the permission was obtained and not merely that it was.
+One source satisfies this gate, because there is one licensor: a **declaration
+by the artwork's creator**, committed inside this repository at
+`docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json` and recorded in the receipt
+as `licence_source: creator_declaration`.
 
-**Exactly one source supplies any given run, and both modes choose it the same
-way.** `select_approval_source` decides from observable state, never from a
-flag:
+There is no second route. The GitHub-comment route and the external-evidence
+route that earlier revisions carried have been **removed, not disabled**: the
+client can no longer read comments at all, `find_authorization` is gone, and
+`tests/test_release_finalizer.py` asserts that `GitHubCLI` has no
+`issue_comments` or `issue_comment` attribute. A dormant method is a surface a
+later edit can reach for.
 
-* a **committed approval record** at the contracted path *is* the professional
-  route - where one exists, no GitHub comment is consulted, asked for or
-  required;
-* with no record, the pull request comment route is used **only if enabled**;
-* with neither, `RELEASE_BLOCKED_D6` - which means precisely *neither enabled
-  route qualifies*, not "this particular route has no evidence yet".
+Pull request **metadata** is still verified through GitHub - open, draft,
+unmerged, pointing at this HEAD - because that is a fact about the release. It
+has nothing to do with the artwork licence.
 
-Preflight and finalize call that one selector, so a read-only preflight can no
-longer disagree with the real finalization about which evidence is being asked
-for. Until r3m it did: preflight validated the comment route unconditionally,
-so a repository holding a valid committed record still reported the release
-blocked for want of a comment nobody was ever going to post. Pull request
-**metadata** is still verified through GitHub on either route - that is a fact
-about the repository, not about the approval - but the comment authorization
-methods are reached only when the comment route is the selected source, and a
-test proves it by making those methods raise.
+### 2.0 What the declaration is
 
-### 2.0 The preferred route: a preserved email, or a signed form
+A reviewed, committed JSON file stating, in the clear:
 
-This is the authors' chosen workflow, and it asks Dr. Najibi for exactly one
-thing: a reply, or a signature. **They are never asked to open GitHub, to run a
-command, or to operate any tooling**, and no part of recording the approval is
-their task. `tests/test_release_finalizer.py` asserts this rather than leaving
-it to be read off the code: resolving an approval from a preserved email with a
-GitHub client that raises the moment it is constructed still succeeds.
+| field | what it fixes |
+| --- | --- |
+| `declared_text` | the contracted declaration paragraph, EXACTLY - pinned by digest in `REVIEWED_DECLARATION_TEXT` |
+| `licensed_artwork` | the seven repository paths, each with the SHA-256 of the exact bytes being licensed |
+| `creator_attestation` | `creator` (Fawaz Bouhamad), `declared_at`, and the contracted attestation statement |
+| `scientific_guidance_credit` | `Dr. Nasser Najibi` - a CREDIT, checked for exact equality so it can neither be dropped nor inflated into a grant |
+| `declaration_date` | an ISO-8601 UTC instant, no later than `declared_at` |
 
-The release rests on a **two-part chain**, and neither half is sufficient alone.
+Nothing is preserved in a private mailbox, nothing is supplied on the command
+line, and no network is consulted. Every surface this tool reads for the
+licence is repository-contained.
 
-| half | where it lives | what it contributes |
-| --- | --- | --- |
-| the **original evidence** - the complete email with full headers, or the signed form as scanned | **outside** the repository, in the custodian's keeping | the primary document itself, fixed by digest so the bytes read at finalization are demonstrably the bytes the record was written against |
-| the **tracked approval record**, `docs/FIGURE_01_04_CC_BY_APPROVAL_RECORD.json` | committed and reviewable, inside the repository | what was approved, when, by which kind of evidence, over which seven files, under whose custody - plus the evidence's own SHA-256 and byte count |
+### 2.1 What the software proves, and what it does not
 
-The original stays out of the tree on purpose: raw headers carry personal
-routing data and a signature is a signature. Only the record is published.
-
-#### What the software proves, and what it does not
-
-Stated plainly, because getting this wrong would be a claim about a named
-person's intent that no program is entitled to make.
+Stated plainly, because the guarantee is different in kind from the one an
+approval workflow offers - and pretending otherwise would be the dishonesty
+this design exists to remove.
 
 **The software proves**, mechanically and repeatably:
 
-* that the approval record is **tracked at HEAD** and byte-identical to its
-  committed blob - so the record read is the record that was reviewed;
-* that the record **parses strictly** - a duplicate JSON key is a refusal, not
-  a silent last-wins;
-* that the **evidence file supplied is the one the record was written
-  against**, by SHA-256 and byte count;
-* that the record's `approved_text` is **exactly** the contracted paragraph,
-  under the same equality rule as §2.1;
-* that the **seven path → SHA-256 identities** in the record still hold in the
-  tree, and equal the identities pinned in code;
-* that the record's declared **source type is consistent with the format** of
-  the file preserved - an `approval_email` kept as a `.docx` or a screenshot is
-  refused, because those are transcriptions of a message, not the message; and
-* that the record and the **receipt agree** on every one of those facts.
+* that the declaration is **tracked at HEAD** and byte-identical to its
+  committed blob - so the declaration read is the one that was reviewed;
+* that it **parses strictly** - a duplicate JSON key is a refusal, not a silent
+  last-wins;
+* that `declared_text` is **exactly** the contracted paragraph. Equality, never
+  containment: the paragraph plus a withdrawal, a qualification, a condition,
+  or a sentence deferring the decision to somebody else is refused;
+* that the **seven path -> SHA-256 identities** still hold in the tree and
+  equal the identities pinned in code, so the grant reaches the bytes that were
+  declared and not whatever is at the path now;
+* that the **creator** is the contracted one and the attestation is exactly the
+  contracted statement;
+* that the **guidance credit is exactly** `Dr. Nasser Najibi` - a declaration
+  that drops the credit, or that restates it as a co-licence, is refused; and
+* that the **declaration and the receipt agree** on every one of those facts.
 
-**The software does not prove** - and does not claim to:
+**The software does not prove** - and does not claim to - that the person
+running the finalization is Fawaz Bouhamad. It cannot: the licensor and the
+operator are the same person, so there is no third party whose consent could be
+forged and no signature for a program to check.
 
-* that an email genuinely came from Dr. Najibi. Nothing here verifies a
-  sender, a mail server, DKIM, or any header;
-* that a signature on a scanned form is genuinely theirs. **No handwriting is
-  examined or authenticated**;
-* that whoever wrote the message intended it as approval, or still does.
+That is the honest shape of the guarantee, and it is deliberately narrower than
+what an approval gate would claim. **What is mechanically enforced here is
+SCOPE, not consent**: that a release cannot quietly widen a CC BY grant beyond
+the seven registered works, cannot license bytes nobody declared, and cannot
+represent anyone other than the creator as granting anything. Consent is not at
+issue, because the work being licensed is the licensor's own.
 
-**Fawaz Bouhamad's custodian attestation supplies that human provenance.** It
-is a signed statement, committed in the record and reproduced in the receipt,
-that he received the evidence directly from Dr. Najibi and has preserved it
-complete and unaltered outside this repository. The software checks that the
-attestation is present, is by the contracted custodian, is exactly the
-contracted wording, and is dated no earlier than the approval it attests to.
-Its **truth** rests on the custodian, not on the code.
-
-That is the honest shape of the guarantee: **the code establishes an unbroken,
-tamper-evident chain from a committed record to a fixed document; a named human
-vouches that the document is what it appears to be.** A reviewer who wants to
-go behind the attestation asks the custodian for the preserved original - which
-is why keeping it, outside the repository and complete and unaltered, is a
-standing obligation and not a formality.
-
-At finalization the operator supplies the original with
-`--approval-evidence <path>`. Both the record and the evidence are read through
-a **component-safe, no-follow, opened-handle walk**: every directory component
-is opened and refused if it is a symlink, junction or not a directory, the leaf
-is refused unless it is a regular file, and the object hashed is the object that
-was checked. The record is anchored at the repository root and the evidence at
-its volume root, since the evidence deliberately lives outside any tree.
-**Containment failures fail closed** - there is no fallback to a plain
+The declaration is read through a **component-safe, no-follow, opened-handle
+walk** anchored at the repository root: every directory component is opened and
+refused if it is a symlink, junction or not a directory, the leaf is refused
+unless it is a regular file, and the object hashed is the object that was
+checked. **Containment failures fail closed** - there is no fallback to a plain
 `open()`, because a fallback would be the whole attack.
 
-The receipt then records the record's blob id and digest and the evidence's
-digest and length, so the chain is reconstructible years later from the tree
-alone - and every later reader of that receipt (the publication builder, the
-repository guards) **re-verifies the record at HEAD** before treating CC BY as
-being in force.
+The receipt records the declaration's blob id and digest, so the chain is
+reconstructible years later from the tree alone - and every later reader of
+that receipt (the publication builder, the repository guards) **re-verifies the
+declaration at HEAD** before treating CC BY as being in force.
 
-Deliberately absent: any boolean meaning "approved", any way to supply the
-approved text on the command line, any way for this tool to write the record,
-and any hand-written receipt - every field a forger would have to invent is
-checked against the record, the evidence or the tree, and a receipt whose
-approval record is absent, untracked, locally edited or contradictory is
-refused rather than reported as active.
+Deliberately absent: any boolean meaning "licensed", any way to supply the
+declared text on the command line, any way for this tool to write the
+declaration, and any hand-written receipt - every field a forger would have to
+invent is checked against the declaration or the tree, and a receipt whose
+declaration is absent, untracked, locally edited or contradictory is refused
+rather than reported as active.
 
-**Before an approval exists** the record is absent, and both preflight and
-finalize stop at `RELEASE_BLOCKED_D6`. That is the current and correct state.
-
-### 2.1 The retained route: a live pull request comment
-
-Still built, still tested, **no longer mandatory**, and used only when no
-approval record exists. It is a **live top-level issue comment on the
-contracted pull request, authored by the contracted GitHub login, whose
-whitespace-normalized body is EXACTLY EQUAL to the authorization text** in
-`finalizer_contract.json`.
-
-**Equality, not containment.** This is the difference that matters. Under a
-containment rule, all of the following authorize the release, because each one
-genuinely contains the required paragraph:
-
-* the paragraph followed by *"However, I revoke this authorization."*
-* the paragraph prefixed by *"DO NOT ACT ON THIS YET"*
-* the paragraph quoted inside a comment that explicitly declines to give it
-
-All of them are refused. Hard wrapping is still tolerated - whitespace is
-normalized on both sides - and nothing else is.
-
-**The LATEST comment by that author, not any comment by that author.** A grant
-followed by the same author's revocation or qualification is refused with
-`AUTHZ_SUPERSEDED_OR_QUALIFIED`. Accepting any historical exact match meant a
-withdrawn grant still stood, because the withdrawal was never looked at.
-Comments by *other* authors never supersede it - a stranger cannot withdraw
-the copyright holder's permission, and cannot grant it either.
-
-**Every page of comments is read.** The listing goes through `gh api
---paginate --slurp` with `per_page=100`, and the pages are flattened into one
-sequence. Without it a pull request with more than a hundred comments returns
-only the first page - and the comment most likely to land on a later page is
-precisely a revocation posted after the grant.
-
-The comment is fetched **live twice by id** after the listing that discovers
-it, exact equality is required on both reads, and the two reads must agree with
-each other on every field in `cross_read_agreement_fields` - id, body,
-`created_at`, `updated_at`, permalink, `issue_url` and user. A comment deleted,
-edited or truncated between the reads authorizes nothing. A pull request
-**review** comment is a different object and is refused, as is a comment on
-another pull request or in a fork.
-
-The authorization is then **re-fetched and revalidated immediately before the
-transaction writes**, because a check performed before an archive build is a
-check of the past. That final re-read compares **every identity field the
-receipt records** - comment id, login, body, body hash, `created_at`,
-`updated_at`, permalink and `issue_url`. Comparing a subset let a comment
-deleted and reposted with identical text, or edited so only its `updated_at`
-moved, pass as "unchanged", and the receipt would then record a comment that
-is not the one validation approved (`AUTHZ_CHANGED_BEFORE_WRITE`).
-
-Not accepted by *this* route, and not accepted because they are not inputs to
-it at all: screenshots, pasted JSON, environment variables, command line flags
-asserting approval, and human attestation on its own. There is no bypass in the
-code, and `tests/test_release_finalizer.py` asserts there is none.
-
-The external-evidence route of section 2.0 is not an exception to that. It adds
-no flag that *asserts* anything: `--approval-evidence` names a file whose bytes
-must hash to a value a committed, reviewed record fixed in advance, and the
-custodian's attestation is one required field among several rather than the
-thing being trusted.
+**Before the declaration is committed** both preflight and finalize stop at
+`LICENCE_DECLARATION_ABSENT`. That is the current and correct state.
 
 ## 3. The contract production is allowed to trust
 
 The contract decides who may authorize the release, what text counts as
-authorization, which assets the licence reaches and what the activation may
+the declaration, which assets the licence reaches and what the activation may
 touch. **There is no `--contract` option.** Production reads exactly one path,
 `scripts/release/finalizer_contract.json`, inside the verified worktree, and
 requires that it is tracked by git, that it resolves to that path with no link
@@ -391,47 +316,47 @@ against git rather than against a constant stored inside it.
 > `CONTRACT_NOT_AT_HEAD`. That is the intended behaviour, not a defect; once
 > the repair is committed the two agree and the code no longer fires.
 
-## 4. The durable authorization receipt
+## 4. The durable licence receipt
 
-`docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json`
+`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`
 
 A stdout report is not a receipt. Once CC BY is in force over the artwork, the
-repository must be able to show **which** approval, from **which** source, at
-**which** time, over **which** files licensed it - years later, from the tree
-alone, without the GitHub API and without this tool.
+repository must be able to show **who** declared the grant, at **which** time,
+over **which** files, and on **which** committed declaration it rests - years
+later, from the tree alone, without any network and without this tool.
 
-The receipt therefore carries a discriminator, `approval_source`, and the field
-set that goes with it. A receipt with no discriminator at all is read as the
-GitHub route, which is what every receipt written before the second route
-existed would have been.
+The receipt carries `licence_source`, whose only legal value is
+`creator_declaration`. It is **required**: a receipt that does not say where
+the licence comes from is refused, and so is one naming a route this project
+does not use. There is no legacy default to fall back to, because no receipt
+has ever been written under any other scheme.
 
-| `approval_source` | what the receipt records |
+| the receipt records | |
 | --- | --- |
-| `github_pr_comment` | repository and pull request, permalink and comment id, exact login, `created_at` and `updated_at`, exact body and its SHA-256 |
-| `external_evidence` | source type (`approval_email` or `signed_approval_form`), approval date, the exact approved paragraph and its SHA-256, the approval record's path, blob id and digest, the original evidence's filename, SHA-256 and byte count, and the custodian and their attestation time |
+| the declaration | its tracked path, its SHA-256 and its git blob id |
+| the grant | the exact declared paragraph and its SHA-256 |
+| the people | `creator` (the licensor) and `scientific_guidance_credit` (a credit, never a grant) |
+| the works | all seven licensed artwork paths with their hashes |
+| the run | `declaration_date`, `declared_at`, `activated_at`, `finalizer_version`, `starting_head` |
 
-Both then record all seven licensed artwork paths with their hashes, the
-activation timestamp, and the finalizer version and starting HEAD.
+It carries **no** comment id, **no** permalink, **no** pull request, **no**
+login and **no** evidence digest, because there is no comment, no third party
+and no external evidence: fabricating those fields to satisfy an older schema
+would produce a receipt pointing at things that do not exist and at a person
+who was never asked for anything. A test asserts each of those fields is
+absent.
 
-An `external_evidence` receipt carries **no** comment id and **no** permalink,
-because there was no comment: fabricating those fields to satisfy one schema
-would produce a receipt pointing at evidence that does not exist. Everything
-that reports on a receipt is likewise **source-aware** - the finalization report
-records the record path, its two identities, the evidence digest and the
-custodian for an external receipt, and the comment id and body digest for a
-GitHub one. (Indexing `comment_id` unconditionally raised `KeyError` from inside
-r3l's finalization, after the archive had already been built.)
-
-**An external receipt is only as good as the record it rests on, so that record
+**A receipt is only as good as the declaration it rests on, so that declaration
 is re-verified every time the receipt is read** - by the finalizer, by the
-publication builder and by the repository guards, long after any API call. The
-record must be present, **tracked at HEAD**, byte-equal to its committed blob,
-and its SHA-256 and git blob id are **recomputed** and required to equal the two
-the receipt commits to; its paragraph, seven-artwork scope, evidence metadata
-and custodian attestation must then equal the receipt's. A receipt whose record
+publication builder and by the repository guards. The declaration must be
+present, **tracked at HEAD**, byte-equal to its committed blob, and its SHA-256
+and git blob id are **recomputed** and required to equal the two the receipt
+commits to; its paragraph, its seven-artwork scope, its creator attestation and
+its guidance credit must then equal the receipt's. A receipt whose declaration
 is absent, untracked, locally edited, or contradictory never yields `ACTIVE` -
 which closes the gap a self-consistent hand-written receipt was aimed at, since
-its author can choose every digest in it but cannot commit a matching record.
+its author can choose every digest in it but cannot commit a matching
+declaration.
 
 It is built and validated inside the disposable validation copy, then written
 **atomically as part of the same transaction** as the licence and identity
@@ -439,9 +364,8 @@ edits. If any part of the transaction fails, the receipt is removed again. Its
 presence is what the publication builder and the consistency guards read to
 decide which licensing state the repository is in.
 
-**It must not exist before a qualifying authorization has been resolved and
-revalidated.** `preflight`
-fails with `RECEIPT_PREMATURE` if it does.
+**It must not exist before a qualifying declaration has been resolved and
+revalidated.** `preflight` fails with `RECEIPT_PREMATURE` if it does.
 
 ## 4a. One state module, and a receipt that must VALIDATE
 
@@ -452,57 +376,31 @@ and the repository guards all import it, so they cannot drift into disagreeing.
 It exists because all three used to answer that question by asking whether a
 receipt FILE EXISTED. A file with the right name containing
 `{"schema_version": "1.0.0"}` was therefore enough to make the publication
-builder assert an active CC BY licence over a coauthor's artwork.
+builder assert an active CC BY licence over the artwork.
 
-ACTIVE now requires a receipt that **validates**. Which fields it must carry
-depends on `approval_source`, so the requirements are stated in three parts. A
-receipt carrying no discriminator at all is read as `github_pr_comment`, which
-is what every receipt written before the second route existed would be.
+ACTIVE now requires a receipt that **validates**:
 
-**(a) Common to both sources**
-
+* `licence_source` exactly `creator_declaration` - anything else, or its
+  absence, is `RECEIPT_LICENCE_SOURCE` and nothing further is considered;
 * the correct **schema version** and repository;
-* `activated_at` a **real parsed** UTC instant, in a sensible order relative to
-  the other timestamps the receipt carries (a regex accepts
-  `2026-13-45T99:99:99Z`, which is not a date, so the value is parsed);
+* `declaration_date`, `declared_at` and `activated_at` each a **real parsed**
+  UTC instant, in that order (a regex accepts `2026-13-45T99:99:99Z`, which is
+  not a date, so the value is parsed);
 * the correct **`finalizer_version`**;
 * **`starting_head`** as a 40-hex commit, equal during finalization to the
   run's validated starting HEAD;
+* `declared_text` exactly the contracted paragraph, and
+  `declared_text_sha256` hashing it;
+* `creator` exactly the contracted creator, and
+  `scientific_guidance_credit` exactly the contracted credit;
 * **exactly the seven** contracted artwork paths, whose recorded hashes still
   match the files on disk;
-* agreement with the approval this run resolved, when there is one.
-
-**(b) `github_pr_comment` only**
-
-* the contracted **pull request** and the exact contracted **login**;
-* a **body** that is exactly the contracted authorization text and a recorded
-  SHA-256 that hashes it;
-* a `comment_id` that is a positive **integer**;
-* `created_at` and `updated_at` as real parsed UTC instants;
-* a **permalink** that is an **HTTPS github.com** comment whose fragment is
-  exactly `issuecomment-{comment_id}`;
-* an `issue_url` exactly equal to
-  `https://api.github.com/repos/<owner>/<name>/issues/<n>`;
-* during a live finalization, agreement with the comment fetched moments
-  earlier.
-
-**(c) `external_evidence` only**: no comment id, no permalink, no pull
-request, because there is no comment:
-
-* `source_type` one the contract admits (`approval_email` or
-  `signed_approval_form`), and `approval_date` a real parsed UTC instant;
-* `approved_text` exactly the contracted paragraph, and
-  `approved_text_sha256` hashing it;
-* **the tracked approval record**, re-read at HEAD every time: present,
-  tracked, byte-equal to its committed blob, with `approval_record_sha256` and
-  `approval_record_blob_sha1` **recomputed** and equal to the receipt's, and
-  the record must itself be well-formed (its own `schema_version`, its full
-  mandatory field set, an allowed `source_type`);
-* **the original evidence**, by `evidence_filename`, `evidence_sha256` and
-  `evidence_bytes`, with the filename's format consistent with `source_type`;
-* **the custodian attestation**: `custodian` exactly the contracted custodian,
-  `attested_at` a real parsed UTC instant no earlier than `approval_date`, and
-  the attestation statement in the record exactly the contracted wording.
+* **the tracked declaration**, re-read at HEAD every time: present, tracked,
+  byte-equal to its committed blob, with `declaration_record_sha256` and
+  `declaration_record_blob_sha1` **recomputed** and equal to the receipt's, and
+  the declaration itself well-formed (its own `schema_version` and full
+  mandatory field set);
+* agreement with the declaration this run resolved, when there is one.
 
 Anything less is not ACTIVE.
 
@@ -628,7 +526,7 @@ synthetic fixtures carry. Anything else is `CCBY_ACTIVE_MARKER_PARENTHETICAL`.
 The synthetic clause exists so the tests can drive the ACTIVE state without
 anybody drafting licence prose. That is worth nothing if the same wording can
 reach a production contract - the repository would then be asserting a
-copyright licence over a coauthor's artwork in words that say, in themselves,
+copyright licence over the artwork in words that say, in themselves,
 that they are not real.
 
 A contract is a test fixture only if it **says so** (`synthetic_fixture:
@@ -647,9 +545,9 @@ contract's `artwork_licence_markers.active` carries the authors' clause and
 marker that is registered rather than one that is hypothetical. Registering a
 marker is not a grant, and writing the prose is not permission to apply it.
 The real records are unchanged: every one of the five licence surfaces still
-carries its PENDING marker, no qualifying authorization has been recorded, and
+carries its PENDING marker, no qualifying declaration has been recorded, and
 no receipt exists at
-`docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json`. The state is **PENDING**
+`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The state is **PENDING**
 - authored, inactive, unauthorized.
 
 A registrable active marker must additionally be a complete affirmative scoped
@@ -678,29 +576,13 @@ PENDING answer: the standalone publication builder raises
 `ARTWORK_RECEIPT_INVALID` rather than serving the pending row while a stub,
 forged or half-written receipt sits in the tree.
 
-`activated_at` **defaults from the selected source**, and in both cases to the
-moment the authorization last stood as written:
+`activated_at` **defaults to the creator attestation's `declared_at`** - the
+moment the creator attested to the declaration the release acts on. The receipt
+requires `activated_at >= declared_at >= declaration_date`.
 
-| `approval_source` | `activated_at` defaults to |
-| --- | --- |
-| `github_pr_comment` | the validated comment's **`updated_at`** |
-| `external_evidence` | the custodian attestation's **`attested_at`** |
-
-For a comment, that is `updated_at` and not `created_at`, because an edited
-comment last stood as written later than it was posted. Defaulting to
-`created_at` was wrong in both directions: an authorization edited after
-posting would have carried `activated_at < updated_at` and failed the receipt's
-own ordering rule, and a receipt recording an activation earlier than the last
-edit to the text it records would misstate what was authorized when.
-
-For external evidence there is no comment to read a timestamp from, so the
-custodian's `attested_at` plays the same part - it is the moment the custodian
-vouched for the preserved original, and the receipt requires
-`activated_at >= attested_at >= approval_date`.
-
-Using a source timestamp rather than the wall clock keeps the receipt validated
-in the disposable copy byte-identical to the one written to the real tree, and
-makes the receipt reproducible.
+Using the declaration's own timestamp rather than the wall clock keeps the
+receipt validated in the disposable copy byte-identical to the one written to
+the real tree, and makes the receipt reproducible.
 
 The publication builder no longer accepts injected licence prose. Both wordings
 live in the trusted contract under `publication_outputs_artwork_row`, and both
@@ -740,26 +622,23 @@ applied in sequence where the later write would discard the earlier one.
 
 ### The activation plan is AUTHORED. It is not AUTHORIZED, and not APPLIED
 
-`ccby_activation_plan.authored` is now `true`: **Fawaz Bouhamad** has written
-the exact `from` / `to` prose for all five surfaces, as a draft for Dr. Nasser
-Najibi's review and authorization, and `CCBY_ACTIVATION_PLAN_UNAUTHORED` no
-longer fires. Drafting it is not Dr. Najibi's act and records no approval by
-him. **This changes nothing about what is licensed today.** Three distinct
-things must not be confused:
+`ccby_activation_plan.authored` is `true`: **Fawaz Bouhamad** has written the
+exact `from` / `to` prose for all five surfaces, and
+`CCBY_ACTIVATION_PLAN_UNAUTHORED` no longer fires. **This changes nothing about
+what is licensed today.** Three distinct things must not be confused:
 
 | | what it means | where it lives | present state |
 |---|---|---|---|
-| **authored** | Fawaz Bouhamad wrote the exact replacement prose, for Dr. Najibi to review | `ccby_activation_plan.replacements` in the contract | **done** |
-| **authorized** | Dr. Najibi granted permission, resolved through **either** qualifying source - a committed approval record with its preserved original evidence, or a pull request comment fetched live and twice | `docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json` | **absent** |
+| **authored** | the exact replacement prose exists | `ccby_activation_plan.replacements` in the contract | **done** |
+| **declared** | the creator recorded the CC BY 4.0 grant over the seven registered works | `docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json`, then `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json` | **absent** |
 | **applied** | the records and the deposit assert the grant | the four records + the archive `LICENSE.txt` | **pending** |
 
 An authored plan is a **draft of a future edit**. It grants nothing, asserts
-nothing, and is inert until a real `finalize` **resolves and revalidates a
-qualifying authorization**. The
-repository state is still `pending`: every licence record still withholds the
-grant, the publication builder still emits the pending row, and no receipt
-exists. `finalize` still stops - now at `RELEASE_BLOCKED_D6`, not at the
-authorship gate.
+nothing, and is inert until a real `finalize` **resolves and revalidates the
+creator's declaration**. The repository state is still `pending`: every licence
+record still withholds the grant, the publication builder still emits the
+pending row, and no receipt exists. `finalize` still stops - now at
+`LICENCE_DECLARATION_ABSENT`, not at the authorship gate.
 
 The authored clause registered in `artwork_licence_markers.active` is:
 
@@ -772,15 +651,15 @@ which approved corrections, what is excluded - lives in the sentences the
 destination blocks put around it, and in `ccby_activation_plan.scope`.
 
 **Scope of the authored plan.** Exactly the seven declared assets in
-`ccby_artwork_paths`, covering the approved Figure 1 threshold-text correction
-and the approved Figure 4 arrow-direction and symmetry corrections. It leaves
+`ccby_artwork_paths`, covering the Figure 1 threshold-text correction and the
+Figure 4 arrow-direction and symmetry corrections. It leaves
 untouched: the SCORCH software (`GPL-3.0-only`), ERA5 and all
 Copernicus-derived material, GHCN-Daily observations, Natural Earth boundaries,
 the pinned Aptos face and every font right, the deposit's MIT
 `validate_deposit.py`, and every other figure and underlying third-party
 dataset.
 
-**What the approval covers, and what CC BY 4.0 then permits.** These are two
+**What the declaration covers, and what CC BY 4.0 then permits.** These are two
 different questions, and earlier revisions of this guide ran them together.
 
 The **Licensed Material** is bounded by identity: exactly those seven assets,
@@ -796,14 +675,14 @@ on its own terms. Earlier wording here and in the contract said that a cropped,
 rescaled, recoloured or recomposed export was "outside the grant". That was
 wrong as a statement of the licence and has been removed: a licensee who adapts
 the Licensed Material is exercising a permission the licence itself gives them.
-The seven-file boundary is about which works Dr. Najibi approved - not about
+The seven-file boundary is about which works the creator declared - not about
 forbidding what CC BY 4.0 allows anyone to do with them afterwards.
 
 Two things follow, and both are still enforced. Language declaring an
 open-ended **class** to be Licensed Material - "every PNG/PDF export derived
 from them", "anything materialized into `publication_outputs/`" - is still
-refused, because a class has no path and no digest and cannot be what a
-coauthor approved; that is a claim about *identity*. And a truthful sentence
+refused, because a class has no path and no digest and cannot be what the
+creator declared; that is a claim about *identity*. And a truthful sentence
 saying CC BY 4.0 permits adaptation of the seven works is accepted, because it
 claims nothing about identity at all.
 
@@ -826,7 +705,8 @@ So the primary authority is no longer a pattern.
 `REVIEWED_ACTIVATION_DESTINATIONS` in `scripts/release/release_finalizer.py`
 pins, by SHA-256, the exact activated wording of all five licence surfaces;
 three companion constants pin the active publication row, the classifier's
-ACTIVE marker, and `authorization.text` itself. The contract carries the prose;
+ACTIVE marker, `licence_declaration.text` and the public credit line. The
+contract carries the prose;
 the code decides **which** prose was reviewed. Any edit to a destination block -
 an eighth artwork path, a widened class, a deleted exclusion, one character -
 changes its digest and is refused as
@@ -875,8 +755,8 @@ Adding, removing, renaming or changing any identity fails as
 `CCBY_ARTWORK_SCOPE_UNREVIEWED`, `CCBY_ARTWORK_IDENTITY_UNREVIEWED`,
 `CCBY_SCOPE_GLOBS_UNREVIEWED` or
 `CCBY_ARTWORK_PATH_NOT_REPOSITORY_RELATIVE` - **in the loader**, so before an
-approval is sought and before any activation is planned. A path alone would not
-be enough: the approval was given over images somebody looked at, so changing a
+declaration is recorded and before any activation is planned. A path alone
+would not be enough: the grant is over images somebody looked at, so changing a
 file's bytes is exactly as loud a failure as adding a file.
 
 A declared `dir/**` must now hold the registered works and **nothing else** -
@@ -927,7 +807,7 @@ The delta rule is unchanged and is what keeps the guard usable: sibling rows in
 these tables carry long-standing grants over other figures. Only what activation
 **adds** is reported.
 
-What survives is exactly what the approval says: the seven registered paths,
+What survives is exactly what the declaration says: the seven registered paths,
 and **byte-identical copies** of them - under a licence that then permits their
 adaptation on its own terms.
 
@@ -1022,8 +902,8 @@ refused.
 
 The finalizer does **not** zip an arbitrary staging directory. It:
 
-1. requires the exact pinned pre-D6 candidate as the **technical source** -
-   a local, unpublished, pre-D6 working artifact that is *not* the released
+1. requires the exact pinned pre-finalization candidate as the **technical source** -
+   a local, unpublished, pre-finalization working artifact that is *not* the released
    identity and *not* evidence of publication or deposit;
 2. verifies its full SHA-256, byte count, content root and topology **once**,
    then copies those verified bytes into a private temporary snapshot and
@@ -1231,7 +1111,7 @@ The eight-file / fifty-six-reference map is checked for **exhaustiveness**: any
 other tracked file carrying the archive identity would be left behind
 contradicting the archive, so the scan reports it. The trusted contract trips
 that scan honestly. It *has* to name the superseded archive it preserves and
-the pre-D6 technical source it rebuilds from, and both are named by SHA-256 and
+the pre-finalization technical source it rebuilds from, and both are named by SHA-256 and
 content-root hash.
 
 Both easy repairs are wrong:
@@ -1314,7 +1194,7 @@ that already exists:
    **no-clobber link**, so a target recreated in the window is
    `TRANSACTION_TARGET_RECREATED` rather than silently replaced.
 
-A **new** file - in practice the D6 receipt alone - is created no-clobber. A
+A **new** file - in practice the licence receipt alone - is created no-clobber. A
 receipt that appears concurrently is preserved and refuses the run
 (`RECEIPT_APPEARED_CONCURRENTLY`).
 
@@ -1510,38 +1390,32 @@ touch it.
 
 | code | meaning |
 |---|---|
-| `RELEASE_BLOCKED_D6` | no qualifying coauthor approval exists by either route: no tracked approval record, and no qualifying pull request comment |
-| `APPROVAL_RECORD_UNTRACKED` | the approval record exists only in a working copy - no history, no review, no author |
-| `APPROVAL_RECORD_MODIFIED` | the approval record differs from its committed blob; the bytes being read are not the bytes that were reviewed |
-| `APPROVAL_RECORD_MALFORMED` | the record is not strict JSON, or is missing a required field (a duplicate key is a refusal, not a silent last-wins) |
-| `APPROVAL_RECORD_SCHEMA_VERSION` / `APPROVAL_SOURCE_TYPE` / `APPROVAL_DATE` | the record's schema version, source type or approval date is not one the contract admits |
-| `APPROVAL_TEXT_MISMATCH` | `approved_text` is not EXACTLY the contracted paragraph - paraphrased, truncated, prefixed, qualified or revoked |
-| `APPROVAL_ARTWORK_SCOPE` / `APPROVAL_ARTWORK_MISSING` / `APPROVAL_ARTWORK_MISMATCH` | the record approves other than the seven registered assets, or their bytes in the tree are no longer the bytes that were approved |
-| `APPROVAL_ATTESTATION_CUSTODIAN` / `APPROVAL_ATTESTATION_STATEMENT` / `APPROVAL_ATTESTATION_TIMESTAMP` / `APPROVAL_ATTESTATION_MALFORMED` | the custodian attestation is absent, by the wrong custodian, rewritten, or undated |
-| `APPROVAL_EVIDENCE_MISSING` | `--approval-evidence` was not supplied, or names nothing; a tracked record alone finalizes nothing |
-| `APPROVAL_EVIDENCE_MISMATCH` / `APPROVAL_EVIDENCE_BYTES` / `APPROVAL_EVIDENCE_FILENAME` | the supplied original is not the evidence the record commits to |
-| `APPROVAL_EVIDENCE_IN_REPOSITORY` | the original was supplied from inside the tree; full headers and signatures stay private and outside it |
-| `APPROVAL_EVIDENCE_UNREADABLE` / `APPROVAL_EVIDENCE_TOO_LARGE` | the original could not be read through the component-safe, no-follow walk - a link on the file, a junction on a parent, a special object, or a swap between inspection and open - or it exceeds the contracted size |
-| `APPROVAL_EVIDENCE_FORMAT` | the record's declared source type contradicts the preserved file's format: an `approval_email` kept as a `.docx`, a `.pdf` or a screenshot is a transcription rather than the message, and a `signed_approval_form` kept as an `.eml` is not the signature |
-| `APPROVAL_SOURCE_DISABLED` | the external-evidence route is not listed in `approval_sources.enabled` |
-| `RECEIPT_APPROVAL_RECORD_ABSENT` | the receipt names an approval record that is not in the tree - the hand-written receipt's real target |
-| `RECEIPT_APPROVAL_RECORD_UNTRACKED` / `RECEIPT_APPROVAL_RECORD_MODIFIED` | the record the receipt rests on was never committed, or no longer equals its blob at HEAD |
-| `RECEIPT_APPROVAL_RECORD_MISMATCH` | the record's recomputed SHA-256 or git blob id is not the one the receipt commits to |
-| `RECEIPT_APPROVAL_RECORD_MALFORMED` / `RECEIPT_APPROVAL_RECORD_UNREADABLE` / `RECEIPT_APPROVAL_RECORD_ATTESTATION` | the record is not strict JSON, is missing a mandatory field, could not be read safely, or its custodian attestation is not the contracted statement |
-| `RECEIPT_APPROVAL_RECORD_SCHEMA_VERSION` / `RECEIPT_APPROVAL_RECORD_SOURCE_TYPE` / `RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT` | (4D-r3n) the committed record's own schema version, source type, or evidence format is not one the contract admits. Checked on the RECORD, not merely on its agreement with the receipt: a malformed record and a receipt that faithfully repeats the same defect used to satisfy every durable check between them |
-| `RECEIPT_DISAGREES_WITH_APPROVAL_RECORD` | the receipt and the committed record differ on the paragraph, the seven-artwork scope, the evidence metadata or the attestation |
+| `LICENCE_DECLARATION_ABSENT` | the creator's declaration has not been recorded; there is nothing to finalize. This is the expected state until it is committed |
+| `DECLARATION_UNTRACKED` | the declaration exists only in a working copy - no history, no review, no author |
+| `DECLARATION_MODIFIED` | the declaration differs from its committed blob; the bytes being read are not the bytes that were reviewed |
+| `DECLARATION_MALFORMED` | the declaration is not strict JSON, or is missing a required field (a duplicate key is a refusal, not a silent last-wins) |
+| `DECLARATION_SCHEMA_VERSION` / `DECLARATION_DATE` | the declaration's schema version or declaration date is not one the contract admits |
+| `DECLARATION_TEXT_MISMATCH` | `declared_text` is not EXACTLY the contracted paragraph - paraphrased, truncated, prefixed, widened, qualified or withdrawn |
+| `DECLARATION_ARTWORK_SCOPE` / `DECLARATION_ARTWORK_MISSING` / `DECLARATION_ARTWORK_MISMATCH` | the declaration licenses other than the seven registered assets, or their bytes in the tree are no longer the bytes that were declared |
+| `DECLARATION_ATTESTATION_CREATOR` / `DECLARATION_ATTESTATION_STATEMENT` / `DECLARATION_ATTESTATION_TIMESTAMP` / `DECLARATION_ATTESTATION_MALFORMED` | the creator attestation is absent, by the wrong creator, rewritten, or undated |
+| `DECLARATION_GUIDANCE_CREDIT` | the scientific guidance credit is not exactly the contracted one - dropped, renamed, or inflated into a co-licence |
+| `DECLARATION_UNREADABLE` | the declaration could not be read through the component-safe, no-follow walk - a link on the file, a junction on a parent, a special object, or a swap between inspection and open |
+| `DECLARATION_SOURCE_UNCONFIGURED` | the contract declares no `declaration_source`, so there is nothing the release could rest on |
+| `DECLARATION_WITHDRAWN_BEFORE_WRITE` / `DECLARATION_CHANGED_BEFORE_WRITE` | the declaration stopped qualifying, or changed, between validation and the write |
+| `RECEIPT_DECLARATION_ABSENT` | the receipt names a declaration that is not in the tree - the hand-written receipt's real target |
+| `RECEIPT_DECLARATION_UNTRACKED` / `RECEIPT_DECLARATION_MODIFIED` | the declaration the receipt rests on was never committed, or no longer equals its blob at HEAD |
+| `RECEIPT_DECLARATION_MISMATCH` | the declaration's recomputed SHA-256 or git blob id is not the one the receipt commits to |
+| `RECEIPT_DECLARATION_MALFORMED` / `RECEIPT_DECLARATION_UNREADABLE` / `RECEIPT_DECLARATION_ATTESTATION` | the declaration is not strict JSON, is missing a mandatory field, could not be read safely, or its creator attestation is not the contracted statement |
+| `RECEIPT_DECLARATION_SCHEMA_VERSION` / `RECEIPT_DECLARATION_CREATOR` / `RECEIPT_DECLARATION_GUIDANCE_CREDIT` | the committed declaration's own schema version, creator or guidance credit is not one the contract admits. Checked on the DECLARATION, not merely on its agreement with the receipt |
+| `RECEIPT_DISAGREES_WITH_DECLARATION` | the receipt and the committed declaration differ on the paragraph, the seven-artwork scope, the creator or the credit |
 | `CONTRACT_DECLARES_SYNTHETIC_FIXTURE` | the tracked contract carries `synthetic_fixture` in any form; that key disables the reviewed-prose and scope pins and belongs only to test fixtures |
 | `CCBY_ARTWORK_SCOPE_UNREVIEWED` / `CCBY_ARTWORK_IDENTITY_UNREVIEWED` / `CCBY_SCOPE_GLOBS_UNREVIEWED` | a contract surface - `ccby_artwork_paths`, `figures`, `ccby_activation_plan.scope.assets` or `ccby_artwork_scope_globs` - does not equal the seven path → SHA-256 identities and five directory scopes pinned in code |
 | `CCBY_ARTWORK_PATH_NOT_REPOSITORY_RELATIVE` | an artwork path is filesystem-absolute, UNC, drive-absolute, home-prefixed or climbs out of the tree; joining it onto the repository root would read a file outside the repository |
-| `RECEIPT_APPROVAL_SOURCE` | the receipt claims an approval source that is not one of the two, or one that is not enabled |
-| `RECEIPT_DISAGREES_WITH_APPROVAL_RECORD` | the receipt does not match the approval this run actually resolved |
-| `AUTHZ_WRONG_AUTHOR` / `AUTHZ_BODY_ALTERED` / `AUTHZ_WRONG_TARGET` | a comment exists but does not qualify |
-| `AUTHZ_MUTATED_DURING_READ` | the comment changed between two live reads |
-| `AUTHZ_SUPERSEDED_OR_QUALIFIED` | the author's **latest activity** is not the grant - including an older comment **edited** after it into a revocation or a qualification |
-| `AUTHZ_TIMESTAMP_UNPARSABLE` | an author comment carries a timestamp that is not a real instant, so activity order cannot be established |
-| `AUTHZ_WITHDRAWN_BEFORE_WRITE` / `AUTHZ_CHANGED_BEFORE_WRITE` | it stopped qualifying just before the write |
+| `RECEIPT_LICENCE_SOURCE` | the receipt does not carry `licence_source: creator_declaration` - absent, or naming a route this project does not use |
+| `RECEIPT_CREATOR` / `RECEIPT_GUIDANCE_CREDIT` | the receipt names a creator or a credit that is not the contracted one |
+| `RECEIPT_DECLARED_TEXT` / `RECEIPT_DECLARED_TEXT_SHA256` | the receipt's paragraph is not the contracted one, or its digest does not hash its own text |
 | `CONTRACT_NOT_AT_HEAD` / `CONTRACT_UNTRACKED` / `CONTRACT_PATH_ESCAPE` | the contract is not the tracked one at HEAD |
-| `RECEIPT_PREMATURE` / `RECEIPT_*` | the receipt pre-exists, or does not match the authorization |
+| `RECEIPT_PREMATURE` / `RECEIPT_*` | the receipt pre-exists, or does not match the declaration |
 | `RECEIPT_PATH_INVALID` | the contracted receipt path is a symlink, a directory or another special object, or resolves outside the repository |
 | `RECEIPT_APPEARED_CONCURRENTLY` | a receipt appeared while this run was writing one; it is preserved and the run refuses |
 | `FINALIZER_LOCK_HELD` | another finalization holds the worktree or staging lock, or died holding it |
@@ -1554,7 +1428,7 @@ touch it.
 | `INTERPRETER_UNTRUSTED` | an interpreter other than the running one was used and the contract pins none |
 | `CCBY_ACTIVE_MARKER_CONDITIONAL` | the active wording is conditional, deferred or hypothetical rather than a grant in force |
 | `CCBY_ACTIVE_MARKER_UNSCOPED` / `CCBY_ACTIVE_MARKER_NOT_AFFIRMATIVE` | the active wording does not name **both** Figure 1 and Figure 4 and CC BY 4.0, or carries no present-tense affirmative grant |
-| `GITHUB_API_UNAVAILABLE` | the comment could not be re-fetched |
+| `GITHUB_API_UNAVAILABLE` | pull request metadata could not be read |
 | `APTOS_FONT_MISSING` / `APTOS_FONT_MISMATCH` | the pinned face is absent, or a different face was offered |
 | `CCBY_ACTIVATION_PLAN_UNAUTHORED` | no author has written the activation wording |
 | `CCBY_ACTIVATION_PARTIAL` | the plan does not cover all five licence surfaces |
@@ -1564,12 +1438,12 @@ touch it.
 | `GIT_TREE_DIRTY` / `GIT_BRANCH_MISMATCH` / `GIT_HEAD_MISMATCH` | the worktree is not where it must be |
 | `GIT_MAIN_MOVED` / `GIT_TAG_MOVED` / `GIT_REMOTE_BRANCH_MISMATCH` | a reference moved, per the **live** remote |
 | `PR_STATE_UNEXPECTED` | the pull request is no longer open, draft, unmerged and correctly targeted |
-| `FIGURE_IDENTITY_MISMATCH` | a figure or donor raster is not the approved one |
+| `FIGURE_IDENTITY_MISMATCH` | a figure or donor raster is not the pinned one |
 | `PENDING_MARKER_COUNT` | the four licence records no longer all withhold the grant |
 | `IDENTITY_MAPPING_MISMATCH` | the eight-file / fifty-six-reference map does not match the tree, or an identity appears in a tracked file the contract has not approved - including the contract itself, outside its declared historical/candidate fields |
 | `CONTRACT_IDENTITY_EXEMPTION_INVALID` | the contract's field-level identity exemption is not a real declaration: it names nothing, is rooted outside the two pinned blocks, points at a field that is missing or is not a 64-hex digest, or the contract file could not be parsed |
 | `PROTECTED_RECORD_MODIFIED` / `PROTECTED_RECORD_BLOB_MOVED` | a historical record, or its tracked blob, changed |
-| `TECHNICAL_SOURCE_MISSING` / `TECHNICAL_SOURCE_MISMATCH` | the candidate is not the pinned pre-D6 source |
+| `TECHNICAL_SOURCE_MISSING` / `TECHNICAL_SOURCE_MISMATCH` | the candidate is not the pinned technical source |
 | `MANIFEST_REBUILD_FAILED` / `ARCHIVE_TOPOLOGY_DRIFT` | regeneration failed or changed the shape |
 | `DEPOSIT_VALIDATOR_FAILED` | the archive's own validator did not pass |
 | `EDIT_*` | the planned identity update was not exact |
@@ -1598,7 +1472,7 @@ touch it.
 | `CCBY_ACTIVE_MARKER_PRE_EXISTING` | the marker is already in a record, so activation could not be distinguished from doing nothing |
 | `CCBY_SCOPE_UNREGISTERED_ASSET` | the activation newly identifies as Licensed Material something that is not one of the seven registered assets: a different complete path, a same-named file elsewhere, a bare filename that names no path, a URL or drive-absolute path outside the tree, an unrecognised extension, an undeclared directory glob, or an open-ended class. Counted for AFFIRMATIVE grants only, so rewriting a denial into a grant is a widening |
 | `CCBY_ACTIVATION_DESTINATION_UNREVIEWED` | a destination block, the active publication row or the ACTIVE marker is not the wording pinned by digest in `REVIEWED_ACTIVATION_DESTINATIONS`; the prose about to be written is not the prose that was reviewed |
-| `CCBY_APPROVAL_TEXT_UNREVIEWED` | `authorization.text` is not the reviewed approval paragraph |
+| `CCBY_DECLARATION_TEXT_UNREVIEWED` / `CCBY_PUBLIC_CREDIT_UNREVIEWED` / `CCBY_PUBLIC_CREDIT_MISSING` | `licence_declaration.text` is not the reviewed paragraph, the credit line is not the reviewed credit, or an authored destination does not carry it |
 | `CCBY_SCOPE_DECLARATION_TOO_BROAD` | a declared directory scope in `ccby_artwork_scope_globs` reaches anything other than the registered works - an eighth raster, but since r3m also a README, a caption, an extensionless file, a subdirectory, or any symlink, junction or special object, none of which the reviewed shorthand `dir/**` was ever read to cover |
 | `CCBY_SCOPE_DECLARATION_UNVERIFIABLE` | a declared scope is not a real directory, could not be inspected, or no longer holds the registered works it was reviewed to stand for |
 | `CCBY_SCOPE_DECLARATION_UNVERIFIABLE` | a declared directory scope is not a directory in this tree, so what it reaches cannot be checked |
@@ -1670,19 +1544,16 @@ The review bundle carries its own separate, self-verifying checksum file,
 rooted at the bundle directory; see the `BUNDLE_SHA256SUMS.txt` header for its
 own verification commands.
 
-## 10. The four distinct release conditions
+## 10. The remaining release conditions
 
-Pull request #1 currently describes the remaining work in a way that reads as
-"two blockers". **It is not two.** These are four separate conditions with
-different owners and different resolutions, and the PR wording needs updating
-to say so:
+Pull request #1's description should state these plainly. What was once four
+conditions is now two, and one of those is mechanical.
 
-1. **Coauthor artwork approval.** Absent. Only Dr. Najibi can supply it, and
-   since 4E1d the preferred way is the one that asks least of them: a reply to
-   the request email, or a signature on the approval form. Neither needs a
-   GitHub account, a command, or any tooling. Recording it - committing the
-   approval record and preserving the original evidence - is the custodian's
-   task, not theirs. Blocks CC BY activation until then.
+1. ~~**Coauthor artwork approval.**~~ **RETIRED - it was never the right
+   model.** Fawaz Bouhamad created the Figure 1 and Figure 4 artwork and
+   licenses it; Dr. Najibi provided the scientific guidance behind those
+   figures and is credited for that. Nothing is asked of Dr. Najibi, and no
+   approval from them exists or is required.
 2. ~~**The pinned Aptos Regular face.**~~ **RESOLVED - located, not
    provisioned.** The face was already present in this operator's Microsoft 365
    cloud-font cache; nothing was downloaded, substituted, or copied anywhere.
@@ -1690,15 +1561,17 @@ to say so:
    bundle and every review packet: it is non-redistributable, and
    `ccby_excluded_scope` keeps the CC BY activation away from all font rights.
 3. ~~**The unauthored CC BY activation plan.**~~ **RESOLVED - authored, not
-   activated.** The exact from/to pairs for all five licence surfaces are in
-   `ccby_activation_plan.replacements`, drafted by Fawaz Bouhamad for Dr.
-   Najibi's review. Authoring is not authorizing, and the draft attributes
-   nothing to Dr. Najibi; see "The activation plan is AUTHORED" above. Still
-   gated on 1.
-4. **The superseded official archive.** The tracked records still point at
+   applied.** The exact from/to pairs for all five licence surfaces are in
+   `ccby_activation_plan.replacements`, and each carries the public credit
+   line. Authoring is not applying; see "The activation plan is AUTHORED"
+   above.
+4. **The creator's CC BY declaration.** Absent until
+   `docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json` is committed. Writing and
+   committing it is the creator's own act and needs nobody else.
+5. **The superseded official archive.** The tracked records still point at
    `scorch_processed_data_v1.0.0.zip`, whose payload is superseded. The
    corrected candidate exists locally and unpublished. Resolved by running
-   `finalize`, which is gated on 1.
+   `finalize`, which is gated on 4.
 
 Release acceptance requires zero skips, so every optional input above must be
 supplied on the machine that runs the accepted validation.
@@ -1725,5 +1598,5 @@ If no file matches, stop: the correct outcome is the explicit
 
 It never commits, pushes, merges, tags, creates a release, publishes, or
 touches the deposit records at the archive host. Those remain deliberate human
-actions, taken after the authorization is recorded and this tool has reported
+actions, taken after the declaration is recorded and this tool has reported
 success.

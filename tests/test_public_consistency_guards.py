@@ -1102,7 +1102,7 @@ PENDING_SENTINEL = "CC BY 4.0 PENDING"
 # guard that hard-codes PENDING fails the moment the licence is activated and
 # no correct activation could ever pass.
 # ---------------------------------------------------------------------------
-ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT.json"
+ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json"
 
 # ---------------------------------------------------------------------------
 # TEST-ONLY SYNTHETIC ACTIVATION WORDING - defined ONCE, here.
@@ -1191,11 +1191,11 @@ SYNTHETIC_ACTIVATION_TRANSFORMS = (
      "author-created slide ARTWORK that happens to sit under a code "
      "directory; they are NOT software and are NOT GPL-3.0-only. The row "
      "above must never be read as licensing them: a GPL grant over the SCORCH "
-     "software is not artwork permission. Licensing this artwork under CC BY "
-     "4.0 requires separate written authorization from coauthor Dr. Nasser "
-     "Najibi, which **has not been recorded**. Until it is, no public licence "
-     "is granted over these three rasters and no CC BY 4.0 grant may be "
-     "asserted anywhere for them ",
+     "software is not artwork permission. The artwork creator's CC BY 4.0 "
+     "declaration for these files **has not been recorded** in this "
+     "repository state. Until it is, no public licence is granted over these "
+     "three rasters and no CC BY 4.0 grant may be asserted anywhere for "
+     "them ",
      " " + _CLAUSE_SLOT + " These three files are author-created slide "
      "ARTWORK that happens to sit under a code directory; they are NOT "
      "software and are NOT GPL-3.0-only. The row above must never be read as "
@@ -1205,16 +1205,16 @@ SYNTHETIC_ACTIVATION_TRANSFORMS = (
     #    GHCN-Daily sentence is carried across verbatim.
     (_LICENCES,
      " **CC BY 4.0 PENDING - NOT YET IN FORCE.** Same artwork, same gate as "
-     "the donor rasters above: written authorization from coauthor Dr. Nasser "
-     "Najibi is required and **has not been recorded**. No CC BY 4.0 grant is "
-     "in force over Figure 1 or Figure 4 in this repository, in the companion "
-     "deposit, in `publication_outputs/`, or in any PNG/PDF export derived "
-     "from them. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no "
-     "provider terms attach to them; the gate here is authorship permission "
-     "alone ",
+     "the donor rasters above: the artwork creator's CC BY 4.0 declaration "
+     "**has not been recorded** in this repository state. No CC BY 4.0 grant "
+     "is in force over Figure 1 or Figure 4 in this repository, in the "
+     "companion deposit, in `publication_outputs/`, or in any PNG/PDF export "
+     "derived from them. Figures 1 and 4 depict no ERA5 or GHCN-Daily "
+     "material, so no provider terms attach to them; the gate here is the "
+     "creator's own recorded declaration alone ",
      " " + _CLAUSE_SLOT + " Figures 1 and 4 depict no ERA5 or GHCN-Daily "
-     "material, so no provider terms attach to them; the gate here is "
-     "authorship permission alone "),
+     "material, so no provider terms attach to them; the gate here is the "
+     "creator's own recorded declaration alone "),
     # 3. The section heading.
     (_LICENCES,
      "## Figure 1 / Figure 4 artwork: CC BY 4.0 PENDING, not yet in force",
@@ -1231,11 +1231,11 @@ SYNTHETIC_ACTIVATION_TRANSFORMS = (
     # 5. The frozen-figures README paragraph. The GPL-3.0 sentence stays.
     (_FROZEN,
      "Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0\n"
-     "licensing is PENDING and not yet in force:** licensing author-created "
-     "slide\nartwork under CC BY 4.0 requires separate written authorization "
-     "from coauthor\nDr. Nasser Najibi, which has not been recorded. The "
-     "GPL-3.0 approval covering\nthe SCORCH software is not artwork "
-     "permission.",
+     "licensing is PENDING and not yet in force:** this artwork was created "
+     "by\nFawaz Bouhamad, with scientific guidance from Dr. Nasser Najibi, "
+     "and the\ncreator's CC BY 4.0 declaration has not been recorded in this "
+     "repository\nstate. The GPL-3.0 licence covering\nthe SCORCH software "
+     "is not artwork permission.",
      "Figures 1 and 4 carry no such third-party material.\n" + _CLAUSE_SLOT
      + "\nThe GPL-3.0 approval covering\nthe SCORCH software is not artwork "
      "permission."),
@@ -1256,11 +1256,10 @@ SYNTHETIC_ACTIVATION_TRANSFORMS = (
      "immutable-donor rasters under scripts/figures/fig01/original/ and "
      "scripts/figures/fig04/original/ and scripts/figures/fig04/donor/, and "
      "every PNG/PDF export derived from them) is CC BY 4.0 PENDING and NOT "
-     "YET IN FORCE, because licensing it requires separate written "
-     "authorization from coauthor Dr. Nasser Najibi that has not been "
-     "recorded. That artwork must NOT be presented as CC BY 4.0 in the Zenodo "
-     "form, and this record must not be published asserting a CC BY 4.0 grant "
-     "over it. ",
+     "YET IN FORCE, because the creator's CC BY 4.0 declaration for it has "
+     "not been recorded in this repository state. That artwork must NOT be "
+     "presented as CC BY 4.0 in the Zenodo form, and this record must not be "
+     "published asserting a CC BY 4.0 grant over it. ",
      " " + _CLAUSE_SLOT + " "),
 )
 
@@ -1381,31 +1380,77 @@ def test_no_active_cc_by_claim_over_figure_1_or_4_artwork(rel):
 
 
 # --- the receipt must VALIDATE, not merely exist ---------------------------
+def _run_git(root, *args):
+    subprocess.run(["git", "-C", str(root), *args], check=True,
+                   capture_output=True)
+
+
 def _valid_receipt(root, contract, als, **overrides):
-    """A receipt that validates, unless a test perturbs one field."""
+    """A receipt that validates, unless a test perturbs one field.
+
+    A REAL git repository carrying a committed declaration, because ACTIVE
+    requires the receipt's declaration to be tracked at HEAD and byte-equal to
+    its blob. A helper that wrote the file without committing it would only
+    ever exercise the untracked refusal.
+    """
     repo = contract["repository"]
-    body = contract["authorization"]["text"]
+    decl_spec = contract["declaration_source"]
+    text = contract["licence_declaration"]["text"]
     artwork = {}
     for rel in contract["ccby_artwork_paths"]:
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(f"SYNTHETIC::{rel}\n".encode("utf-8"))
         artwork[rel] = als.sha256_file(target)
-    receipt = {
-        "schema_version": contract["authorization_receipt"]["schema_version"],
-        "repository": f"{repo['owner']}/{repo['name']}",
-        "pull_request": repo["pull_request"],
-        "permalink": f"https://github.com/{repo['owner']}/{repo['name']}"
-                     f"/pull/{repo['pull_request']}#issuecomment-101",
-        "issue_url": contract["authorization"]["expected_issue_url"],
-        "comment_id": 101,
-        "login": contract["authorization"]["required_login"],
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "body": body,
-        "body_sha256": als.sha256_hex(body),
+
+    decl_rel = decl_spec["tracked_record_path"]
+    decl_path = root / decl_rel
+    decl_path.parent.mkdir(parents=True, exist_ok=True)
+    declaration = {
+        "schema_version": decl_spec["schema_version"],
+        "declaration_date": "2026-01-01T00:00:00Z",
+        "declared_text": text,
         "licensed_artwork": artwork,
-        "activated_at": "2026-01-01T00:00:00Z",
+        "creator_attestation": {
+            "creator": decl_spec["creator"],
+            "declared_at": "2026-01-02T00:00:00Z",
+            "statement": decl_spec["attestation_statement"]},
+        "scientific_guidance_credit": decl_spec["guidance_credit"],
+    }
+    decl_bytes = (json.dumps(declaration, indent=2, sort_keys=True)
+                  + "\n").encode("utf-8")
+    decl_path.write_bytes(decl_bytes)
+    # An inherited `.git` FILE (a linked-worktree pointer) would resolve this
+    # repository to the REAL one and commit into it. Neutralise it first.
+    dotgit = root / ".git"
+    if dotgit.is_file():
+        dotgit.unlink()
+    if not dotgit.exists():
+        _run_git(root, "init", "-q", "-b", "chore/final-repository-cleanup")
+        _run_git(root, "config", "user.email", "t@example.invalid")
+        _run_git(root, "config", "user.name", "T")
+        _run_git(root, "config", "core.autocrlf", "false")
+    _run_git(root, "add", "-A")
+    _run_git(root, "commit", "-qm", "declaration")
+    blob = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD:" + decl_rel],
+        capture_output=True, text=True).stdout.strip()
+
+    receipt = {
+        "schema_version": contract["licence_receipt"]["schema_version"],
+        "repository": f"{repo['owner']}/{repo['name']}",
+        "licence_source": "creator_declaration",
+        "declaration_date": "2026-01-01T00:00:00Z",
+        "declared_text": text,
+        "declared_text_sha256": als.sha256_hex(text),
+        "licensed_artwork": artwork,
+        "declaration_record_path": decl_rel,
+        "declaration_record_sha256": hashlib.sha256(decl_bytes).hexdigest(),
+        "declaration_record_blob_sha1": blob,
+        "creator": decl_spec["creator"],
+        "declared_at": "2026-01-02T00:00:00Z",
+        "scientific_guidance_credit": decl_spec["guidance_credit"],
+        "activated_at": "2026-01-03T00:00:00Z",
         "finalizer_version": contract["finalizer_version"],
         "starting_head": "a" * 40,
     }
@@ -1425,25 +1470,23 @@ def test_a_valid_synthetic_receipt_validates(tmp_path, als):
 
 
 @pytest.mark.parametrize("overrides,code", [
-    ({"login": "impostor"}, "RECEIPT_LOGIN"),
-    ({"body": "I approve."}, "RECEIPT_BODY"),
-    ({"comment_id": "101"}, "RECEIPT_COMMENT_ID"),
-    ({"comment_id": 0}, "RECEIPT_COMMENT_ID"),
-    ({"comment_id": True}, "RECEIPT_COMMENT_ID"),
-    ({"created_at": "2026-13-45T99:99:99Z"}, "RECEIPT_CREATED_AT"),
-    ({"created_at": "2026-02-30T00:00:00Z"}, "RECEIPT_CREATED_AT"),
-    ({"created_at": "2026-06-01T00:00:00Z",
-      "updated_at": "2026-01-01T00:00:00Z"}, "RECEIPT_TIMESTAMP_ORDER"),
+    ({"creator": "impostor"}, "RECEIPT_CREATOR"),
+    ({"declared_text": "I license everything."}, "RECEIPT_DECLARED_TEXT"),
+    ({"scientific_guidance_credit": "Dr. Nasser Najibi, co-licensor"},
+     "RECEIPT_GUIDANCE_CREDIT"),
+    ({"scientific_guidance_credit": ""}, "RECEIPT_GUIDANCE_CREDIT"),
+    ({"licence_source": "github_pr_comment"}, "RECEIPT_LICENCE_SOURCE"),
+    ({"licence_source": "external_evidence"}, "RECEIPT_LICENCE_SOURCE"),
+    ({"declaration_date": "2026-13-45T99:99:99Z"}, "RECEIPT_DECLARATION_DATE"),
+    ({"declaration_date": "2026-02-30T00:00:00Z"}, "RECEIPT_DECLARATION_DATE"),
+    ({"declaration_date": "2026-06-01T00:00:00Z",
+      "declared_at": "2026-01-01T00:00:00Z"}, "RECEIPT_TIMESTAMP_ORDER"),
     ({"activated_at": "2025-01-01T00:00:00Z"}, "RECEIPT_TIMESTAMP_ORDER"),
-    ({"issue_url": ""}, "RECEIPT_ISSUE_URL"),
-    ({"issue_url": "https://evil.example/repos/fawazbouhamad/SCORCH/issues/1"},
-     "RECEIPT_ISSUE_URL"),
-    ({"issue_url": "https://api.github.com/x/repos/fawazbouhamad/SCORCH"
-                   "/issues/1"}, "RECEIPT_ISSUE_URL"),
-    ({"permalink": "https://github.com/fawazbouhamad/SCORCH/pull/1"
-                   "#issuecomment-999"}, "RECEIPT_PERMALINK"),
-    ({"permalink": "https://evil.example/fawazbouhamad/SCORCH/pull/1"
-                   "#issuecomment-101"}, "RECEIPT_PERMALINK"),
+    ({"declaration_record_sha256": "a" * 64}, "RECEIPT_DECLARATION_MISMATCH"),
+    ({"declaration_record_blob_sha1": "b" * 40},
+     "RECEIPT_DECLARATION_MISMATCH"),
+    ({"declaration_record_path": "docs/elsewhere.json"},
+     "RECEIPT_DECLARATION_PATH"),
     ({"starting_head": "not-a-commit"}, "RECEIPT_STARTING_HEAD"),
 ])
 def test_an_invalid_receipt_is_refused(tmp_path, als, overrides, code):
@@ -1514,9 +1557,14 @@ def test_the_actual_guard_fails_on_an_invalid_receipt(tmp_path, als, blob):
 
 def test_the_actual_guard_fails_on_a_forged_but_wellformed_receipt(tmp_path,
                                                                    als):
-    """Right shape, wrong author: the guard must still refuse."""
+    """Right shape, wrong licensor: the guard must still refuse.
+
+    A receipt naming somebody other than the artwork's creator as the licensor
+    is well-formed in every other respect, which is exactly the shape a
+    hand-written receipt takes.
+    """
     contract = als.load_trusted_contract(REPO)
-    forged = _valid_receipt(tmp_path, contract, als, login="impostor")
+    forged = _valid_receipt(tmp_path, contract, als, creator="impostor")
     root = _tree_with_receipt(tmp_path, als, json.dumps(forged, indent=2))
     assert artwork_licence_state(root)[0] != als.ACTIVE
     with pytest.raises(AssertionError) as exc:
@@ -1949,9 +1997,13 @@ PROVENANCE_TRACKED_FILES = sorted(
 STALE_PATH_ALLOWLIST = {
     # Labelled then/now mention in the forensic remediation record.
     "docs/ALIGNMENT_DECISIONS.md": 1,
-    # The frozen-collection history note names the two retired directories
-    # the reorganization moved; that history is the note's subject.
-    "scripts/release/finalizer_contract.json": 2,
+    # The contract carries NO retired-path reference. Its frozen-collection
+    # history note used to narrate the 4D-r3o reorganization and named the two
+    # retired directories; the 4G-r1 note records the creator-declaration
+    # migration instead and summarises that reorganization without repeating
+    # the old paths. Pinned at zero rather than deleted, so a note that
+    # reintroduced them would fail here instead of being silently allowed.
+    "scripts/release/finalizer_contract.json": 0,
     # old_repository_path column: pre-relocation historical identifiers.
     "docs/RELOCATED_ARTIFACTS.csv": 18,
     # Byte-preserved historical freeze manifest (protected record).

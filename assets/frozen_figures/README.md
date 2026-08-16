@@ -168,9 +168,10 @@ covers only the authors' plotting contribution, never the underlying
 GHCN-Daily or ERA5 observations.
 
 Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0
-licensing is PENDING and not yet in force:** licensing author-created slide
-artwork under CC BY 4.0 requires separate written authorization from coauthor
-Dr. Nasser Najibi, which has not been recorded. The GPL-3.0 approval covering
+licensing is PENDING and not yet in force:** this artwork was created by
+Fawaz Bouhamad, with scientific guidance from Dr. Nasser Najibi, and the
+creator's CC BY 4.0 declaration has not been recorded in this repository
+state. The GPL-3.0 licence covering
 the SCORCH software is not artwork permission.
 
 `SHA256SUMS` in this directory carries the same digests in checkable form

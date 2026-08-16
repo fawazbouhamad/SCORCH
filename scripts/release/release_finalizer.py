@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""Post-D6 release finalizer: a read-only PREFLIGHT and a gated FINALIZE.
+"""SCORCH release finalizer: a read-only PREFLIGHT and a gated FINALIZE.
 
 The release is blocked on one thing that no amount of green tests can supply:
-durable written authorization from coauthor Dr. Nasser Najibi to distribute the
-author-created Figure 1 / Figure 4 artwork under CC BY 4.0. This module makes
-that gate mechanical.
+the CC BY 4.0 licence over the Figure 1 / Figure 4 artwork, recorded in this
+repository by that artwork's creator. This module makes that gate mechanical.
+
+Fawaz Bouhamad created the Figure 1 and Figure 4 schematic artwork and is its
+copyright holder and sole licensor. Dr. Nasser Najibi provided the scientific
+guidance, review and corrections behind those figures, remains a manuscript
+coauthor, and is credited for exactly that. Dr. Najibi is not a licensor of the
+artwork; no permission is sought from them and none is recorded anywhere here.
+
+What this module therefore enforces is not consent - the licensor is the person
+running the release - but SCOPE and INTEGRITY: that the grant reaches exactly
+the seven registered works, over the exact bytes the creator declared, with the
+scientific-guidance credit carried and never restated as a second grant.
 
 Two modes, deliberately asymmetric:
 
@@ -14,22 +24,22 @@ Two modes, deliberately asymmetric:
     safe to run at any time, and running it can never half-apply anything.
 
 ``finalize``
-    Rechecks every preflight invariant, then fetches the authorization LIVE
-    from the GitHub API, rebuilds the deposit archive twice in temporary
-    staging and requires the two builds to be byte-identical, recomputes the
-    archive identity from the final bytes, applies the identity update as
-    structured count-checked edits, revalidates in a disposable full copy of
-    the repository, and only then commits the result to the working tree -
-    transactionally, restoring the exact pre-run state on any failure.
+    Rechecks every preflight invariant, then resolves the creator's declaration
+    from the tracked path at HEAD, rebuilds the deposit archive twice in
+    temporary staging and requires the two builds to be byte-identical,
+    recomputes the archive identity from the final bytes, applies the identity
+    update as structured count-checked edits, revalidates in a disposable full
+    copy of the repository, and only then commits the result to the working
+    tree - transactionally, restoring the exact pre-run state on any failure.
 
 Things this module will not do, by construction rather than by policy:
 
 * it never commits, pushes, merges, tags, creates a release, publishes, or
   touches Zenodo - no such command is issued anywhere in this file;
-* it has no D6 bypass. There is no flag, no environment variable and no local
-  evidence file that can stand in for the live comment. Screenshots, pasted
-  JSON and human attestations are not accepted inputs because they are not
-  inputs at all;
+* it has no licence bypass. There is no flag, no environment variable and no
+  local evidence file that can stand in for the committed declaration.
+  Screenshots, pasted JSON and booleans meaning "licensed" are not accepted
+  inputs because they are not inputs at all;
 * it never copies a provisional archive identity. Every value written is
   recomputed from the final bytes;
 * it never rewrites the protected historical records, which document
@@ -402,400 +412,85 @@ def normalize_prose(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# GitHub access. The real client shells out to the authenticated `gh` CLI;
-# tests inject a fake by PASSING A CLIENT OBJECT, never via flag or env, so
-# production has no injection surface at all.
+# GitHub access, reduced to REPOSITORY STATE.
+#
+# This client used to carry a coauthor's permission across a network: it
+# listed issue comments, matched a login, cross-read a comment twice and
+# turned the result into a licence. None of that exists any more, because the
+# artwork's creator licenses their own work and no third party is asked for
+# anything - see the licence-source section below.
+#
+# What remains is the one question GitHub is genuinely authoritative about and
+# that has nothing to do with the artwork licence: is pull request #1 still
+# open, still a draft, still unmerged, and still pointing at this HEAD. That is
+# a fact about the release, so it is kept. The comment-reading surface is gone
+# entirely rather than left available and unused.
 # ---------------------------------------------------------------------------
-#: The ONLY host the authorization may come from. ``gh`` resolves a default
+#: The ONLY host repository state may be read from. ``gh`` resolves a default
 #: host from ``GH_HOST`` and from its own config, so an ambient enterprise host
-#: could otherwise answer the authorization query - with a body its operator
-#: controls. The host is passed explicitly and the ambient variables that could
-#: redirect it are removed from the child environment.
+#: could otherwise answer the query. The host is passed explicitly and the
+#: ambient variables that could redirect it are removed from the child
+#: environment.
 GITHUB_HOST = "github.com"
 
 
 class GitHubCLI:
-    """Live GitHub API access through the authenticated ``gh`` CLI."""
+    """Live GitHub API access through the authenticated ``gh`` CLI.
 
-    def _api(self, endpoint, paginate=False):
+    Pull request metadata only. Tests inject a fake by PASSING A CLIENT OBJECT,
+    never via flag or environment, so production has no injection surface.
+    """
+
+    def _api(self, endpoint):
         env = dict(os.environ)
         for drop in ("GH_HOST", "GH_ENTERPRISE_TOKEN", "GH_REPO",
                      "GITHUB_API_URL", "GH_CONFIG_DIR"):
             env.pop(drop, None)
-        argv = ["gh", "api", "--hostname", GITHUB_HOST]
-        if paginate:
-            # --paginate with --slurp so every page is returned as ONE JSON
-            # array. Without it a pull request with more than 100 comments
-            # returns only the first page - and a revocation posted after the
-            # grant is exactly the comment that lands on a later one.
-            argv += ["--paginate", "--slurp"]
-        argv.append(endpoint)
+        argv = ["gh", "api", "--hostname", GITHUB_HOST, endpoint]
         proc = subprocess.run(argv, capture_output=True, text=True, env=env)
         if proc.returncode != 0:
             raise FinalizerError(
                 "GITHUB_API_UNAVAILABLE",
                 f"gh api {endpoint} failed: {proc.stderr.strip()[:300]}")
         try:
-            payload = json.loads(proc.stdout)
+            return json.loads(proc.stdout)
         except json.JSONDecodeError as exc:
             raise FinalizerError("GITHUB_API_UNAVAILABLE",
                                  f"gh api {endpoint}: bad JSON: {exc}")
-        if paginate and payload and isinstance(payload[0], list):
-            # --slurp yields a list OF PAGES; flatten to a single sequence.
-            return [item for page in payload for item in page]
-        return payload
 
     def pull_request(self, owner, repo, number):
         return self._api(f"repos/{owner}/{repo}/pulls/{number}")
 
-    def issue_comments(self, owner, repo, number):
-        return self._api(
-            f"repos/{owner}/{repo}/issues/{number}/comments?per_page=100",
-            paginate=True)
-
-    def issue_comment(self, owner, repo, comment_id):
-        return self._api(
-            f"repos/{owner}/{repo}/issues/comments/{comment_id}")
-
-
-def parse_comment_time(value):
-    """A comment timestamp, or None. Shared with the receipt validator."""
-    return _artwork.parse_timestamp(value)
-
-
-def _authorization_target_issue(live, owner, name, number,
-                                contract_issue_url=None):
-    """Confirm the comment is a top-level issue comment on the right PR.
-
-    Returns ``(code, why)`` or ``(None, None)``. A review comment, a comment on
-    another pull request, and a comment in a fork are all different objects
-    that can carry identical text.
-    """
-    from urllib.parse import urlparse
-
-    if live.get("pull_request_review_id") is not None:
-        return ("AUTHZ_WRONG_TARGET",
-                f"comment {live.get('id')} is a pull request REVIEW comment, "
-                f"not the contracted top-level issue comment")
-
-    # Parsed, not substring-matched. "https://evil.example/fawazbouhamad/
-    # SCORCH/pull/1#issuecomment-1" contains every expected token and is not
-    # this repository; only the HOST decides whose comment this is.
-    url = str(live.get("html_url", ""))
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        return ("AUTHZ_WRONG_TARGET", f"permalink {url!r} is not HTTPS")
-    if parsed.netloc.lower() != GITHUB_HOST:
-        return ("AUTHZ_WRONG_TARGET",
-                f"permalink host {parsed.netloc!r} is not {GITHUB_HOST}; a "
-                f"foreign host whose path mentions {owner}/{name} is not "
-                f"{owner}/{name}")
-    if parsed.path != f"/{owner}/{name}/pull/{number}":
-        return ("AUTHZ_WRONG_TARGET",
-                f"permalink path {parsed.path!r} is not "
-                f"/{owner}/{name}/pull/{number}")
-    want_fragment = f"issuecomment-{live.get('id')}"
-    if parsed.fragment != want_fragment:
-        return ("AUTHZ_WRONG_TARGET",
-                f"permalink fragment {parsed.fragment!r} is not exactly "
-                f"{want_fragment!r}; the permalink names a different comment "
-                f"from the one being read")
-
-    # EXACT, not endswith. "https://evil.example/x/repos/owner/name/issues/1"
-    # ends with the expected path and is not the GitHub API.
-    issue_url = str(live.get("issue_url", ""))
-    want_issue = (contract_issue_url
-                  or f"https://api.github.com/repos/{owner}/{name}"
-                     f"/issues/{number}")
-    if not issue_url:
-        return ("AUTHZ_WRONG_TARGET",
-                f"comment {live.get('id')} carries no issue_url; a top-level "
-                f"issue comment always does")
-    if issue_url != want_issue:
-        return ("AUTHZ_WRONG_TARGET",
-                f"issue_url {issue_url!r} is not exactly {want_issue!r}")
-    return (None, None)
-
-
-def find_authorization(github, contract):
-    """Locate and validate the D6 authorization comment. Never guesses.
-
-    Returns ``(record, issues)``. ``record`` is None unless a live top-level
-    issue comment on the contracted pull request, authored by the contracted
-    login, carries EXACTLY the authorization text.
-
-    Exact equality, not containment. Containment reads
-
-        "<the exact paragraph> However, I revoke this authorization."
-
-    as a grant, because the required text is genuinely a substring of it. So
-    is a comment that quotes the paragraph in order to reject it, and one that
-    prefixes it with "do not act on this yet". Only whitespace is normalized -
-    a comment box may wrap the paragraph anywhere - and nothing else is.
-
-    The comment is then fetched live TWICE by id and checked for exact equality
-    on both reads, and the two reads must agree with each other: a comment
-    edited or deleted between them authorizes nothing.
-    """
-    repo = contract["repository"]
-    owner, name = repo["owner"], repo["name"]
-    number = repo["pull_request"]
-    want_login = contract["authorization"]["required_login"]
-    want_text = normalize_prose(contract["authorization"]["text"])
-    issues = []
-
-    comments = github.issue_comments(owner, name, number)
-    by_author = [c for c in comments
-                 if str((c.get("user") or {}).get("login", "")).lower()
-                 == want_login.lower()]
-    if not by_author:
-        issues.append(("RELEASE_BLOCKED_D6",
-                       f"no top-level comment by {want_login} on "
-                       f"{owner}/{name}#{number} ({len(comments)} comment(s) "
-                       f"present)"))
-        return None, issues
-
-    # SUPERSESSION, by the author's LATEST ACTIVITY - not by creation order.
-    #
-    # Ordering on `created_at` alone reads the timeline as if comments were
-    # immutable. They are not. An author can EDIT a comment posted before the
-    # grant, turning it into a revocation or a qualification, and that edit
-    # lands with an OLD created_at and a NEW updated_at. Under creation
-    # ordering the grant was still "latest", the revocation sat quietly in the
-    # past, and the release proceeded against the author's current position.
-    #
-    # A comment's activity time is therefore max(created_at, updated_at): the
-    # last moment the author did something to it. Ties break on comment id,
-    # which is monotonic and gives a total, deterministic order - equal
-    # timestamps can never make the outcome depend on the order the API
-    # happened to return the page in.
-    unparsable = []
-
-    def _activity(comment):
-        created = parse_comment_time(comment.get("created_at"))
-        updated = parse_comment_time(comment.get("updated_at"))
-        stamps = [s for s in (created, updated) if s is not None]
-        if created is None or updated is None:
-            unparsable.append(
-                f"comment {comment.get('id')} carries created_at="
-                f"{comment.get('created_at')!r} updated_at="
-                f"{comment.get('updated_at')!r}")
-        return max(stamps) if stamps else None
-
-    def _ordering_key(comment):
-        stamp = _activity(comment)
-        return (stamp is not None, stamp, int(comment.get("id") or 0))
-
-    ordered = sorted(by_author, key=_ordering_key)
-    if unparsable:
-        # CONSERVATIVE. If any of the author's comments carries a timestamp
-        # that cannot be parsed, the activity order cannot be established, and
-        # an unorderable timeline is refused rather than guessed at.
-        issues.append((
-            "AUTHZ_TIMESTAMP_UNPARSABLE",
-            f"{want_login} has comment(s) whose timestamps are not real "
-            f"ISO-8601 UTC instants, so the order of their activity cannot be "
-            f"established and a later revocation could not be detected: "
-            f"{sorted(set(unparsable))[:3]}"))
-        return None, issues
-
-    latest = ordered[-1]
-    if normalize_prose(str(latest.get("body", ""))) != want_text:
-        exact = [c for c in ordered
-                 if normalize_prose(str(c.get("body", ""))) == want_text]
-        if exact:
-            issues.append((
-                "AUTHZ_SUPERSEDED_OR_QUALIFIED",
-                f"{want_login} posted the exact authorization in comment "
-                f"{exact[-1].get('id')} but their latest activity is comment "
-                f"{latest.get('id')} (created {latest.get('created_at')}, last "
-                f"edited {latest.get('updated_at')}), which is not the "
-                f"authorization text; a grant followed - or preceded and then "
-                f"EDITED INTO - a revocation or qualification by the same "
-                f"author is not authorization"))
-        else:
-            issues.append((
-                "AUTHZ_BODY_ALTERED",
-                f"{want_login} has commented on #{number} but their latest "
-                f"activity is not EXACTLY the authorization text; an altered, "
-                f"truncated, prefixed, qualified or revoked body is not "
-                f"authorization"))
-        return None, issues
-
-    chosen = latest
-
-    # Belt and braces: NOTHING by this author may have activity at or after the
-    # grant's own except the grant itself. The ordering above already implies
-    # it, but stating it separately means a future change to the ordering key
-    # cannot quietly reintroduce the defect.
-    chosen_key = _ordering_key(chosen)
-    later = [c for c in by_author
-             if _ordering_key(c) >= chosen_key and c.get("id") != chosen.get("id")]
-    if later:
-        issues.append((
-            "AUTHZ_SUPERSEDED_OR_QUALIFIED",
-            f"{want_login} has activity at or after the grant in comment(s) "
-            f"{[c.get('id') for c in later][:3]} that is not the exact "
-            f"authorization text"))
-        return None, issues
-
-    # Two independent live re-fetches by id. The listing may be stale, and a
-    # comment edited or deleted between the reads must not authorize anything.
-    reads = []
-    for _ in range(int(contract["authorization"].get(
-            "live_fetches_required", 2))):
-        live = github.issue_comment(owner, name, chosen["id"])
-        live_login = str((live.get("user") or {}).get("login", ""))
-        if live_login.lower() != want_login.lower():
-            issues.append(("AUTHZ_WRONG_AUTHOR",
-                           f"comment {chosen['id']} is authored by "
-                           f"{live_login!r}, not {want_login!r}"))
-            return None, issues
-        if normalize_prose(str(live.get("body", ""))) != want_text:
-            issues.append(("AUTHZ_BODY_ALTERED",
-                           f"comment {chosen['id']} is not EXACTLY the "
-                           f"authorization text on re-fetch"))
-            return None, issues
-        code, why = _authorization_target_issue(
-            live, owner, name, number,
-            contract["authorization"].get("expected_issue_url"))
-        if code:
-            issues.append((code, why))
-            return None, issues
-        reads.append(live)
-
-    agreement = contract["authorization"].get(
-        "cross_read_agreement_fields") or ["id", "body", "updated_at",
-                                           "html_url"]
-    for field in agreement:
-        if len({json.dumps(r.get(field), sort_keys=True, default=str)
-                for r in reads}) != 1:
-            issues.append(("AUTHZ_MUTATED_DURING_READ",
-                           f"comment {chosen['id']} changed field {field!r} "
-                           f"between two live reads; it is being edited and "
-                           f"cannot be relied on"))
-            return None, issues
-
-    live = reads[-1]
-    live_login = str((live.get("user") or {}).get("login", ""))
-    live_body = str(live.get("body", ""))
-    url = str(live.get("html_url", ""))
-
-    record = {
-        "comment_id": live["id"],
-        "permalink": url,
-        "login": live_login,
-        "created_at": live.get("created_at"),
-        "updated_at": live.get("updated_at"),
-        "body": live_body,
-        "body_sha256": sha256_bytes(live_body.encode("utf-8")),
-        "issue_url": str(live.get("issue_url", "")),
-    }
-    return record, issues
-
 
 # ---------------------------------------------------------------------------
-# The professional approval route: preserved email, or a signed form
+# The licence source: the artwork creator's own declaration
 # ---------------------------------------------------------------------------
-#: The two discriminated approval sources. A receipt says which one it rests
-#: on, so the durable evidence records HOW the permission was obtained and not
-#: merely that it was.
-SOURCE_GITHUB = "github_pr_comment"
-SOURCE_EXTERNAL = "external_evidence"
-
-#: What each declared source type must actually LOOK LIKE on disk.
+#: The ONE licence source, mirrored from the shared state module so the
+#: finalizer and the durable guards cannot drift apart on what it is called.
 #:
-#: The record says how the approval arrived; the evidence file is the thing
-#: that arrived. Until r3m nothing required the two to agree, so a record could
-#: declare ``approval_email`` - which the custodian attestation and the guide
-#: both describe as "the complete message with its full headers" - while the
-#: preserved file was a ``.docx`` or a screenshot ``.png``. Those are not the
-#: original message: they are a transcription of it, with the headers that
-#: carry the provenance discarded. A reviewer reading the receipt would have
-#: no way to see that.
+#: Fawaz Bouhamad created the Figure 1 and Figure 4 schematic artwork and is
+#: its copyright holder and licensor. The CC BY 4.0 grant over the seven
+#: registered artwork files therefore rests on a declaration by that creator
+#: and on nothing else. Dr. Nasser Najibi provided the scientific guidance,
+#: review and corrections behind those figures and is credited for exactly
+#: that; no permission is sought from them, none is recorded, and nothing in
+#: this module can represent them as having written, signed, sent or posted
+#: anything.
 #:
-#: This is a CONSISTENCY check and nothing more. It does not authenticate the
-#: mail, and no format check could - see the custodian trust model in the
-#: operator guide. It refuses the case where the record's own claim about what
-#: it preserved is contradicted by the file it preserved.
-#: ONE canonical map, owned by the shared state module, because BOTH the
-#: finalization path and the durable guards have to apply the same rule: the
-#: finalizer checks it when the approval is resolved, and the builder and the
-#: guards check it again every time they read the receipt, years later.
-EVIDENCE_FORMATS = _artwork.EVIDENCE_FORMATS
-
-
-def evidence_format_issues(source_type, filename):
-    """Refuse an evidence file whose format contradicts its declared source."""
-    return _artwork.evidence_format_issues(
-        source_type, filename, code="APPROVAL_EVIDENCE_FORMAT")
-
-
-def external_evidence_spec(contract):
-    """The external-evidence configuration, or None when it is not enabled."""
-    sources = contract.get("approval_sources") or {}
-    if SOURCE_EXTERNAL not in (sources.get("enabled") or []):
-        return None
-    return sources.get(SOURCE_EXTERNAL) or None
-
-
-def approval_record_state(repo_root, contract):
-    """``(rel, present)`` for the tracked approval record.
-
-    ``present`` is deliberately generous: a symlink, a directory or an
-    unreadable object AT the path all count as present, because the question
-    this answers is "has anything been put here yet", and the answer for
-    anything other than nothing is yes.
-    """
-    spec = external_evidence_spec(contract)
-    if not spec:
-        return None, False
-    rel = spec.get("tracked_record_path")
-    if not rel:
-        return None, False
-    return rel, os.path.lexists(str(Path(repo_root) / rel))
-
-
-def select_approval_source(repo_root, contract):
-    """Decide which approval source this run rests on. ONE, never both.
-
-    Returns ``(source, rel, present, issues)``. ``source`` is
-    :data:`SOURCE_EXTERNAL`, :data:`SOURCE_GITHUB`, or None when neither
-    enabled route can qualify - which is the ordinary, expected state today.
-
-    The decision is made from OBSERVABLE STATE and never from a flag:
-
-    * a committed approval record at the contracted path IS the professional
-      route, and where one exists no GitHub comment is consulted, asked for or
-      required - so the coauthor is never asked for a GitHub account;
-    * with no record, the GitHub comment route is used only if it is ENABLED;
-    * with no record and that route disabled, there is no source at all, which
-      is ``RELEASE_BLOCKED_D6``.
-
-    Preflight and finalize both call this, so a read-only preflight and the
-    real finalization can never disagree about which evidence is being asked
-    for - which they did until r3m, when preflight validated the GitHub route
-    unconditionally and reported the release blocked on a missing comment that
-    finalize had already decided it did not need.
-    """
-    sources = contract.get("approval_sources") or {}
-    enabled = list(sources.get("enabled") or [SOURCE_GITHUB])
-    rel, present = approval_record_state(repo_root, contract)
-    if external_evidence_spec(contract) is not None and present:
-        return SOURCE_EXTERNAL, rel, present, []
-    if SOURCE_GITHUB in enabled:
-        return SOURCE_GITHUB, rel, present, []
-    if rel:
-        why = (f"no approval record at {rel} and the GitHub comment route is "
-               f"not enabled; there is no source this release could rest on")
-    else:                                        # pragma: no cover - contract
-        why = ("no approval source is enabled; there is nothing this release "
-               "could rest on")
-    return None, rel, present, [("RELEASE_BLOCKED_D6", why)]
+#: There is consequently no GitHub client here, no comment to fetch, no login
+#: to match, no permalink to check and no evidence file to read from outside
+#: the repository. Those existed to carry a third party's consent across a
+#: network; a creator licensing their own work needs none of them, and every
+#: one of them was a surface that could be pointed somewhere else.
+SOURCE_CREATOR = _artwork.CREATOR_SOURCE
 
 
 def _tracked_blob(repo_root, rel):
-    """``(blob_sha1, blob_bytes)`` for ``rel`` at HEAD, or ``(None, None)``."""
+    """``(blob_sha1, blob_bytes)`` for ``rel`` at HEAD, or ``(None, None)``.
+
+    "Committed" is a fact about the repository, not about the working copy, so
+    it is answered by git rather than by reading the file again.
+    """
     blob_id = git(repo_root, "rev-parse", f"HEAD:{rel}", check=False)
     if not re.fullmatch(r"[0-9a-f]{40}", blob_id or ""):
         return None, None
@@ -806,267 +501,200 @@ def _tracked_blob(repo_root, rel):
     return blob_id, proc.stdout
 
 
-def find_external_approval(repo_root, contract, evidence_path):
-    """Resolve an approval from a preserved email or a signed form.
+def declaration_spec(contract):
+    """The creator-declaration configuration from the trusted contract."""
+    return contract.get("declaration_source") or None
 
-    Returns ``(record, issues)`` with the same contract as
-    :func:`find_authorization`: ``record`` is None unless EVERY check passes.
 
-    Two halves, and neither is trusted without the other. The TRACKED RECORD
-    inside the repository is the auditable, public-facing statement: what was
-    approved, when, by which kind of evidence, over which seven files, under
-    whose custody. The ORIGINAL EVIDENCE - the complete email with its headers,
-    or the signed scan - stays outside the repository, because headers carry
-    personal routing data and a signature is a signature; it is supplied by the
-    operator at finalization time, read without following links, and required
-    to hash to exactly what the tracked record committed to.
+def declaration_record_state(repo_root, contract):
+    """``(rel, present)`` for the tracked creator declaration.
 
-    Deliberately absent: any boolean that says "approved", any way to name the
-    approval text on the command line, and any way to write the record from
-    this tool. The record is a reviewed, committed file or it is nothing.
+    ``present`` is deliberately generous: a symlink, a directory or an
+    unreadable object AT the path all count as present, because the question
+    this answers is "has anything been put here yet", and the answer for
+    anything other than nothing is yes.
+    """
+    spec = declaration_spec(contract)
+    if not spec:
+        return None, False
+    rel = spec.get("tracked_record_path")
+    if not rel:
+        return None, False
+    return rel, os.path.lexists(str(Path(repo_root) / rel))
+
+
+def find_creator_declaration(repo_root, contract):
+    """Resolve the CC BY grant from the artwork creator's tracked declaration.
+
+    Returns ``(record, issues)``. ``record`` is None unless EVERY check passes.
+
+    The declaration is a reviewed, committed file inside the repository: it
+    states who created the artwork, which seven files by path and SHA-256 are
+    being licensed, under which licence, and who is credited for scientific
+    guidance. It is read here with the same component-safe, no-follow walk that
+    protects the receipt - a symlink at the path or a junction on any parent
+    directory is a refusal, not a redirection - and it must equal its committed
+    blob at HEAD, because a declaration that exists only in a working copy has
+    no history, no review and no author.
+
+    Deliberately absent: any boolean that says "licensed", any way to name the
+    declared text on the command line, and any way to write the declaration
+    from this tool. The declaration is a reviewed, committed file or it is
+    nothing. What this function protects is not consent - the licensor is the
+    person running the release - but SCOPE: that the grant reaches exactly the
+    seven registered files whose bytes are still what the declaration named.
     """
     issues = []
-    spec = external_evidence_spec(contract)
-    if not spec:
-        return None, [("APPROVAL_SOURCE_DISABLED",
-                       "the external-evidence approval source is not enabled "
-                       "in approval_sources.enabled")]
+    spec = declaration_spec(contract)
+    if not spec:                                 # pragma: no cover - contract
+        return None, [("DECLARATION_SOURCE_UNCONFIGURED",
+                       "the contract declares no declaration_source, so there "
+                       "is nothing this release could rest on")]
     root = Path(repo_root)
     rel = spec["tracked_record_path"]
     path = root / rel
 
-    # --- the tracked record must exist, be a regular file, and be TRACKED ---
     if not os.path.lexists(str(path)):
-        return None, [("RELEASE_BLOCKED_D6",
-                       f"{rel} does not exist: no coauthor approval has been "
-                       f"recorded, so there is nothing to finalize")]
-    # COMPONENT-SAFE, no-follow, opened-handle. `_read_regular_file` protects
-    # the LEAF only: it lstats the final component and opens it with
-    # O_NOFOLLOW, which says nothing whatever about the directories above it.
-    # A junction on `docs/` therefore redirected the read to an approval record
-    # in another tree entirely, and the bytes that came back were validated,
-    # hashed and recorded as though they had been the repository's own. The
-    # same walk that protects the receipt protects the record: every component
-    # from the repository root is opened and refused if it carries a link, a
-    # junction or a non-directory, and containment is decided from OPEN
-    # HANDLES rather than from a name resolved afterwards.
+        return None, [("LICENCE_DECLARATION_ABSENT",
+                       f"{rel} does not exist: the creator's CC BY 4.0 "
+                       f"declaration has not been recorded, so there is "
+                       f"nothing to finalize")]
     try:
         raw = _artwork.safe_read_within(root, path)
     except _artwork.ReceiptOpenRefused as exc:
-        return None, [("APPROVAL_RECORD_UNREADABLE", f"{rel}: {exc.why}")]
+        return None, [("DECLARATION_UNREADABLE", f"{rel}: {exc.why}")]
     except OSError as exc:
-        return None, [("APPROVAL_RECORD_UNREADABLE", f"{rel}: {exc}")]
+        return None, [("DECLARATION_UNREADABLE", f"{rel}: {exc}")]
     if raw is None:                              # pragma: no cover - raced
-        return None, [("RELEASE_BLOCKED_D6", f"{rel} disappeared while being "
-                                             f"read")]
+        return None, [("LICENCE_DECLARATION_ABSENT",
+                       f"{rel} disappeared while being read")]
 
     if spec.get("must_be_tracked_at_head", True):
         blob_sha1, blob = _tracked_blob(root, rel)
         if blob_sha1 is None:
             return None, [(
-                "APPROVAL_RECORD_UNTRACKED",
-                f"{rel} is not tracked at HEAD. An approval record that exists "
-                f"only in somebody's working copy is not a repository record: "
-                f"it has no history, no review and no author")]
+                "DECLARATION_UNTRACKED",
+                f"{rel} is not tracked at HEAD. A declaration that exists only "
+                f"in somebody's working copy is not a repository record: it "
+                f"has no history, no review and no author")]
         if raw != blob and raw.replace(b"\r\n", b"\n") != blob:
             return None, [(
-                "APPROVAL_RECORD_MODIFIED",
+                "DECLARATION_MODIFIED",
                 f"{rel} differs from its committed blob {blob_sha1}; the "
-                f"approval record being read is not the one that was reviewed "
-                f"and committed")]
+                f"declaration being read is not the one that was reviewed and "
+                f"committed")]
     else:                                        # pragma: no cover - contract
         blob_sha1 = None
 
     try:
         record = loads_strict(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
-        return None, [("APPROVAL_RECORD_MALFORMED",
+        return None, [("DECLARATION_MALFORMED",
                        f"{rel} is not a strict JSON object: {exc}")]
     if not isinstance(record, dict):
-        return None, [("APPROVAL_RECORD_MALFORMED",
-                       f"{rel} is not a JSON object")]
+        return None, [("DECLARATION_MALFORMED", f"{rel} is not a JSON object")]
     missing = [f for f in spec["required_fields"] if f not in record]
     if missing:
-        return None, [("APPROVAL_RECORD_MALFORMED",
+        return None, [("DECLARATION_MALFORMED",
                        f"{rel} is missing required field(s) {missing}")]
 
     if record["schema_version"] != spec["schema_version"]:
-        issues.append(("APPROVAL_RECORD_SCHEMA_VERSION",
+        issues.append(("DECLARATION_SCHEMA_VERSION",
                        f"schema_version {record['schema_version']!r} != "
                        f"{spec['schema_version']!r}"))
-    source_type = record["source_type"]
-    if source_type not in spec["allowed_source_types"]:
-        issues.append(("APPROVAL_SOURCE_TYPE",
-                       f"source_type {source_type!r} is not one of "
-                       f"{spec['allowed_source_types']}"))
-    approval_date = str(record["approval_date"] or "")
-    if _artwork.parse_timestamp(approval_date) is None:
-        issues.append(("APPROVAL_DATE",
-                       f"approval_date {approval_date!r} is not a real "
+    declaration_date = str(record["declaration_date"] or "")
+    if _artwork.parse_timestamp(declaration_date) is None:
+        issues.append(("DECLARATION_DATE",
+                       f"declaration_date {declaration_date!r} is not a real "
                        f"ISO-8601 UTC instant"))
 
-    # --- the approved paragraph, EXACTLY -----------------------------------
-    want_text = normalize_prose(contract["authorization"]["text"])
-    if normalize_prose(str(record["approved_text"])) != want_text:
+    # --- the declared paragraph, EXACTLY ------------------------------------
+    want_text = normalize_prose(contract["licence_declaration"]["text"])
+    if normalize_prose(str(record["declared_text"])) != want_text:
         issues.append((
-            "APPROVAL_TEXT_MISMATCH",
-            "approved_text is not EXACTLY the contracted approval paragraph; "
-            "a paraphrased, truncated, prefixed, qualified or revoked "
-            "paragraph is not the approval that was asked for"))
+            "DECLARATION_TEXT_MISMATCH",
+            "declared_text is not EXACTLY the contracted declaration "
+            "paragraph; a paraphrased, truncated, prefixed, widened or "
+            "withdrawn paragraph is not the declaration the contract pins"))
 
     # --- the seven identities, against the contract AND the tree ------------
     artwork = record["licensed_artwork"]
     want_paths = sorted(contract["ccby_artwork_paths"])
     if not isinstance(artwork, dict) or sorted(artwork) != want_paths:
         got = sorted(artwork) if isinstance(artwork, dict) else artwork
-        issues.append(("APPROVAL_ARTWORK_SCOPE",
-                       f"the record approves {got!r}; the contracted scope is "
-                       f"exactly {want_paths}"))
+        issues.append(("DECLARATION_ARTWORK_SCOPE",
+                       f"the declaration licenses {got!r}; the contracted "
+                       f"scope is exactly {want_paths}"))
     else:
         for rel_art in want_paths:
             art = root / rel_art
             if not art.is_file():
-                issues.append(("APPROVAL_ARTWORK_MISSING",
-                               f"{rel_art} is approved by the record but is "
-                               f"not in the tree"))
+                issues.append(("DECLARATION_ARTWORK_MISSING",
+                               f"{rel_art} is licensed by the declaration but "
+                               f"is not in the tree"))
                 continue
             got = sha256_file(art)
             if artwork[rel_art] != got:
                 issues.append((
-                    "APPROVAL_ARTWORK_MISMATCH",
-                    f"{rel_art}: the record approves {artwork[rel_art]}, the "
-                    f"tree holds {got}. The approval covers the bytes that "
-                    f"were shown, not whatever is at the path now"))
+                    "DECLARATION_ARTWORK_MISMATCH",
+                    f"{rel_art}: the declaration licenses {artwork[rel_art]}, "
+                    f"the tree holds {got}. The grant covers the bytes that "
+                    f"were declared, not whatever is at the path now"))
 
-    # --- the custodian's attestation ---------------------------------------
-    attestation = record["custodian_attestation"]
+    # --- the creator's attestation ------------------------------------------
+    attestation = record["creator_attestation"]
     if not isinstance(attestation, dict):
-        issues.append(("APPROVAL_ATTESTATION_MALFORMED",
-                       "custodian_attestation is not a JSON object"))
+        issues.append(("DECLARATION_ATTESTATION_MALFORMED",
+                       "creator_attestation is not a JSON object"))
         attestation = {}
     for field in spec["attestation_required_fields"]:
         if field not in attestation:
-            issues.append(("APPROVAL_ATTESTATION_MALFORMED",
-                           f"custodian_attestation is missing {field!r}"))
-    if attestation.get("custodian") != spec["custodian"]:
-        issues.append(("APPROVAL_ATTESTATION_CUSTODIAN",
-                       f"custodian {attestation.get('custodian')!r} is not the "
-                       f"contracted {spec['custodian']!r}"))
+            issues.append(("DECLARATION_ATTESTATION_MALFORMED",
+                           f"creator_attestation is missing {field!r}"))
+    if attestation.get("creator") != spec["creator"]:
+        issues.append(("DECLARATION_ATTESTATION_CREATOR",
+                       f"creator {attestation.get('creator')!r} is not the "
+                       f"contracted {spec['creator']!r}, who is the artwork's "
+                       f"creator and sole licensor"))
     if normalize_prose(str(attestation.get("statement") or "")) != \
             normalize_prose(spec["attestation_statement"]):
-        issues.append(("APPROVAL_ATTESTATION_STATEMENT",
-                       "the custodian attestation is not EXACTLY the "
-                       "contracted statement"))
-    attested_at = str(attestation.get("attested_at") or "")
-    if _artwork.parse_timestamp(attested_at) is None:
-        issues.append(("APPROVAL_ATTESTATION_TIMESTAMP",
-                       f"attested_at {attested_at!r} is not a real ISO-8601 "
+        issues.append(("DECLARATION_ATTESTATION_STATEMENT",
+                       "the creator attestation is not EXACTLY the contracted "
+                       "statement"))
+    declared_at = str(attestation.get("declared_at") or "")
+    if _artwork.parse_timestamp(declared_at) is None:
+        issues.append(("DECLARATION_ATTESTATION_TIMESTAMP",
+                       f"declared_at {declared_at!r} is not a real ISO-8601 "
                        f"UTC instant"))
 
-    # --- the ORIGINAL evidence, re-read and re-hashed -----------------------
-    evidence = record["evidence"]
-    if not isinstance(evidence, dict):
-        issues.append(("APPROVAL_EVIDENCE_MALFORMED",
-                       "evidence is not a JSON object"))
-        evidence = {}
-    for field in spec["evidence_required_fields"]:
-        if field not in evidence:
-            issues.append(("APPROVAL_EVIDENCE_MALFORMED",
-                           f"evidence is missing {field!r}"))
-    if not evidence_path:
+    # --- the scientific guidance credit, exactly -----------------------------
+    # Dr. Najibi is credited here and is NOT a licensor. Exact equality in both
+    # directions: the declaration may neither drop the credit that is owed nor
+    # restate it as a grant, an approval or a permission.
+    want_credit = spec.get("guidance_credit")
+    if want_credit is not None and \
+            record.get("scientific_guidance_credit") != want_credit:
         issues.append((
-            "APPROVAL_EVIDENCE_MISSING",
-            f"--approval-evidence was not supplied. {rel} records an approval "
-            f"whose original evidence hashes {evidence.get('sha256')!r}; "
-            f"finalization reads those original bytes and will not proceed on "
-            f"the tracked record alone"))
-        return None, sorted(set(issues))
-
-    ev = Path(evidence_path)
-    if not os.path.lexists(str(ev)):
-        issues.append(("APPROVAL_EVIDENCE_MISSING",
-                       f"{ev} does not exist"))
-        return None, sorted(set(issues))
-    try:
-        ev_resolved = ev.resolve()
-        root_resolved = root.resolve()
-        inside = (ev_resolved == root_resolved
-                  or root_resolved in ev_resolved.parents)
-    except OSError:                              # pragma: no cover - platform
-        inside = False
-    if inside and spec.get("evidence_must_be_outside_repository", True):
-        issues.append((
-            "APPROVAL_EVIDENCE_IN_REPOSITORY",
-            f"{ev} is inside the repository. The original approval - full "
-            f"email headers, or a signature - is private and is kept outside "
-            f"the tree; only the tracked record is published"))
-    # The ORIGINAL evidence lives OUTSIDE the repository by design, so there is
-    # no tree to be contained by - but "outside the repository" must not mean
-    # "unchecked". It is read by the same component-safe walk, anchored at the
-    # VOLUME ROOT, so every directory from the drive letter down is opened and
-    # refused if it is a link or a junction, the leaf is refused if it is not a
-    # regular file, and a name swapped between classification and open cannot
-    # change which object is hashed. Any refusal is FINAL: there is no fallback
-    # to a plain open, because a fallback is the whole attack.
-    try:
-        ev_bytes = _artwork.safe_read_external_evidence(ev)
-    except _artwork.ReceiptOpenRefused as exc:
-        issues.append(("APPROVAL_EVIDENCE_UNREADABLE", f"{ev}: {exc.why}"))
-        return None, sorted(set(issues))
-    except OSError as exc:
-        issues.append(("APPROVAL_EVIDENCE_UNREADABLE", f"{ev}: {exc}"))
-        return None, sorted(set(issues))
-    if ev_bytes is None:                         # pragma: no cover - raced
-        issues.append(("APPROVAL_EVIDENCE_MISSING",
-                       f"{ev} disappeared while being read"))
-        return None, sorted(set(issues))
-    limit = int(spec.get("max_evidence_bytes") or 0)
-    if limit and len(ev_bytes) > limit:
-        issues.append(("APPROVAL_EVIDENCE_TOO_LARGE",
-                       f"{ev} is {len(ev_bytes)} B, the contract admits at "
-                       f"most {limit} B"))
-    if evidence.get("filename") != ev.name:
-        issues.append((
-            "APPROVAL_EVIDENCE_FILENAME",
-            f"the record names evidence {evidence.get('filename')!r} but "
-            f"{ev.name!r} was supplied"))
-    # The record's claim about HOW the approval arrived, against the file that
-    # actually arrived. Checked on BOTH names, so renaming the supplied file
-    # cannot satisfy it while the recorded one still contradicts the record.
-    issues.extend(evidence_format_issues(source_type,
-                                         evidence.get("filename") or ev.name))
-    issues.extend(evidence_format_issues(source_type, ev.name))
-    got_bytes = len(ev_bytes)
-    if evidence.get("bytes") != got_bytes:
-        issues.append(("APPROVAL_EVIDENCE_BYTES",
-                       f"the record records {evidence.get('bytes')!r} B of "
-                       f"evidence, {ev} is {got_bytes} B"))
-    got_sha = sha256_bytes(ev_bytes)
-    if evidence.get("sha256") != got_sha:
-        issues.append((
-            "APPROVAL_EVIDENCE_MISMATCH",
-            f"the supplied evidence hashes {got_sha}; {rel} commits to "
-            f"{evidence.get('sha256')!r}. These are not the bytes the "
-            f"approval record was written against"))
+            "DECLARATION_GUIDANCE_CREDIT",
+            f"scientific_guidance_credit "
+            f"{record.get('scientific_guidance_credit')!r} is not the "
+            f"contracted {want_credit!r}"))
 
     if issues:
         return None, sorted(set(issues))
     return {
-        "approval_source": SOURCE_EXTERNAL,
-        "source_type": source_type,
-        "approval_date": approval_date,
-        "approved_text": str(record["approved_text"]),
-        "approved_text_sha256": sha256_bytes(
-            str(record["approved_text"]).encode("utf-8")),
+        "licence_source": SOURCE_CREATOR,
+        "declaration_date": declaration_date,
+        "declared_text": str(record["declared_text"]),
+        "declared_text_sha256": sha256_bytes(
+            str(record["declared_text"]).encode("utf-8")),
         "licensed_artwork": dict(artwork),
-        "approval_record_path": rel,
-        "approval_record_sha256": sha256_bytes(raw),
-        "approval_record_blob_sha1": blob_sha1,
-        "evidence_filename": ev.name,
-        "evidence_sha256": got_sha,
-        "evidence_bytes": got_bytes,
-        "custodian": attestation.get("custodian"),
-        "attested_at": attested_at,
+        "declaration_record_path": rel,
+        "declaration_record_sha256": sha256_bytes(raw),
+        "declaration_record_blob_sha1": blob_sha1,
+        "creator": attestation.get("creator"),
+        "declared_at": declared_at,
+        "scientific_guidance_credit": record.get("scientific_guidance_credit"),
     }, []
 
 
@@ -2047,17 +1675,21 @@ MIN_ACTIVATION_BLOCK = 40
 #: Production contracts only. ``is_synthetic_contract`` is opt-in, so a
 #: contract that declares nothing is production and IS pinned; the test
 #: fixtures that drive activation with invented wording say so explicitly.
+#: Repinned at 4G-r1, the creator-declaration migration. Every destination now
+#: names Fawaz Bouhamad as the artwork's creator and licensor, carries the
+#: reviewed credit line for Dr. Najibi's scientific guidance, and points at the
+#: creator's declaration rather than at an authorization nobody was asked for.
 REVIEWED_ACTIVATION_DESTINATIONS = {
     "docs/LICENSES_AND_ATTRIBUTION.md":
-        "a79e4af54103626af6142c1a3094b4e42a04b1e38396e50aec0187ae2cfa7807",
+        "5f08a9287155b1e0b03b53dc4d2498528712517c7d580ce5b654b05e49616b51",
     "assets/frozen_figures/README.md":
-        "f87e21897ff87922d0e8a7aea9f1ecd4c84df45c86b7d77b623a25382ec90567",
+        "f67e07a81f5b20463208418633f2e726a6d0cd1dddb77fbe97f9af51b4d775ef",
     "assets/manuscript_final/README.md":
-        "2a4093efe942c780cf2097815520b8196b2153cbcafcb6003ad5ff8da1b9b6b8",
+        "b9759f9c8b7169fcf527b02603003b2d665edda0bd737fca37d582e35dd4a7d9",
     ".zenodo.json":
-        "c422c8f1e3751e4a1add81da718a6beb0b66abb6613079b2626ed002fc7f05e7",
+        "2d73298336c023dad6a80544d9425e0ad3a860826a80060a9651397d3e9457fc",
     "archive:LICENSE.txt":
-        "e8cf0e9d58157b1c93983e8b30f593394db473e9eac8364e0def2d98c637ad34",
+        "b6b499f1e67034582b3f2a2442b2bd799b308c9b066e6744c71d3cd5d55b78bf",
 }
 
 #: The other three pieces of reviewed legal text, pinned the same way: the row
@@ -2073,16 +1705,23 @@ REVIEWED_ACTIVATION_DESTINATIONS = {
 #: token claimed, so the broad glob passed the guards that refuse it anywhere
 #: else.
 REVIEWED_PUBLICATION_ROW_ACTIVE = \
-    "0ee44d702c0156b409ea44ff0c62f17935662b0ccaa93de6d86954af1c65532b"
+    "843d1b020d7b85a7e234bf11111b196beca78c0ce7c2404161370256898e2f2b"
 REVIEWED_ACTIVE_MARKER = \
     "55710064a9ed823853233bc6fed7877c801e44f8f2b675e65ad5b219bb46d95a"
-REVIEWED_APPROVAL_TEXT = \
-    "749e0a504215aeed3de9ec62348644cdebe0edc758944fbd5e364ebee642d338"
+REVIEWED_DECLARATION_TEXT = \
+    "3cf30b842353b0ba4575c3bd3fd2397f52b86dbe186396c72c65a31ecd7c6222"
+#: The credit line every activated licence surface carries. Pinned for the same
+#: reason as the grant itself: it is the sentence that says who made the
+#: artwork and who is credited for the science behind it, and an edit that
+#: turned a credit into a second licensor - or dropped it - would be a legal
+#: change to the release made from a data file.
+REVIEWED_PUBLIC_CREDIT = \
+    "945f01374f973e97a10f3417e708064f781b2b5ef4da582ec446772b908b9dd5"
 
 
-#: THE LEGAL SCOPE, PINNED IN CODE: the SEVEN works the coauthor approval
-#: covers, each by repository path AND by the SHA-256 of the exact bytes that
-#: were shown when the approval was sought.
+#: THE LEGAL SCOPE, PINNED IN CODE: the SEVEN works the creator's declaration
+#: covers, each by repository path AND by the SHA-256 of the exact bytes the
+#: declaration identifies.
 #:
 #: The reviewed-prose pins above decide what the licence SENTENCES say. They do
 #: not decide which FILES those sentences reach, because the sentences name
@@ -2315,14 +1954,34 @@ def reviewed_activation_issues(contract):
             f"artwork_licence_markers.active is {digests}, the reviewed "
             f"marker set is exactly [{REVIEWED_ACTIVE_MARKER!r}]"))
 
-    text = (contract.get("authorization") or {}).get("text") or ""
-    if _sha256_text(text) != REVIEWED_APPROVAL_TEXT:
+    text = (contract.get("licence_declaration") or {}).get("text") or ""
+    if _sha256_text(text) != REVIEWED_DECLARATION_TEXT:
         issues.append((
-            "CCBY_APPROVAL_TEXT_UNREVIEWED",
-            f"authorization.text hashes {_sha256_text(text)}, the reviewed "
-            f"approval paragraph is {REVIEWED_APPROVAL_TEXT}. The paragraph "
-            f"a coauthor is asked to agree to is not the one that was "
-            f"reviewed"))
+            "CCBY_DECLARATION_TEXT_UNREVIEWED",
+            f"licence_declaration.text hashes {_sha256_text(text)}, the "
+            f"reviewed declaration paragraph is {REVIEWED_DECLARATION_TEXT}. "
+            f"The paragraph the creator's grant is stated in is not the one "
+            f"that was reviewed"))
+
+    # The public credit line is legal prose too: it names the artwork's
+    # creator and the person credited for scientific guidance, and every
+    # activated destination embeds it. Pinning it in code means the credit
+    # cannot be edited from the contract into something that reads as a
+    # second licensor, or that drops the credit that is owed.
+    credit = (contract.get("licence_declaration") or {}).get(
+        "public_credit") or ""
+    if _sha256_text(credit) != REVIEWED_PUBLIC_CREDIT:
+        issues.append((
+            "CCBY_PUBLIC_CREDIT_UNREVIEWED",
+            f"licence_declaration.public_credit hashes {_sha256_text(credit)}, "
+            f"the reviewed credit line is {REVIEWED_PUBLIC_CREDIT}"))
+    for rel, dest in sorted(destinations.items()):
+        if credit and credit not in " ".join(str(dest).split()):
+            issues.append((
+                "CCBY_PUBLIC_CREDIT_MISSING",
+                f"{rel}: the authored destination does not carry the reviewed "
+                f"credit line. Every activated licence surface names the "
+                f"artwork's creator and credits the scientific guidance"))
     return sorted(set(issues))
 
 
@@ -3175,14 +2834,15 @@ def receipt_bytes(receipt) -> bytes:
             + "\n").encode("utf-8")
 
 
-def build_authorization_receipt(repo_root, contract, record, *, starting_head,
-                                activated_at):
-    """Assemble the durable record of the authorization that licensed the art.
+def build_licence_receipt(repo_root, contract, record, *, starting_head,
+                          activated_at):
+    """Assemble the durable record of the declaration that licensed the art.
 
     A stdout report is not a receipt. Once CC BY is in force over the Figure 1
-    and Figure 4 artwork, the repository has to be able to show WHICH comment,
-    by WHICH account, at WHICH time, over WHICH files, licensed it - years
-    later, from the tree alone, without the GitHub API and without this tool.
+    and Figure 4 artwork, the repository has to be able to show WHO declared
+    the grant, at WHICH time, over WHICH seven files, and on WHICH committed
+    declaration it rests - years later, from the tree alone, without this tool
+    and without any network.
     """
     root = Path(repo_root)
     artwork = {}
@@ -3194,82 +2854,61 @@ def build_authorization_receipt(repo_root, contract, record, *, starting_head,
                 f"{rel} is licensed by this receipt but is not in the tree")
         artwork[rel] = sha256_file(path)
     repo = contract["repository"]
-    if record.get("approval_source") == SOURCE_EXTERNAL:
-        # The record this receipt will REST ON must be committed, unmodified,
-        # and exactly what the resolved approval says it is - checked HERE as
-        # well as in the guards, because the builder is the last place the two
-        # could still diverge and the first place a receipt exists at all.
-        rel = record["approval_record_path"]
-        blob_sha1, blob = _tracked_blob(root, rel)
-        if blob_sha1 is None:
-            raise FinalizerError(
-                "RECEIPT_APPROVAL_RECORD_UNTRACKED",
-                f"{rel} is not tracked at HEAD; a receipt may not rest on an "
-                f"approval record that was never committed")
-        if blob_sha1 != record["approval_record_blob_sha1"]:
-            raise FinalizerError(
-                "RECEIPT_APPROVAL_RECORD_MISMATCH",
-                f"{rel} is committed as blob {blob_sha1}, the resolved "
-                f"approval was read from blob "
-                f"{record['approval_record_blob_sha1']}")
-        if sha256_bytes(blob) != record["approval_record_sha256"]:
-            raise FinalizerError(
-                "RECEIPT_APPROVAL_RECORD_MISMATCH",
-                f"{rel} at HEAD hashes {sha256_bytes(blob)}, the resolved "
-                f"approval hashes {record['approval_record_sha256']}")
-        # NO comment id, NO permalink, NO pull request. There is no comment,
-        # and a receipt that invented those fields to satisfy one schema would
-        # be a receipt that points at evidence which does not exist.
-        return {
-            "schema_version":
-                contract["authorization_receipt"]["schema_version"],
-            "repository": f"{repo['owner']}/{repo['name']}",
-            "approval_source": SOURCE_EXTERNAL,
-            "source_type": record["source_type"],
-            "approval_date": record["approval_date"],
-            "approved_text": record["approved_text"],
-            "approved_text_sha256": record["approved_text_sha256"],
-            "licensed_artwork": artwork,
-            "approval_record_path": record["approval_record_path"],
-            "approval_record_sha256": record["approval_record_sha256"],
-            "approval_record_blob_sha1": record["approval_record_blob_sha1"],
-            "evidence_filename": record["evidence_filename"],
-            "evidence_sha256": record["evidence_sha256"],
-            "evidence_bytes": record["evidence_bytes"],
-            "custodian": record["custodian"],
-            "attested_at": record["attested_at"],
-            "activated_at": activated_at,
-            "finalizer_version": contract["finalizer_version"],
-            "starting_head": starting_head,
-        }
+    # The declaration this receipt will REST ON must be committed, unmodified,
+    # and exactly what the resolved declaration says it is - checked HERE as
+    # well as in the guards, because the builder is the last place the two
+    # could still diverge and the first place a receipt exists at all.
+    rel = record["declaration_record_path"]
+    blob_sha1, blob = _tracked_blob(root, rel)
+    if blob_sha1 is None:
+        raise FinalizerError(
+            "RECEIPT_DECLARATION_UNTRACKED",
+            f"{rel} is not tracked at HEAD; a receipt may not rest on a "
+            f"creator declaration that was never committed")
+    if blob_sha1 != record["declaration_record_blob_sha1"]:
+        raise FinalizerError(
+            "RECEIPT_DECLARATION_MISMATCH",
+            f"{rel} is committed as blob {blob_sha1}, the resolved "
+            f"declaration was read from blob "
+            f"{record['declaration_record_blob_sha1']}")
+    if sha256_bytes(blob) != record["declaration_record_sha256"]:
+        raise FinalizerError(
+            "RECEIPT_DECLARATION_MISMATCH",
+            f"{rel} at HEAD hashes {sha256_bytes(blob)}, the resolved "
+            f"declaration hashes {record['declaration_record_sha256']}")
+    # NO comment id, NO permalink, NO pull request, NO login, NO evidence
+    # digest. There is no comment and no third party, and a receipt that
+    # invented those fields to satisfy an older schema would be a receipt
+    # pointing at evidence which does not exist and at a person who was never
+    # asked for anything.
     return {
-        "schema_version": contract["authorization_receipt"]["schema_version"],
+        "schema_version": contract["licence_receipt"]["schema_version"],
         "repository": f"{repo['owner']}/{repo['name']}",
-        "approval_source": SOURCE_GITHUB,
-        "pull_request": repo["pull_request"],
-        "permalink": record["permalink"],
-        "issue_url": record.get("issue_url", ""),
-        "comment_id": record["comment_id"],
-        "login": record["login"],
-        "created_at": record["created_at"],
-        "updated_at": record["updated_at"],
-        "body": record["body"],
-        "body_sha256": record["body_sha256"],
+        _artwork.SOURCE_FIELD: SOURCE_CREATOR,
+        "declaration_date": record["declaration_date"],
+        "declared_text": record["declared_text"],
+        "declared_text_sha256": record["declared_text_sha256"],
         "licensed_artwork": artwork,
+        "declaration_record_path": record["declaration_record_path"],
+        "declaration_record_sha256": record["declaration_record_sha256"],
+        "declaration_record_blob_sha1": record["declaration_record_blob_sha1"],
+        "creator": record["creator"],
+        "declared_at": record["declared_at"],
+        "scientific_guidance_credit": record["scientific_guidance_credit"],
         "activated_at": activated_at,
         "finalizer_version": contract["finalizer_version"],
         "starting_head": starting_head,
     }
 
 
-def validate_authorization_receipt(receipt, contract, record, *,
-                                   starting_head, repo_root=None):
+def validate_licence_receipt(receipt, contract, record, *,
+                             starting_head, repo_root=None):
     """Aggregate every defect in a receipt. Returns sorted issue tuples.
 
-    Delegates the schema, login, body, timestamp, permalink-host and
-    artwork-scope checks to :mod:`artwork_licence_state`, which the builder
-    and the guards also use, then adds the two facts only a live finalization
-    knows: the starting HEAD it claims, and agreement with the comment fetched
+    Delegates the schema, creator, declared-text, timestamp and artwork-scope
+    checks to :mod:`artwork_licence_state`, which the builder and the guards
+    also use, then adds the two facts only a live finalization knows: the
+    starting HEAD it claims, and agreement with the declaration resolved
     moments ago.
 
     Validated in the disposable copy BEFORE the real transaction writes it, so
@@ -5038,7 +4677,7 @@ def validation_acceptance_issues(summary, contract=None):
 # ---------------------------------------------------------------------------
 def preflight(repo_root, expect_branch, expect_head, *, contract,
               github=None, candidate_archive=None, final_docx_dir=None,
-              aptos_font=None, approval_evidence=None):
+              aptos_font=None):
     """Verify every invariant finalization depends on. Writes nothing, ever."""
     report = Report("preflight")
     root = Path(repo_root).resolve()
@@ -5122,15 +4761,10 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
     report.note("superseded_archive",
                 (contract.get("superseded_official_archive") or {}).get("path"))
 
-    # --- pull request and the D6 gate --------------------------------------
-    # WHICH approval source this run rests on is decided ONCE, here, and the
-    # same way finalize decides it. PR metadata below is verified through
-    # GitHub either way - it is a fact about the repository, not about the
-    # approval - but the COMMENT authorization methods are reached only when
-    # the GitHub route is the selected source.
-    selected, _sel_rel, _sel_present, _sel_issues = select_approval_source(
-        root, contract)
-    report.note("approval_source_selected", selected)
+    # --- pull request state -------------------------------------------------
+    # Repository state only. Nothing about the artwork licence is asked of
+    # GitHub: the licence rests on a committed declaration by the artwork's
+    # creator, which is read from the tree further down.
     client = github if github is not None else GitHubCLI()
     try:
         pr = client.pull_request(repo["owner"], repo["name"],
@@ -5155,21 +4789,6 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
                         f"pull request head {(pr.get('head') or {}).get('sha')}"
                         f" != local HEAD {head}")
 
-        if selected == SOURCE_GITHUB:
-            record, issues = find_authorization(client, contract)
-            for code, why in issues:
-                report.fail(code, why)
-            report.note("d6_authorization_present", record is not None)
-            if record is not None:
-                report.note("d6_permalink", record["permalink"])
-                report.note("d6_comment_id", record["comment_id"])
-                report.note("d6_body_sha256", record["body_sha256"])
-        else:
-            # The external route is selected, so there is no comment to find
-            # and asking for one would report the release blocked on evidence
-            # this release does not rest on.
-            report.note("d6_authorization_present", "not consulted: the "
-                        "committed approval record is the selected source")
     except FinalizerError as exc:
         report.fail(exc.code, exc.why)
 
@@ -5230,49 +4849,41 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
     # Reported whether or not GitHub was reachable, because this is the route
     # the authors actually intend to use and a reviewer must be able to see its
     # state from a read-only run.
-    ext_spec = external_evidence_spec(contract)
-    sources = contract.get("approval_sources") or {}
-    report.note("approval_sources_enabled", list(sources.get("enabled") or []))
-    report.note("approval_source_preferred", sources.get("preferred"))
-    if ext_spec:
-        rec_rel, rec_present = approval_record_state(root, contract)
-        report.note("approval_record_path", rec_rel)
-        report.note("approval_record_present", rec_present)
+    decl_spec = declaration_spec(contract)
+    report.note("licence_source", SOURCE_CREATOR)
+    if decl_spec:
+        report.note("licence_creator", decl_spec.get("creator"))
+        report.note("scientific_guidance_credit",
+                    decl_spec.get("guidance_credit"))
+        rec_rel, rec_present = declaration_record_state(root, contract)
+        report.note("declaration_record_path", rec_rel)
+        report.note("declaration_record_present", rec_present)
         if rec_present:
-            rec, rec_issues = find_external_approval(
-                root, contract, approval_evidence)
+            rec, rec_issues = find_creator_declaration(root, contract)
             for code, why in rec_issues:
                 report.fail(code, why)
-            report.note("approval_record_valid", rec is not None)
+            report.note("declaration_record_valid", rec is not None)
             if rec is not None:
-                report.note("approval_source", rec["approval_source"])
-                report.note("approval_source_type", rec["source_type"])
-                report.note("approval_evidence_sha256", rec["evidence_sha256"])
-        elif selected != SOURCE_GITHUB:
-            # No record, and no OTHER enabled route that could qualify.
-            # RELEASE_BLOCKED_D6 means exactly that - neither enabled route
-            # qualifies - and not merely "this particular route has no
-            # evidence yet", which is what it meant until r3m and which fired
-            # even when a valid GitHub authorization was standing.
-            report.fail(
-                "RELEASE_BLOCKED_D6",
-                f"{rec_rel} does not exist: no coauthor approval has been "
-                f"recorded by any route. This is the expected state until Dr. "
-                f"Najibi approves by email or on the signed form and the "
-                f"custodian commits the approval record")
+                report.note("declaration_date", rec["declaration_date"])
+                report.note("declaration_record_sha256",
+                            rec["declaration_record_sha256"])
         else:
-            report.note("approval_record_valid",
-                        "absent; the GitHub comment route is the selected "
-                        "source for this run")
-
-    # Neither enabled route can qualify: say so once, in the D6 code.
-    for code, why in _sel_issues:
-        report.fail(code, why)
+            # The expected state until the creator records the declaration.
+            # There is nobody else to wait for: the artwork's creator is the
+            # only licensor, and committing the declaration is their own act.
+            report.fail(
+                "LICENCE_DECLARATION_ABSENT",
+                f"{rec_rel} does not exist: the creator's CC BY 4.0 "
+                f"declaration for the seven Figure 1 and Figure 4 artwork "
+                f"files has not been recorded, so the grant is not in force")
+    else:                                        # pragma: no cover - contract
+        report.fail("DECLARATION_SOURCE_UNCONFIGURED",
+                    "the contract declares no declaration_source")
 
     # --- the receipt must not pre-exist -------------------------------------
-    spec = contract.get("authorization_receipt") or {}
+    spec = contract.get("licence_receipt") or {}
     if spec.get("tracked_path"):
-        report.note("authorization_receipt_path", spec["tracked_path"])
+        report.note("licence_receipt_path", spec["tracked_path"])
         # The same containment rule the state helper, the builder and the
         # guards apply. `is_file()` follows links, so a symlink at the
         # contracted path reported "no receipt here" when it pointed at
@@ -5283,13 +4894,13 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
             report.fail(code, why)
         present = receipt_file is not None or bool(receipt_path_issues) \
             or os.path.lexists(str(root / spec["tracked_path"]))
-        report.note("authorization_receipt_present", present)
-        if present and spec.get("must_not_exist_before_authorization"):
+        report.note("licence_receipt_present", present)
+        if present and spec.get("must_not_exist_before_activation"):
             report.fail(
                 "RECEIPT_PREMATURE",
-                f"{spec['tracked_path']} already exists but no authorization "
-                f"has been recorded by this run; a receipt that predates the "
-                f"authorization it claims to record is not evidence")
+                f"{spec['tracked_path']} already exists but no activation has "
+                f"been performed by this run; a receipt that predates the "
+                f"finalization it claims to record is not evidence")
 
     # --- candidate archive, when the operator supplies one ------------------
     if not candidate_archive:
@@ -5868,7 +5479,7 @@ def _utc_now_iso():
 def finalize(repo_root, expect_branch, expect_head, *, contract,
              candidate_archive, release_staging, github=None,
              final_docx_dir=None, aptos_font=None, python_exe=None,
-             confirm=None, activated_at=None, approval_evidence=None):
+             confirm=None, activated_at=None):
     """Apply the release finalization, or change nothing at all."""
     report = Report("finalize")
     root = Path(repo_root).resolve()
@@ -5889,39 +5500,29 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
     # 1. Every preflight invariant, rechecked.
     pre = preflight(root, expect_branch, expect_head, contract=contract,
                     github=github, candidate_archive=candidate_archive,
-                    final_docx_dir=final_docx_dir, aptos_font=aptos_font,
-                    approval_evidence=approval_evidence)
+                    final_docx_dir=final_docx_dir, aptos_font=aptos_font)
     report.note("preflight", pre.as_dict())
     for code in pre.codes:
         report.fail(code, pre.detail.get(code, ""))
     if not pre.ok:
         return report
 
-    # 2-5. The approval itself, resolved from exactly ONE discriminated
-    #      source. Which one is decided by observable state, never by a flag:
-    #      a committed approval record IS the professional route, and where one
-    #      exists no GitHub comment is consulted, asked for or required.
+    # The pull request client. REPOSITORY STATE ONLY - it is re-consulted just
+    # before the commit point to confirm the pull request is still open, draft,
+    # unmerged and correctly targeted. It has nothing to do with the licence.
     client = github if github is not None else GitHubCLI()
-    selected, _rec_rel, _rec_present, _sel_issues = select_approval_source(
-        root, contract)
-    use_external = selected == SOURCE_EXTERNAL
-    report.note("approval_source_selected", selected)
-    if use_external:
-        record, issues = find_external_approval(root, contract,
-                                                approval_evidence)
-    elif selected == SOURCE_GITHUB:
-        try:
-            record, issues = find_authorization(client, contract)
-        except FinalizerError as exc:
-            return report.fail(exc.code, exc.why)
-    else:
-        record, issues = None, list(_sel_issues)
+
+    # 2-5. The licence itself, resolved from the ONE source there is: the
+    #      artwork creator's own declaration, committed in this repository and
+    #      re-read from the tree here. Nothing is fetched, nobody is asked, and
+    #      no evidence is accepted from outside the worktree.
+    record, issues = find_creator_declaration(root, contract)
     for code, why in issues:
         report.fail(code, why)
     if record is None:
-        return report.fail("RELEASE_BLOCKED_D6",
-                           "no qualifying coauthor approval")
-    report.note("authorization", record)
+        return report.fail("LICENCE_DECLARATION_ABSENT",
+                           "no qualifying creator declaration")
+    report.note("licence_declaration", record)
 
     run_id = new_run_id()
     # Cleanup state is PER RUN. `_CLEANUP_FAILURES` is module-level so that
@@ -6023,22 +5624,17 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                                  "changed": e.changed} for e in edits})
 
             # 6. The durable receipt, built and validated in the copy first.
-            #    The EFFECTIVE activation time is the moment the authorization
-            #    last stood as written - the comment's UPDATED_AT, not its
-            #    created_at. An authorization edited after posting would
-            #    otherwise carry activated_at < updated_at and violate the
-            #    receipt's own ordering rule. Using a comment timestamp (rather
-            #    than the wall clock) keeps the receipt validated in the
-            #    disposable copy byte-identical to the one written to the real
-            #    tree, and makes the receipt reproducible.
-            effective_at = activated_at or (
-                record["attested_at"] if use_external
-                else record["updated_at"])
-            receipt = build_authorization_receipt(
+            #    The EFFECTIVE activation time is the moment the creator
+            #    attested to the declaration. Using the declaration's own
+            #    timestamp (rather than the wall clock) keeps the receipt
+            #    validated in the disposable copy byte-identical to the one
+            #    written to the real tree, and makes the receipt reproducible.
+            effective_at = activated_at or record["declared_at"]
+            receipt = build_licence_receipt(
                 root, contract, record, starting_head=expect_head,
                 activated_at=effective_at)
-            receipt_rel = contract["authorization_receipt"]["tracked_path"]
-            receipt_issues = validate_authorization_receipt(
+            receipt_rel = contract["licence_receipt"]["tracked_path"]
+            receipt_issues = validate_licence_receipt(
                 receipt, contract, record, starting_head=expect_head,
                 repo_root=root)
             if receipt_issues:
@@ -6046,30 +5642,21 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                                      receipt_issues[0][1])
             receipt_edit = Edit(receipt_rel, None, receipt_bytes(receipt),
                                 {"receipt": 1}, 1, creates=True)
-            # SOURCE-AWARE. An external receipt carries no comment id and no
-            # body, because there is no comment - indexing those on it raised
-            # KeyError from inside the finalization, AFTER the archive had been
-            # built, and reported a crash where a clean report belonged. The
-            # note records what the receipt actually rests on.
-            if receipt.get("approval_source") == SOURCE_EXTERNAL:
-                receipt_note = {
-                    "path": receipt_rel,
-                    "approval_source": SOURCE_EXTERNAL,
-                    "source_type": receipt["source_type"],
-                    "approval_record_path": receipt["approval_record_path"],
-                    "approval_record_sha256":
-                        receipt["approval_record_sha256"],
-                    "approval_record_blob_sha1":
-                        receipt["approval_record_blob_sha1"],
-                    "evidence_sha256": receipt["evidence_sha256"],
-                    "custodian": receipt["custodian"]}
-            else:
-                receipt_note = {
-                    "path": receipt_rel,
-                    "approval_source": SOURCE_GITHUB,
-                    "body_sha256": receipt["body_sha256"],
-                    "comment_id": receipt["comment_id"]}
-            report.note("authorization_receipt", receipt_note)
+            # The note records what the receipt actually rests on: the
+            # committed declaration, by both of its digests, and the creator
+            # who made it.
+            receipt_note = {
+                "path": receipt_rel,
+                _artwork.SOURCE_FIELD: SOURCE_CREATOR,
+                "declaration_record_path": receipt["declaration_record_path"],
+                "declaration_record_sha256":
+                    receipt["declaration_record_sha256"],
+                "declaration_record_blob_sha1":
+                    receipt["declaration_record_blob_sha1"],
+                "creator": receipt["creator"],
+                "scientific_guidance_credit":
+                    receipt["scientific_guidance_credit"]}
+            report.note("licence_receipt", receipt_note)
 
             # 7. Validate in a disposable full copy against a FRESH extraction
             #    of the final archive, then require zero of everything.
@@ -6113,41 +5700,37 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                     isolation_probe_modules(contract)):
                 raise FinalizerError(code, why)
 
-            # 8. Immediately before writing: re-fetch the authorization, recheck
+            # 8. Immediately before writing: re-resolve the declaration, recheck
             #    the live refs and the PR, and confirm nothing on disk moved.
-            if use_external:
-                # The tracked record is re-read from disk and the ORIGINAL
-                # evidence re-hashed, so a record edited or an evidence file
-                # swapped during the long build is caught here rather than
-                # recorded in the receipt as though it had always said this.
-                fresh, fresh_issues = find_external_approval(
-                    root, contract, approval_evidence)
-            else:
-                fresh, fresh_issues = find_authorization(client, contract)
+            #    The tracked declaration is re-read from disk and its artwork
+            #    identities re-hashed, so a declaration edited - or an artwork
+            #    file swapped - during the long build is caught here rather
+            #    than recorded in the receipt as though it had always said this.
+            fresh, fresh_issues = find_creator_declaration(root, contract)
             if fresh is None or fresh_issues:
                 raise FinalizerError(
-                    "AUTHZ_WITHDRAWN_BEFORE_WRITE",
-                    f"the approval no longer qualifies at write time: "
-                    f"{fresh_issues}")
-            # EVERY identity field of the authorization, not four of them. An
-            # edit that changes only `updated_at`, moves the permalink to a
-            # different comment, or repoints `issue_url` at another issue is a
-            # different authorization from the one that was validated, and the
-            # receipt about to be written records all of these.
+                    "DECLARATION_WITHDRAWN_BEFORE_WRITE",
+                    f"the creator declaration no longer qualifies at write "
+                    f"time: {fresh_issues}")
+            # EVERY identity field of the declaration, not a sample of them. A
+            # declaration whose text, scope, digests, creator or credit changed
+            # is a DIFFERENT declaration from the one that was validated, and
+            # the receipt about to be written records all of these.
             identity_fields = (
-                ("source_type", "approval_date", "approved_text",
-                 "approved_text_sha256", "approval_record_sha256",
-                 "approval_record_blob_sha1", "evidence_sha256",
-                 "evidence_bytes", "custodian", "attested_at")
-                if use_external else
-                ("comment_id", "login", "body", "body_sha256",
-                 "created_at", "updated_at", "permalink", "issue_url"))
+                "declaration_date", "declared_text", "declared_text_sha256",
+                "declaration_record_sha256", "declaration_record_blob_sha1",
+                "creator", "declared_at", "scientific_guidance_credit")
             for field in identity_fields:
                 if fresh[field] != record[field]:
                     raise FinalizerError(
-                        "AUTHZ_CHANGED_BEFORE_WRITE",
-                        f"approval {field} changed between validation "
+                        "DECLARATION_CHANGED_BEFORE_WRITE",
+                        f"declaration {field} changed between validation "
                         f"and write: {record[field]!r} -> {fresh[field]!r}")
+            if fresh["licensed_artwork"] != record["licensed_artwork"]:
+                raise FinalizerError(
+                    "DECLARATION_CHANGED_BEFORE_WRITE",
+                    "the seven licensed artwork identities changed between "
+                    "validation and write")
             _assert_live_refs_unmoved(root, contract, expect_head)
 
             # Local git state, rechecked here rather than trusted from before
@@ -6535,7 +6118,7 @@ def _reverify_before_commit(root, contract, transaction, edits, receipt_edit,
     #    the last check before the commit point would have followed a link
     #    planted at the contracted path and confirmed somebody else's bytes as
     #    "the receipt this run wrote".
-    receipt_rel = contract["authorization_receipt"]["tracked_path"]
+    receipt_rel = contract["licence_receipt"]["tracked_path"]
     path, receipt_issues = _artwork.resolve_receipt_path(root, contract)
     if receipt_issues:
         raise FinalizerError(receipt_issues[0][0], receipt_issues[0][1])
@@ -6654,7 +6237,7 @@ def _finalize_rollback(report, transaction, destination, displaced, placed,
         report.note("transaction_recovery_paths", transaction.recovery_paths)
 
     # After a rollback the receipt must be gone and both archives correct.
-    spec = contract.get("authorization_receipt") or {}
+    spec = contract.get("licence_receipt") or {}
     if spec.get("tracked_path") and (root / spec["tracked_path"]).exists():
         report.fail("ROLLBACK_FAILED",
                     f"{spec['tracked_path']} survived the rollback")
@@ -7540,11 +7123,11 @@ def build_parser():
         p.add_argument("--candidate-archive")
         p.add_argument("--final-docx-dir")
         p.add_argument("--aptos-font")
-        # The ORIGINAL approval evidence - the preserved email or the signed
-        # form - read from wherever the custodian keeps it, OUTSIDE the
-        # repository. It is a path and nothing else: there is deliberately no
-        # flag that asserts approval, and no way to supply the approved text.
-        p.add_argument("--approval-evidence")
+        # There is deliberately NO option that supplies, asserts or points at
+        # the artwork licence. The grant rests on a declaration committed in
+        # this repository by the artwork's creator and reviewed like any other
+        # tracked file; a command-line flag that could stand in for it would be
+        # a way to license somebody's artwork from a shell.
         p.add_argument("--format", choices=("text", "json", "both"),
                        default="both")
 
@@ -7580,8 +7163,7 @@ def main(argv=None):
     common = dict(contract=contract,
                   candidate_archive=args.candidate_archive,
                   final_docx_dir=args.final_docx_dir,
-                  aptos_font=args.aptos_font,
-                  approval_evidence=args.approval_evidence)
+                  aptos_font=args.aptos_font)
     if args.mode == "preflight":
         report = preflight(args.repo_root, args.expect_branch,
                            args.expect_head, **common)

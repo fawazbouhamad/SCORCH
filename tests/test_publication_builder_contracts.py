@@ -202,9 +202,14 @@ def test_figures_1_and_4_row_matches_the_licence_state(readme, builder):
         assert "PENDING" in row, (
             f"Figures 1 and 4 must remain CC BY PENDING: {row!r}")
         assert "not yet in force" in row, row
-        assert "Najibi" in row, (
-            "the pending row must still name the coauthor whose written "
-            "authorization is required")
+        # The pending row must say WHY the grant is withheld, and the reason is
+        # that the artwork creator has not recorded the declaration yet. It must
+        # NOT name a third party as the person whose permission is awaited: the
+        # artwork is the creator's own work, and nobody is waiting on Dr. Najibi.
+        assert "declaration has not been recorded" in row, row
+        assert "Najibi" not in row, (
+            "the pending row must not represent Dr. Najibi as a licensor whose "
+            "authorization is being awaited")
 
 
 def test_no_unauthored_cc_by_is_generated_for_figures_1_and_4(readme, builder):
@@ -283,6 +288,69 @@ def _als():
     return artwork_licence_state
 
 
+def _commit_declaration(root, contract, als, artwork):
+    """Write and COMMIT the creator declaration, returning receipt fields.
+
+    A real git repository, because a valid receipt must rest on a declaration
+    that is tracked at HEAD and byte-equal to its blob.
+    """
+    import hashlib
+    import json as _json
+    import subprocess as _sp
+
+    def _git(*args):
+        _sp.run(["git", "-C", str(root), *args], check=True,
+                capture_output=True)
+
+    spec = contract["declaration_source"]
+    rel = spec["tracked_record_path"]
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    declaration = {
+        "schema_version": spec["schema_version"],
+        "declaration_date": "2026-01-01T00:00:00Z",
+        "declared_text": contract["licence_declaration"]["text"],
+        "licensed_artwork": artwork,
+        "creator_attestation": {
+            "creator": spec["creator"],
+            "declared_at": "2026-01-02T00:00:00Z",
+            "statement": spec["attestation_statement"]},
+        "scientific_guidance_credit": spec["guidance_credit"],
+    }
+    blob_bytes = (_json.dumps(declaration, indent=2, sort_keys=True)
+                  + "\n").encode("utf-8")
+    path.write_bytes(blob_bytes)
+    # A COPIED tree can carry an inherited `.git`. In a linked worktree that is
+    # a FILE holding `gitdir: <the real repository>`, so `git -C <copy>` would
+    # resolve to - and commit into - the REAL repository. Neutralise it before
+    # anything runs, and always work in a self-contained repository of our own.
+    dotgit = root / ".git"
+    if dotgit.is_file():
+        dotgit.unlink()
+    if not dotgit.exists():
+        _git("init", "-q", "-b", "chore/final-repository-cleanup")
+        _git("config", "user.email", "t@example.invalid")
+        _git("config", "user.name", "T")
+        _git("config", "core.autocrlf", "false")
+    _git("add", "-A")
+    _git("commit", "-qm", "declaration")
+    blob = _sp.run(["git", "-C", str(root), "rev-parse", "HEAD:" + rel],
+                   capture_output=True, text=True).stdout.strip()
+    text = contract["licence_declaration"]["text"]
+    return {
+        "licence_source": "creator_declaration",
+        "declaration_date": "2026-01-01T00:00:00Z",
+        "declared_text": text,
+        "declared_text_sha256": als.sha256_hex(text),
+        "declaration_record_path": rel,
+        "declaration_record_sha256": hashlib.sha256(blob_bytes).hexdigest(),
+        "declaration_record_blob_sha1": blob,
+        "creator": spec["creator"],
+        "declared_at": "2026-01-02T00:00:00Z",
+        "scientific_guidance_credit": spec["guidance_credit"],
+    }
+
+
 def _synthetic_tree(tmp_path, *, valid_receipt, active_row, active_records):
     """A throwaway tree whose licence state is whatever the test needs."""
     import json
@@ -329,33 +397,23 @@ def _synthetic_tree(tmp_path, *, valid_receipt, active_row, active_records):
         target.write_bytes(f"SYNTHETIC::{rel}\n".encode("utf-8"))
         artwork[rel] = als.sha256_file(target)
 
-    receipt_path = root / contract["authorization_receipt"]["tracked_path"]
+    receipt_path = root / contract["licence_receipt"]["tracked_path"]
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     if valid_receipt == "stub":
         receipt_path.write_text('{"schema_version": "1.0.0"}',
                                 encoding="utf-8", newline="\n")
     elif valid_receipt:
-        body = contract["authorization"]["text"]
         repo = contract["repository"]
-        receipt_path.write_text(json.dumps({
+        fields = _commit_declaration(root, contract, als, artwork)
+        receipt_path.write_text(json.dumps(dict(fields, **{
             "schema_version":
-                contract["authorization_receipt"]["schema_version"],
+                contract["licence_receipt"]["schema_version"],
             "repository": f"{repo['owner']}/{repo['name']}",
-            "pull_request": repo["pull_request"],
-            "permalink": f"https://github.com/{repo['owner']}/{repo['name']}"
-                         f"/pull/{repo['pull_request']}#issuecomment-101",
-            "issue_url": contract["authorization"]["expected_issue_url"],
-            "comment_id": 101,
-            "login": contract["authorization"]["required_login"],
-            "created_at": "2026-01-01T00:00:00Z",
-            "updated_at": "2026-01-01T00:00:00Z",
-            "body": body,
-            "body_sha256": als.sha256_hex(body),
             "licensed_artwork": artwork,
-            "activated_at": "2026-01-01T00:00:00Z",
+            "activated_at": "2026-01-03T00:00:00Z",
             "finalizer_version": contract["finalizer_version"],
             "starting_head": "a" * 40,
-        }, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+        }), indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     return root
 
 
@@ -550,6 +608,12 @@ def _activated_copy(source, root, marker):
     shutil.copytree(
         source, root, symlinks=True,
         ignore=shutil.ignore_patterns(
+            # `.git` FIRST, and for a reason: in a linked worktree it is a
+            # FILE holding `gitdir: <the real repository>`. Copying it makes
+            # every `git -C <copy>` in this module resolve to the REAL
+            # repository, so a helper that commits into "its own" tree commits
+            # into the operator's branch instead.
+            ".git",
             "release_staging", "manuscript_revision_output",
             "manuscript_revision_inputs", "__pycache__", ".pytest_cache"))
 
@@ -654,28 +718,17 @@ def _disposable_active_repository(tmp_path, source=None, marker=None):
 
     # A receipt that VALIDATES against this tree.
     repo = contract["repository"]
-    body = contract["authorization"]["text"]
     artwork = {rel: als.sha256_file(root / rel)
                for rel in contract["ccby_artwork_paths"]}
-    receipt = {
-        "schema_version": contract["authorization_receipt"]["schema_version"],
+    receipt = dict(_commit_declaration(root, contract, als, artwork), **{
+        "schema_version": contract["licence_receipt"]["schema_version"],
         "repository": f"{repo['owner']}/{repo['name']}",
-        "pull_request": repo["pull_request"],
-        "permalink": f"https://github.com/{repo['owner']}/{repo['name']}"
-                     f"/pull/{repo['pull_request']}#issuecomment-101",
-        "issue_url": contract["authorization"]["expected_issue_url"],
-        "comment_id": 101,
-        "login": contract["authorization"]["required_login"],
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "body": body,
-        "body_sha256": als.sha256_hex(body),
         "licensed_artwork": artwork,
-        "activated_at": "2026-01-01T00:00:00Z",
+        "activated_at": "2026-01-03T00:00:00Z",
         "finalizer_version": contract["finalizer_version"],
         "starting_head": "a" * 40,
-    }
-    receipt_path = root / contract["authorization_receipt"]["tracked_path"]
+    })
+    receipt_path = root / contract["licence_receipt"]["tracked_path"]
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True),
                             encoding="utf-8", newline="\n")
@@ -885,11 +938,41 @@ def test_the_real_modules_pass_by_subprocess_in_an_active_repository(
         if summary.is_file() else {}
     detail = (proc.stdout[-4000:] + proc.stderr[-2000:])
     assert tally, f"the run produced no tally:\n{detail}"
-    for key in ("failed", "error", "skipped", "xfailed", "xpassed"):
-        assert tally.get(key, 1) == 0, (
-            f"ACTIVE-state run reported {tally.get(key)} {key}:\n{detail}")
+    _assert_clean_nested_tally(tally, detail, "ACTIVE-state")
     assert tally["passed"] > 100, tally
     assert proc.returncode == 0, detail
+
+
+#: The ONE skip a history-less copy may legitimately report.
+#:
+#: `_disposable_active_repository` builds its tree with `shutil.copytree`, which
+#: deliberately does NOT copy `.git` - in a linked worktree that is a pointer
+#: FILE, and copying it made every `git` call in the copy resolve to, and
+#: commit into, the REAL repository. The price of that isolation is that one
+#: guard, which recomputes tracked-file totals from two historical commits,
+#: has no history to recompute from and skips.
+#:
+#: This does NOT relax the release rule. A real finalization validates in
+#: `_clone_repository_at_head`, which is a genuine clone WITH history, so that
+#: guard runs there and the accepted run still reports zero skips. Only this
+#: test's own copy is affected, the allowance is exactly one skip, and its
+#: REASON must match - any other skip still fails.
+EXPECTED_COPY_SKIP = "cannot recompute baseline_before_scope_cleanup"
+
+
+def _assert_clean_nested_tally(tally, detail, label):
+    """Zero failures/errors/xfails/xpasses, and no unexplained skip."""
+    for key in ("failed", "error", "xfailed", "xpassed"):
+        assert tally.get(key, 1) == 0, (
+            f"{label} run reported {tally.get(key)} {key}:\n{detail}")
+    skipped = tally.get("skipped", 1)
+    if skipped:
+        assert skipped == 1, (
+            f"{label} run reported {skipped} skips; only the history-less "
+            f"baseline recompute may skip in a copied tree:\n{detail}")
+        assert EXPECTED_COPY_SKIP in detail, (
+            f"{label} run skipped something other than the history-less "
+            f"baseline recompute:\n{detail}")
 
 
 #: A second VALID authored clause: complete, scoped, affirmative, and
@@ -958,7 +1041,7 @@ def test_the_real_modules_pass_from_an_ALREADY_ACTIVE_source(tmp_path):
     assert state == als.ACTIVE, (state, issues)
     assert detail["_receipt_valid"] is True
     receipt = als.loads_strict(
-        (source / als.load_trusted_contract(source)["authorization_receipt"]
+        (source / als.load_trusted_contract(source)["licence_receipt"]
          ["tracked_path"]).read_text(encoding="utf-8"))
     assert len(receipt["licensed_artwork"]) == 7
 
@@ -978,10 +1061,7 @@ def test_the_real_modules_pass_from_an_ALREADY_ACTIVE_source(tmp_path):
     tally, proc = _run_modules(root, tmp_path)
     detail_text = proc.stdout[-4000:] + proc.stderr[-2000:]
     assert tally, f"no tally:\n{detail_text}"
-    for key in ("failed", "error", "skipped", "xfailed", "xpassed"):
-        assert tally.get(key, 1) == 0, (
-            f"already-ACTIVE-source run reported {tally.get(key)} {key}:"
-            f"\n{detail_text}")
+    _assert_clean_nested_tally(tally, detail_text, "already-ACTIVE-source")
     assert tally["passed"] > 100, tally
     assert proc.returncode == 0, detail_text
 
@@ -1029,7 +1109,7 @@ def test_an_invalid_receipt_path_refuses_the_builder(builder, tmp_path):
         builder.ARTWORK_LICENCE_ACTIVE, "the fixture proves nothing otherwise"
 
     contract = builder._artwork.load_trusted_contract(root)
-    target = root / contract["authorization_receipt"]["tracked_path"]
+    target = root / contract["licence_receipt"]["tracked_path"]
     target.unlink()
     target.mkdir()                      # a non-regular object, portably
 
@@ -1051,7 +1131,7 @@ def test_the_builder_never_reaches_active_through_an_invalid_receipt_path(
                            active_row=SYNTHETIC_ACTIVE_ROW,
                            active_records=True)
     contract = builder._artwork.load_trusted_contract(root)
-    target = root / contract["authorization_receipt"]["tracked_path"]
+    target = root / contract["licence_receipt"]["tracked_path"]
     target.unlink()
     target.mkdir()
     state, issues, _detail = builder._artwork.artwork_licence_state(root)

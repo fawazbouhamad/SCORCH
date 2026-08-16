@@ -1,9 +1,10 @@
-"""Adversarial guards for the post-D6 release finalizer.
+"""Adversarial guards for the release finalizer.
 
 Everything here runs against SYNTHETIC repositories built in ``tmp_path`` and
-INJECTED fake GitHub responses. Nothing touches the real worktree, the real
-pull request, or the real archives, and no fake approval evidence is ever
-written anywhere a real run could find it.
+an INJECTED fake GitHub client that answers only for pull request metadata.
+Nothing touches the real worktree, the real pull request, or the real
+archives, and no fake creator declaration is ever written anywhere a real run
+could find it.
 
 The point of the suite is not that the happy path works. It is that each way
 of getting the finalization wrong produces an ordinary nonzero failure with an
@@ -16,6 +17,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -36,9 +38,19 @@ if str(_RELEASE_DIR) not in sys.path:
 
 import release_finalizer as rf  # noqa: E402  (sys.path set up just above)
 
-AUTH_TEXT = json.loads(
-    (_RELEASE_DIR / "finalizer_contract.json").read_text(encoding="utf-8")
-)["authorization"]["text"]
+_REAL_CONTRACT = json.loads(
+    (_RELEASE_DIR / "finalizer_contract.json").read_text(encoding="utf-8"))
+#: The contracted declaration paragraph and the credit line every activated
+#: licence surface carries. Both are pinned by digest in production code.
+DECL_TEXT = _REAL_CONTRACT["licence_declaration"]["text"]
+PUBLIC_CREDIT = _REAL_CONTRACT["licence_declaration"]["public_credit"]
+CREATOR = "Fawaz Bouhamad"
+GUIDANCE_CREDIT = "Dr. Nasser Najibi"
+DECL_REL = "docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json"
+RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json"
+ATTESTATION = _REAL_CONTRACT["declaration_source"]["attestation_statement"]
+DECL_DATE = "2026-01-01T00:00:00Z"
+DECLARED_AT = "2026-01-02T00:00:00Z"
 
 OLD_SHA = "a" * 64
 NEW_SHA = "b" * 64
@@ -146,56 +158,62 @@ def full_activation_plan(overrides=None, drop=None):
 # Synthetic fixtures
 # ---------------------------------------------------------------------------
 class FakeGitHub:
-    """An injected GitHub. Tests pass an instance; production never can."""
+    """An injected GitHub. Tests pass an instance; production never can.
 
-    def __init__(self, pr=None, comments=None, live=None, missing=False,
-                 sequence=None):
+    PULL REQUEST METADATA ONLY. There is no ``issue_comments`` and no
+    ``issue_comment``, because the licence no longer rests on a comment: any
+    production code path that reached for one would raise AttributeError here
+    rather than quietly finding a stub to satisfy.
+    """
+
+    def __init__(self, pr=None):
         self._pr = pr if pr is not None else {}
-        self._comments = list(comments or [])
-        self._live = live
-        self._missing = missing
-        #: successive responses for repeated issue_comment calls, so a comment
-        #: edited BETWEEN the two live reads can be simulated
-        self._sequence = list(sequence) if sequence else None
-        self.comment_fetches = 0
+        self.pr_fetches = 0
 
     def pull_request(self, owner, repo, number):
+        self.pr_fetches += 1
         return self._pr
 
-    def issue_comments(self, owner, repo, number):
-        return self._comments
 
-    def issue_comment(self, owner, repo, comment_id):
-        self.comment_fetches += 1
-        if self._missing:
-            raise rf.FinalizerError("GITHUB_API_UNAVAILABLE",
-                                    f"comment {comment_id} is gone")
-        if self._sequence:
-            idx = min(self.comment_fetches - 1, len(self._sequence) - 1)
-            return self._sequence[idx]
-        if self._live is not None:
-            return self._live
-        for c in self._comments:
-            if c["id"] == comment_id:
-                return c
-        raise rf.FinalizerError("GITHUB_API_UNAVAILABLE", "no such comment")
-
-
-EXPECTED_ISSUE_URL = ("https://api.github.com/repos/fawazbouhamad/SCORCH"
-                      "/issues/1")
+def declaration_record(artwork, text=DECL_TEXT, creator=CREATOR,
+                       statement=ATTESTATION, credit=GUIDANCE_CREDIT,
+                       date=DECL_DATE, declared_at=DECLARED_AT,
+                       schema="1.0.0", **overrides):
+    """A well-formed creator declaration over ``artwork`` (path -> sha256)."""
+    record = {
+        "schema_version": schema,
+        "declaration_date": date,
+        "declared_text": text,
+        "licensed_artwork": dict(artwork),
+        "creator_attestation": {"creator": creator,
+                                "declared_at": declared_at,
+                                "statement": statement},
+        "scientific_guidance_credit": credit,
+    }
+    record.update(overrides)
+    return record
 
 
-def comment(body=AUTH_TEXT, login="nassernajibi", cid=101,
-            owner="fawazbouhamad", repo="SCORCH", number=1, issue_url=None,
-            created="2026-01-01T00:00:00Z", updated=None):
-    return {"id": cid, "user": {"login": login}, "body": body,
-            "html_url": f"https://github.com/{owner}/{repo}/pull/{number}"
-                        f"#issuecomment-{cid}",
-            "issue_url": (issue_url if issue_url is not None
-                          else f"https://api.github.com/repos/{owner}/{repo}"
-                               f"/issues/{number}"),
-            "created_at": created,
-            "updated_at": updated if updated is not None else created}
+def write_declaration(root, record, rel=DECL_REL, commit=True):
+    """Write and (by default) COMMIT a declaration into a synthetic repo.
+
+    Committing matters: production refuses a declaration that is not tracked at
+    HEAD, and a fixture that only wrote the file would exercise the refusal
+    rather than the accepting path.
+    """
+    path = Path(root) / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8", newline="\n")
+    if commit:
+        _run(root, "add", "-A")
+        _run(root, "commit", "-qm", "declaration")
+        head = _rev(root, "HEAD")
+        _run(root, "update-ref",
+             "refs/remotes/origin/chore/final-repository-cleanup", head)
+        _run(root, "update-ref", "refs/remotes/origin/main", head)
+        return head
+    return None
 
 
 def _run(root, *args):
@@ -313,13 +331,23 @@ def synthetic(tmp_path):
             "expected_main_commit": head, "expected_tag": "v1.0.0",
             "expected_tag_object": _rev(root, "v1.0.0"),
             "expected_tag_commit": head},
-        "authorization": {
-            "required_login": "nassernajibi", "text": AUTH_TEXT,
-            "live_fetches_required": 2,
-            "expected_issue_url": EXPECTED_ISSUE_URL,
-            "cross_read_agreement_fields": ["id", "body", "created_at",
-                                            "updated_at", "html_url",
-                                            "issue_url", "user"]},
+        "licence_declaration": {
+            "creator": CREATOR, "guidance_credit": GUIDANCE_CREDIT,
+            "public_credit": PUBLIC_CREDIT, "text": DECL_TEXT},
+        "declaration_source": {
+            "schema_version": "1.0.0",
+            "tracked_record_path": DECL_REL,
+            "must_not_exist_before_declaration": True,
+            "must_be_tracked_at_head": True,
+            "creator": CREATOR,
+            "guidance_credit": GUIDANCE_CREDIT,
+            "required_fields": [
+                "schema_version", "declaration_date", "declared_text",
+                "licensed_artwork", "creator_attestation",
+                "scientific_guidance_credit"],
+            "attestation_required_fields": ["creator", "declared_at",
+                                            "statement"],
+            "attestation_statement": ATTESTATION},
         # Declared a TEST FIXTURE, which is what permits the TEST-ONLY
         # synthetic clause below. A production contract carries no such
         # declaration and the finalizer refuses TEST-ONLY wording in it.
@@ -327,16 +355,17 @@ def synthetic(tmp_path):
         "artwork_licence_markers": {
             "pending": ["CC BY 4.0 PENDING"],
             "active": [ACTIVE_CLAUSE]},
-        "authorization_receipt": {
+        "licence_receipt": {
             "schema_version": "1.0.0",
-            "tracked_path": "docs/FIGURE_01_04_CC_BY_AUTHORIZATION_RECEIPT"
-                            ".json",
-            "must_not_exist_before_authorization": True,
+            "tracked_path": RECEIPT_REL,
+            "must_not_exist_before_activation": True,
             "required_fields": [
-                "schema_version", "repository", "pull_request", "permalink",
-                "comment_id", "login", "created_at", "updated_at", "body",
-                "body_sha256", "licensed_artwork", "activated_at",
-                "finalizer_version", "starting_head"]},
+                "schema_version", "repository", "licence_source",
+                "declaration_date", "declared_text", "declared_text_sha256",
+                "licensed_artwork", "declaration_record_path",
+                "declaration_record_sha256", "declaration_record_blob_sha1",
+                "creator", "declared_at", "scientific_guidance_credit",
+                "activated_at", "finalizer_version", "starting_head"]},
         "finalizer_version": "4D-r1-test",
         "identity": {
             "package_record":
@@ -466,16 +495,103 @@ def snapshot(root):
 # ---------------------------------------------------------------------------
 # 1. Production has no bypass. This is the load-bearing test.
 # ---------------------------------------------------------------------------
-def test_production_source_has_no_local_approval_or_bypass():
+def test_production_source_has_no_licence_bypass():
     src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
     for token in ("SCORCH_D6", "SKIP_D6", "FORCE_D6", "--force",
                   "--skip-authorization", "--assume-authorized",
-                  "authorization_json", "AUTHORIZATION_FILE"):
+                  "--skip-declaration", "--assume-licensed",
+                  "authorization_json", "AUTHORIZATION_FILE",
+                  "DECLARATION_FILE", "--approval-evidence"):
         assert token not in src, f"bypass surface {token!r} present"
-    # The authorization may be read from exactly one place: the injected
-    # client's live API calls. No environment variable may reach it.
-    body = src.split("def find_authorization", 1)[1].split("\ndef ", 1)[0]
-    assert "environ" not in body, "find_authorization consults the environment"
+    # The declaration may be read from exactly one place: the tracked path in
+    # the trusted contract. No environment variable may reach it.
+    body = src.split("def find_creator_declaration", 1)[1].split("\ndef ", 1)[0]
+    assert "environ" not in body, (
+        "find_creator_declaration consults the environment")
+
+
+def test_production_asks_github_for_nothing_but_pull_request_state():
+    """The comment-reading surface is GONE, not merely unused.
+
+    The licence rests on a declaration by the artwork's creator. Nothing is
+    fetched, no login is matched and no third party is asked for anything, so
+    the client must not even be ABLE to read comments: a dormant method is a
+    surface a later edit can reach for.
+    """
+    assert not hasattr(rf.GitHubCLI, "issue_comments")
+    assert not hasattr(rf.GitHubCLI, "issue_comment")
+    assert hasattr(rf.GitHubCLI, "pull_request")
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    for gone in ("issue_comments", "issuecomment-", "required_login",
+                 "cross_read_agreement_fields", "find_authorization"):
+        assert gone not in src, f"{gone!r} survives in production code"
+
+
+def test_no_licence_surface_represents_the_guidance_credit_as_a_licensor():
+    """Dr. Najibi is credited for science and is never a licensor.
+
+    Checked on the SHIPPED contract, not on a fixture: this is the factual
+    claim the whole release rests on, and it is the one a careless edit to the
+    declaration prose would quietly reverse.
+    """
+    decl = _REAL_CONTRACT["licence_declaration"]
+    assert decl["creator"] == CREATOR
+    assert decl["guidance_credit"] == GUIDANCE_CREDIT
+    assert "is not a licensor" in decl["text"]
+    assert "scientific guidance" in decl["text"]
+    # The wording a coauthor would have had to supply must be gone everywhere
+    # the contract SPEAKS. Three places QUOTE the retired wording without
+    # asserting it, and are excluded here: the archive `from` anchor, whose
+    # bytes are fixed inside the pinned candidate archive; the marker that
+    # DETECTS those bytes; and the frozen-collection history note, whose whole
+    # subject is what was retired and why. The first two are checked by the
+    # quarantine test below; the third is prose about the past, and a release
+    # that cannot describe its own history honestly is worse, not safer.
+    speaking = {k: v for k, v in _REAL_CONTRACT.items()
+                if k not in ("ccby_activation_plan",
+                             "artwork_licence_markers",
+                             "release_test_collection")}
+    plan = dict(_REAL_CONTRACT["ccby_activation_plan"])
+    plan["replacements"] = [
+        {k: v for k, v in r.items() if not (k == "from"
+                                            and r["file"].startswith("archive:"))}
+        for r in plan["replacements"]]
+    speaking["ccby_activation_plan"] = plan
+    blob = json.dumps(speaking)
+    for gone in ("jointly created", "written authorization from coauthor",
+                 "required_login", "approval_email", "signed_approval_form",
+                 "github_pr_comment", "custodian_attestation",
+                 "PENDING COAUTHOR AUTHORIZATION", "approval_sources",
+                 "authorization_receipt"):
+        assert gone not in blob, f"{gone!r} survives in the contract"
+
+
+def test_the_only_surviving_legacy_wording_is_a_pinned_archive_anchor():
+    """One legacy string must survive, and only as bytes to be REPLACED.
+
+    `PENDING COAUTHOR AUTHORIZATION` sits inside the pinned candidate archive,
+    whose bytes are fixed by its SHA-256 and cannot be edited in place. The
+    anchor must therefore match it exactly - but it appears ONLY as the archive
+    `from` block and as the marker that detects it, never in a tracked licence
+    record, and the finalization replaces it with the creator-credit wording.
+    """
+    legacy = "PENDING COAUTHOR AUTHORIZATION"
+    archive = [r for r in _REAL_CONTRACT["ccby_activation_plan"]["replacements"]
+               if r["file"].startswith("archive:")]
+    assert len(archive) == 1
+    assert legacy in archive[0]["from"]
+    assert legacy not in archive[0]["to"]
+    assert "coauthor" not in archive[0]["to"].lower()
+    assert PUBLIC_CREDIT.split(".")[0] in " ".join(archive[0]["to"].split())
+    # Registered as a pending DETECTOR, and explained as such.
+    markers = _REAL_CONTRACT["artwork_licence_markers"]
+    assert legacy in markers["pending"]
+    assert "DETECTOR ONLY" in markers["_note"]
+    # And nowhere in any tracked licence record.
+    for rel in _REAL_CONTRACT["licence_records"]:
+        text = (REPO / rel).read_text(encoding="utf-8")
+        assert legacy not in text, rel
+        assert "coauthor" not in text.lower(), rel
 
 
 def test_production_never_commits_pushes_tags_or_publishes():
@@ -498,152 +614,205 @@ def test_preflight_writes_nothing(synthetic):
 
 
 # ---------------------------------------------------------------------------
-# 2. Authorization: every way of not having it
+# 2. The creator declaration: every way of not having a valid one
 # ---------------------------------------------------------------------------
-def test_missing_authorization_is_release_blocked_d6(synthetic):
-    record, issues = rf.find_authorization(FakeGitHub(comments=[]),
-                                           synthetic["contract"])
+def _decl(syn, **kw):
+    """Write and commit a declaration over the fixture's seven artwork files."""
+    artwork = {rel: rf.sha256_bytes(_artwork_bytes(rel))
+               for rel in ARTWORK_PATHS}
+    record = declaration_record(artwork, **kw)
+    head = write_declaration(syn["root"], record)
+    syn["head"] = head
+    syn["contract"]["repository"]["expected_main_commit"] = head
+    syn["contract"]["repository"]["expected_tag_commit"] = head
+    return record
+
+
+def test_absent_declaration_blocks_the_release(synthetic):
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
     assert record is None
-    assert [c for c, _ in issues] == ["RELEASE_BLOCKED_D6"]
+    assert [c for c, _ in issues] == ["LICENCE_DECLARATION_ABSENT"]
 
 
-def test_wrong_author_is_rejected(synthetic):
-    gh = FakeGitHub(comments=[comment(login="someone-else")])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["RELEASE_BLOCKED_D6"]
-
-
-def test_impersonated_body_from_wrong_login_is_rejected(synthetic):
-    """The exact text signed by the wrong account authorizes nothing."""
-    gh = FakeGitHub(comments=[comment(cid=7, login="nassernajibi")],
-                    live=comment(cid=7, login="impostor"))
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_AUTHOR"]
-
-
-def test_altered_body_is_rejected(synthetic):
-    altered = AUTH_TEXT.replace("Figure 1 and Figure 4",
-                                "Figure 1, Figure 4 and Figure 9")
-    gh = FakeGitHub(comments=[comment(body=altered)])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_BODY_ALTERED"]
-
-
-def test_truncated_body_is_rejected(synthetic):
-    gh = FakeGitHub(comments=[comment(body=AUTH_TEXT[:len(AUTH_TEXT) // 2])])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_BODY_ALTERED"]
-
-
-def test_comment_edited_between_listing_and_refetch_is_rejected(synthetic):
-    gh = FakeGitHub(comments=[comment(cid=9)],
-                    live=comment(cid=9, body="withdrawn"))
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_BODY_ALTERED"]
-
-
-def test_deleted_comment_is_unretrievable_not_authorization(synthetic):
-    gh = FakeGitHub(comments=[comment()], missing=True)
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.find_authorization(gh, synthetic["contract"])
-    assert exc.value.code == "GITHUB_API_UNAVAILABLE"
-
-
-def test_comment_on_a_different_repository_or_pr_is_rejected(synthetic):
-    gh = FakeGitHub(comments=[comment(owner="someone", repo="FORK")])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-REVOCATION = ("On reflection I withdraw the authorization above. Please do "
-              "not distribute the Figure 1 or Figure 4 artwork under CC BY "
-              "4.0.")
-
-
-def test_an_older_grant_followed_by_a_revocation_is_refused(synthetic):
-    """A grant the author later withdrew is not authorization.
-
-    Accepting ANY historical exact match let a revoked grant stand: the
-    revocation was simply never looked at. Only the author's LATEST top-level
-    comment counts.
-    """
-    gh = FakeGitHub(comments=[
-        comment(cid=101, created="2026-01-01T00:00:00Z"),
-        comment(cid=102, body=REVOCATION, created="2026-02-01T00:00:00Z"),
-    ])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_SUPERSEDED_OR_QUALIFIED"], issues
-    assert "101" in issues[0][1] and "102" in issues[0][1]
-
-
-def test_an_older_grant_followed_by_a_qualification_is_refused(synthetic):
-    """"...but wait until X" is a qualification, and qualified is not granted."""
-    gh = FakeGitHub(comments=[
-        comment(cid=101, created="2026-01-01T00:00:00Z"),
-        comment(cid=102, created="2026-03-01T00:00:00Z",
-                body=AUTH_TEXT + " Please hold until the journal responds."),
-    ])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_SUPERSEDED_OR_QUALIFIED"], issues
-
-
-def test_a_later_comment_by_another_author_does_not_supersede_the_grant(
-        synthetic):
-    """Only the contracted author can withdraw the contracted author's grant.
-
-    A stranger posting after the grant - or posting a revocation of it - has
-    no bearing on whether the copyright holder authorized anything.
-    """
-    gh = FakeGitHub(comments=[
-        comment(cid=101, created="2026-01-01T00:00:00Z"),
-        comment(cid=300, login="someone-else", body=REVOCATION,
-                created="2026-06-01T00:00:00Z"),
-        comment(cid=301, login="fawazbouhamad", body="ping",
-                created="2026-07-01T00:00:00Z"),
-    ])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
+def test_a_valid_committed_declaration_resolves(synthetic):
+    _decl(synthetic)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
     assert issues == [], issues
-    assert record is not None and record["comment_id"] == 101
+    assert record["licence_source"] == "creator_declaration"
+    assert record["creator"] == CREATOR
+    assert record["scientific_guidance_credit"] == GUIDANCE_CREDIT
+    assert record["declared_text"] == DECL_TEXT
+    assert record["declaration_record_path"] == DECL_REL
+    assert len(record["licensed_artwork"]) == 7
+    assert re.fullmatch(r"[0-9a-f]{40}",
+                        record["declaration_record_blob_sha1"])
 
 
-def test_the_grant_is_found_beyond_the_first_hundred_comments(synthetic):
-    """A pull request with more than one page of comments is read in full.
-
-    Without pagination the API returns only the first 100 comments, so a grant
-    posted later is invisible - and so, far worse, is a REVOCATION posted
-    after it.
-    """
-    chatter = [comment(cid=1000 + i, login="fawazbouhamad", body=f"note {i}",
-                       created="2026-01-01T00:00:00Z")
-               for i in range(150)]
-    grant = comment(cid=9001, created="2026-05-01T00:00:00Z")
-    gh = FakeGitHub(comments=chatter + [grant])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert issues == [], issues
-    assert record["comment_id"] == 9001
-
-    # ...and a revocation on a still later page must reach us too.
-    revoked = FakeGitHub(comments=chatter + [grant] + [
-        comment(cid=9002, body=REVOCATION, created="2026-05-02T00:00:00Z")])
-    record, issues = rf.find_authorization(revoked, synthetic["contract"])
+def test_an_uncommitted_declaration_is_not_a_repository_record(synthetic):
+    """A file in somebody's working copy has no history, review or author."""
+    artwork = {rel: rf.sha256_bytes(_artwork_bytes(rel))
+               for rel in ARTWORK_PATHS}
+    write_declaration(synthetic["root"], declaration_record(artwork),
+                      commit=False)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
     assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_SUPERSEDED_OR_QUALIFIED"], issues
+    assert [c for c, _ in issues] == ["DECLARATION_UNTRACKED"]
 
 
-def test_the_comment_listing_requests_and_flattens_every_page(monkeypatch):
-    """The live client really does paginate, and really does flatten.
+def test_a_declaration_edited_after_commit_is_refused(synthetic):
+    _decl(synthetic)
+    path = synthetic["root"] / DECL_REL
+    edited = json.loads(path.read_text(encoding="utf-8"))
+    edited["declaration_date"] = "2026-04-04T00:00:00Z"
+    path.write_text(json.dumps(edited, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8", newline="\n")
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert [c for c, _ in issues] == ["DECLARATION_MODIFIED"]
 
-    ``FakeGitHub`` hands the finalizer a complete list, so it cannot prove the
-    REAL client asks for one. This drives ``GitHubCLI`` itself.
+
+@pytest.mark.parametrize("altered", [
+    DECL_TEXT.replace("Figure 1 and Figure 4", "Figure 1, Figure 4 and "
+                                               "Figure 9"),
+    DECL_TEXT[:len(DECL_TEXT) // 2],
+    DECL_TEXT + " I also license every other figure in the repository.",
+    "Please treat this as permission. " + DECL_TEXT,
+    DECL_TEXT.replace("is not a licensor of this artwork",
+                      "is a co-licensor of this artwork"),
+])
+def test_an_altered_declaration_paragraph_is_refused(synthetic, altered):
+    """Paraphrase, truncation, widening and reversal are all not the text.
+
+    The last case is the one that matters most: it is the edit that would put
+    Dr. Najibi's name back in as a licensor, and it must fail like any other
+    alteration rather than being read as a generous restatement.
     """
+    _decl(synthetic, text=altered)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert "DECLARATION_TEXT_MISMATCH" in [c for c, _ in issues], issues
+
+
+def test_hard_wrapping_of_the_declared_paragraph_is_tolerated(synthetic):
+    """Line breaks are not part of the paragraph's meaning."""
+    _decl(synthetic, text=DECL_TEXT.replace(" ", "\n", 12))
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert issues == [], issues
+    assert record is not None
+
+
+def test_an_eighth_artwork_path_is_refused(synthetic):
+    artwork = {rel: rf.sha256_bytes(_artwork_bytes(rel))
+               for rel in ARTWORK_PATHS}
+    artwork["assets/frozen_figures/fig09/Figure_09.png"] = "f" * 64
+    write_declaration(synthetic["root"], declaration_record(artwork))
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert [c for c, _ in issues] == ["DECLARATION_ARTWORK_SCOPE"], issues
+
+
+def test_a_dropped_artwork_path_is_refused(synthetic):
+    artwork = {rel: rf.sha256_bytes(_artwork_bytes(rel))
+               for rel in ARTWORK_PATHS[:-1]}
+    write_declaration(synthetic["root"], declaration_record(artwork))
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert [c for c, _ in issues] == ["DECLARATION_ARTWORK_SCOPE"], issues
+
+
+def test_artwork_bytes_that_moved_since_the_declaration_are_refused(synthetic):
+    """The grant covers the bytes declared, not whatever is at the path now."""
+    _decl(synthetic)
+    target = synthetic["root"] / ARTWORK_PATHS[0]
+    target.write_bytes(b"DIFFERENT ARTWORK BYTES\n")
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert [c for c, _ in issues] == ["DECLARATION_ARTWORK_MISMATCH"], issues
+
+
+def test_a_declaration_by_anyone_but_the_creator_is_refused(synthetic):
+    _decl(synthetic, creator="Somebody Else")
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert "DECLARATION_ATTESTATION_CREATOR" in [c for c, _ in issues], issues
+
+
+def test_an_altered_creator_attestation_is_refused(synthetic):
+    _decl(synthetic, statement="I approve of everything, broadly speaking.")
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert "DECLARATION_ATTESTATION_STATEMENT" in [c for c, _ in issues]
+
+
+@pytest.mark.parametrize("credit", [
+    "",
+    "Nasser Najibi",
+    "Dr. Nasser Najibi, co-licensor",
+    None,
+])
+def test_the_guidance_credit_must_be_exactly_the_contracted_one(synthetic,
+                                                                credit):
+    """The credit may neither be dropped nor inflated into a grant."""
+    _decl(synthetic, credit=credit)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert "DECLARATION_GUIDANCE_CREDIT" in [c for c, _ in issues], issues
+
+
+def test_a_declaration_missing_a_required_field_is_refused(synthetic):
+    artwork = {rel: rf.sha256_bytes(_artwork_bytes(rel))
+               for rel in ARTWORK_PATHS}
+    record = declaration_record(artwork)
+    del record["creator_attestation"]
+    write_declaration(synthetic["root"], record)
+    got, issues = rf.find_creator_declaration(synthetic["root"],
+                                              synthetic["contract"])
+    assert got is None
+    assert [c for c, _ in issues] == ["DECLARATION_MALFORMED"], issues
+
+
+def test_a_declaration_with_duplicate_keys_is_refused(synthetic):
+    """Stock json keeps the LAST value, so a reviewed-looking key could sit
+    beside the one that actually takes effect."""
+    path = synthetic["root"] / DECL_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"schema_version": "1.0.0", "schema_version": "9.9.9"}\n',
+                    encoding="utf-8", newline="\n")
+    _run(synthetic["root"], "add", "-A")
+    _run(synthetic["root"], "commit", "-qm", "dup")
+    got, issues = rf.find_creator_declaration(synthetic["root"],
+                                              synthetic["contract"])
+    assert got is None
+    assert [c for c, _ in issues] == ["DECLARATION_MALFORMED"], issues
+
+
+def test_local_approval_files_are_inert(synthetic):
+    """Nothing outside the contracted path is read, so nothing can honour it."""
+    (synthetic["root"] / "APPROVAL.json").write_text(
+        json.dumps({"approved": True, "licensed": True}), encoding="utf-8")
+    (synthetic["root"] / "approval_screenshot.png").write_bytes(b"PNG")
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None
+    assert [c for c, _ in issues] == ["LICENCE_DECLARATION_ABSENT"]
+
+
+def test_the_pull_request_client_pins_the_host_and_drops_redirection(
+        monkeypatch):
+    """The live client really does pin github.com and really does drop the
+    ambient variables that could point it somewhere else."""
     seen = {}
 
     class _Proc:
@@ -656,44 +825,16 @@ def test_the_comment_listing_requests_and_flattens_every_page(monkeypatch):
     def fake_run(argv, **kw):
         seen["argv"] = list(argv)
         seen["env"] = kw.get("env") or {}
-        # --slurp yields a LIST OF PAGES, not a flat list.
-        return _Proc(json.dumps([[{"id": 1}, {"id": 2}], [{"id": 3}]]))
+        return _Proc(json.dumps({"state": "open"}))
 
     monkeypatch.setattr(rf.subprocess, "run", fake_run)
-    out = rf.GitHubCLI().issue_comments("fawazbouhamad", "SCORCH", 1)
-    assert out == [{"id": 1}, {"id": 2}, {"id": 3}], out
-
+    out = rf.GitHubCLI().pull_request("fawazbouhamad", "SCORCH", 1)
+    assert out == {"state": "open"}
     argv = seen["argv"]
-    assert "--paginate" in argv and "--slurp" in argv, argv
-    assert any("per_page=100" in a for a in argv), argv
     assert "--hostname" in argv and rf.GITHUB_HOST in argv, argv
-    # The ambient variables that could redirect the host are not inherited.
     for dropped in ("GH_HOST", "GH_ENTERPRISE_TOKEN", "GITHUB_API_URL",
                     "GH_CONFIG_DIR", "GH_REPO"):
         assert dropped not in seen["env"], dropped
-
-
-def test_hard_wrapping_is_tolerated_but_alteration_is_not(synthetic):
-    wrapped = AUTH_TEXT.replace(" ", "\n", 12)
-    gh = FakeGitHub(comments=[comment(body=wrapped)])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert issues == []
-    assert record["login"] == "nassernajibi"
-    assert record["body_sha256"] == rf.sha256_bytes(wrapped.encode("utf-8"))
-    assert record["permalink"].startswith(
-        "https://github.com/fawazbouhamad/SCORCH/pull/1")
-
-
-def test_screenshot_or_local_json_evidence_is_not_an_input(synthetic):
-    """Local 'evidence' is inert: nothing reads it, so nothing can honour it."""
-    (synthetic["root"] / "APPROVAL.json").write_text(
-        json.dumps({"approved": True, "login": "nassernajibi",
-                    "body": AUTH_TEXT}), encoding="utf-8")
-    (synthetic["root"] / "approval_screenshot.png").write_bytes(b"PNG")
-    record, issues = rf.find_authorization(FakeGitHub(comments=[]),
-                                           synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["RELEASE_BLOCKED_D6"]
 
 
 # ---------------------------------------------------------------------------
@@ -796,8 +937,7 @@ def test_missing_font_is_reported_independently_of_d6(synthetic, monkeypatch):
     monkeypatch.delenv("SCORCH_APTOS_FONT", raising=False)
     report = rf.preflight(synthetic["root"], "chore/final-repository-cleanup",
                           synthetic["head"], contract=synthetic["contract"],
-                          github=FakeGitHub(pr=good_pr(synthetic["head"]),
-                                            comments=[comment()]),
+                          github=FakeGitHub(pr=good_pr(synthetic["head"])),
                           final_docx_dir=synthetic["docx_dir"],
                           aptos_font=None)
     assert "APTOS_FONT_MISSING" in report.codes
@@ -1071,7 +1211,7 @@ def test_shipped_contract_never_ships_a_pre_APPLIED_activation():
     assert plan["replacements"], "an authored plan with no replacements"
     # The receipt is the ONLY thing that turns a plan into a grant, and it must
     # not exist until a real finalization fetched a real authorization.
-    receipt = REPO / real["authorization_receipt"]["tracked_path"]
+    receipt = REPO / real["licence_receipt"]["tracked_path"]
     assert not receipt.exists(), (
         f"{receipt} exists: an authorization receipt is present in a tree "
         f"that has never run a real finalization")
@@ -1368,7 +1508,7 @@ def test_authoring_the_plan_activated_nothing():
     for rel in contract["licence_records"]:
         assert als.classify_claim((REPO / rel).read_text(encoding="utf-8"),
                                   contract) == als.PENDING, rel
-    receipt = REPO / contract["authorization_receipt"]["tracked_path"]
+    receipt = REPO / contract["licence_receipt"]["tracked_path"]
     assert not receipt.exists(), f"{receipt} exists"
 
 
@@ -1535,13 +1675,12 @@ def test_finalize_without_confirmation_does_nothing(synthetic):
                          synthetic["head"], contract=synthetic["contract"],
                          candidate_archive=None,
                          release_staging=synthetic["tmp"],
-                         github=FakeGitHub(pr=good_pr(synthetic["head"]),
-                                           comments=[comment()]))
+                         github=FakeGitHub(pr=good_pr(synthetic["head"])))
     assert report.codes == ["CONFIRMATION_REQUIRED"]
     assert snapshot(synthetic["root"]) == before
 
 
-def test_finalize_stops_at_the_d6_gate_and_writes_nothing(synthetic):
+def test_finalize_stops_at_the_licence_gate_and_writes_nothing(synthetic):
     before = snapshot(synthetic["root"])
     report = rf.finalize(synthetic["root"], "chore/final-repository-cleanup",
                          synthetic["head"], contract=synthetic["contract"],
@@ -1551,7 +1690,7 @@ def test_finalize_stops_at_the_d6_gate_and_writes_nothing(synthetic):
                          final_docx_dir=synthetic["docx_dir"],
                          aptos_font=synthetic["font"],
                          confirm=rf.CONFIRM_PHRASE)
-    assert "RELEASE_BLOCKED_D6" in report.codes
+    assert "LICENCE_DECLARATION_ABSENT" in report.codes
     assert not report.ok
     assert snapshot(synthetic["root"]) == before
 
@@ -1570,92 +1709,64 @@ def test_isolation_diagnostics_record_the_resolved_tree(synthetic):
 # ---------------------------------------------------------------------------
 # 10. EXACT EQUALITY. Containment is the defect this section exists to kill.
 # ---------------------------------------------------------------------------
-#: Each of these CONTAINS the authorization paragraph verbatim. Under a
-#: containment rule every one of them authorizes the release; the first is an
-#: explicit refusal that would have licensed the artwork anyway.
-NOT_AUTHORIZATION = {
-    "appended_revocation":
-        AUTH_TEXT + " However, I revoke this authorization.",
+#: Each of these CONTAINS the declaration paragraph verbatim. Under a
+#: containment rule every one of them would license the artwork; the first
+#: withdraws the grant in its next sentence, and the last hands the licensing
+#: decision back to somebody who was never asked for it.
+NOT_A_DECLARATION = {
+    "appended_withdrawal":
+        DECL_TEXT + " On reflection I withdraw this licence.",
     "appended_unrelated_prose":
-        AUTH_TEXT + " Note: this is a draft for discussion only, please do "
+        DECL_TEXT + " Note: this is a draft for discussion only, please do "
                     "not treat it as final.",
     "prefixed_qualification":
-        "DO NOT ACT ON THIS YET, I am still checking with legal. " + AUTH_TEXT,
+        "DO NOT ACT ON THIS YET, I am still checking with legal. " + DECL_TEXT,
     "quoted_rejection":
-        'Someone asked me to post the following: "' + AUTH_TEXT +
-        '" I decline to give this authorization.',
+        'Someone asked me to write the following: "' + DECL_TEXT +
+        '" I decline to make this declaration.',
     "conditional":
-        "If and only if the journal requires it, I would say: " + AUTH_TEXT,
+        "If and only if the journal requires it, I would say: " + DECL_TEXT,
+    "deferred_to_a_third_party":
+        DECL_TEXT + " This takes effect only once Dr. Najibi has approved it.",
 }
 
 
-@pytest.mark.parametrize("label", sorted(NOT_AUTHORIZATION))
-def test_paragraph_plus_anything_else_is_not_authorization(synthetic, label):
-    body = NOT_AUTHORIZATION[label]
-    assert AUTH_TEXT in body, "fixture must genuinely contain the paragraph"
-    gh = FakeGitHub(comments=[comment(body=body)])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None, f"{label} was accepted as authorization"
-    assert [c for c, _ in issues] == ["AUTHZ_BODY_ALTERED"]
+@pytest.mark.parametrize("label", sorted(NOT_A_DECLARATION))
+def test_paragraph_plus_anything_else_is_not_a_declaration(synthetic, label):
+    body = NOT_A_DECLARATION[label]
+    assert DECL_TEXT in body, "fixture must genuinely contain the paragraph"
+    _decl(synthetic, text=body)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert record is None, f"{label} was accepted as a declaration"
+    assert "DECLARATION_TEXT_MISMATCH" in [c for c, _ in issues], issues
 
 
 def test_the_matching_rule_is_equality_not_containment(synthetic):
     """The regression this whole section guards, stated once, directly."""
-    want = rf.normalize_prose(AUTH_TEXT)
-    revoked = rf.normalize_prose(NOT_AUTHORIZATION["appended_revocation"])
-    assert want in revoked, "containment would have accepted the revocation"
-    assert want != revoked, "equality must reject it"
+    want = rf.normalize_prose(DECL_TEXT)
+    withdrawn = rf.normalize_prose(NOT_A_DECLARATION["appended_withdrawal"])
+    assert want in withdrawn, "containment would have accepted the withdrawal"
+    assert want != withdrawn, "equality must reject it"
 
 
-def test_comment_edited_between_the_two_live_reads_is_refused(synthetic):
-    """The listing and the first re-read agree; the second does not."""
-    gh = FakeGitHub(comments=[comment(cid=11)],
-                    sequence=[comment(cid=11),
-                              comment(cid=11, body=AUTH_TEXT + " Revoked.")])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_BODY_ALTERED"]
+def test_the_declaration_is_re_read_from_disk_every_time(synthetic):
+    """Resolution reads the tree, not a cached parse.
 
-
-def test_metadata_mutated_between_the_two_live_reads_is_refused(synthetic):
-    """Same exact body, but the comment was edited between the reads."""
-    first = comment(cid=12)
-    second = dict(comment(cid=12), updated_at="2026-06-06T00:00:00Z")
-    gh = FakeGitHub(comments=[first], sequence=[first, second])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_MUTATED_DURING_READ"]
-
-
-def test_the_comment_is_fetched_live_twice(synthetic):
-    gh = FakeGitHub(comments=[comment()])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert issues == [] and record is not None
-    assert gh.comment_fetches == 2, "exactly two live re-fetches are required"
-
-
-def test_a_review_comment_is_not_a_top_level_comment(synthetic):
-    review = dict(comment(cid=13), pull_request_review_id=999)
-    gh = FakeGitHub(comments=[review])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-def test_a_comment_on_another_pull_request_is_refused(synthetic):
-    gh = FakeGitHub(comments=[comment(number=2)])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-def test_a_comment_whose_issue_url_is_elsewhere_is_refused(synthetic):
-    stray = dict(comment(cid=14),
-                 issue_url="https://api.github.com/repos/other/REPO/issues/1")
-    gh = FakeGitHub(comments=[stray])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
+    The finalization re-resolves immediately before it writes, so a
+    declaration edited during a long build is caught rather than recorded in
+    the receipt as though it had always said this.
+    """
+    _decl(synthetic)
+    first, issues = rf.find_creator_declaration(synthetic["root"],
+                                                synthetic["contract"])
+    assert issues == [] and first is not None
+    (synthetic["root"] / DECL_REL).write_text("{}\n", encoding="utf-8",
+                                              newline="\n")
+    second, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert second is None
+    assert [c for c, _ in issues] == ["DECLARATION_MODIFIED"]
 
 
 # ---------------------------------------------------------------------------
@@ -1695,7 +1806,7 @@ def test_trusted_contract_is_accepted_when_it_equals_the_head_blob(tmp_path,
     root = _contract_repo(tmp_path, synthetic["contract"])
     contract, identity = rf.load_trusted_contract(
         root, allow_synthetic_fixture=True)
-    assert contract["authorization"]["required_login"] == "nassernajibi"
+    assert contract["licence_declaration"]["creator"] == CREATOR
     assert identity["disk_sha256"] == identity["head_blob_sha256"]
     assert identity["path"] == rf.TRACKED_CONTRACT_REL
 
@@ -1704,7 +1815,7 @@ def test_modified_tracked_contract_is_refused(tmp_path, synthetic):
     """Editing the contract without committing it does not make it trusted."""
     root = _contract_repo(tmp_path, synthetic["contract"])
     tampered = json.loads(json.dumps(synthetic["contract"]))
-    tampered["authorization"]["required_login"] = "attacker"
+    tampered["licence_declaration"]["creator"] = "attacker"
     (root / rf.TRACKED_CONTRACT_REL).write_text(
         json.dumps(tampered, indent=2), encoding="utf-8", newline="\n")
     with pytest.raises(rf.FinalizerError) as exc:
@@ -1720,16 +1831,21 @@ def test_untracked_contract_is_refused(tmp_path, synthetic):
 
 
 @pytest.mark.parametrize("mutation", [
-    ("authorization", "required_login", "attacker"),
-    ("authorization", "text", "I approve. -- not the contracted paragraph"),
+    ("licence_declaration", "creator", "attacker"),
+    ("licence_declaration", "text", "I license everything. -- not the "
+                                    "contracted paragraph"),
+    ("licence_declaration", "guidance_credit", "Dr. Nasser Najibi, licensor"),
+    ("declaration_source", "creator", "attacker"),
+    ("declaration_source", "tracked_record_path", "docs/elsewhere.json"),
 ])
-def test_an_external_contract_cannot_redefine_who_or_what_authorizes(
+def test_an_external_contract_cannot_redefine_who_or_what_licenses(
         tmp_path, synthetic, mutation):
     """An attacker-supplied contract is not reachable from production.
 
     There is no flag that accepts one, and a locally modified tracked contract
-    is refused, so changing the login, the text, the licensed assets or the
-    activation scope from outside is not a supported operation.
+    is refused, so changing the creator, the declared text, the credit, the
+    licensed assets or the activation scope from outside is not a supported
+    operation.
     """
     section, key, value = mutation
     root = _contract_repo(tmp_path, synthetic["contract"])
@@ -1790,91 +1906,149 @@ def test_protected_record_identities_distinguish_blob_from_worktree():
 
 
 # ---------------------------------------------------------------------------
-# 12. The durable authorization receipt
+# 12. The durable licence receipt
 # ---------------------------------------------------------------------------
-ACTIVATED_AT = "2026-01-02T03:04:05Z"
+ACTIVATED_AT = "2026-01-03T03:04:05Z"
 
 
 def _record(synthetic):
-    record, issues = rf.find_authorization(FakeGitHub(comments=[comment()]),
-                                           synthetic["contract"])
-    assert issues == []
+    _decl(synthetic)
+    record, issues = rf.find_creator_declaration(synthetic["root"],
+                                                 synthetic["contract"])
+    assert issues == [], issues
     return record
 
 
 def test_receipt_carries_every_required_field(synthetic):
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
-    for field in synthetic["contract"]["authorization_receipt"][
-            "required_fields"]:
+    for field in synthetic["contract"]["licence_receipt"]["required_fields"]:
         assert field in receipt, f"receipt omits {field}"
-    assert receipt["login"] == "nassernajibi"
-    assert receipt["body"] == AUTH_TEXT
-    assert receipt["body_sha256"] == rf.sha256_bytes(AUTH_TEXT.encode())
+    assert receipt["licence_source"] == "creator_declaration"
+    assert receipt["creator"] == CREATOR
+    assert receipt["scientific_guidance_credit"] == GUIDANCE_CREDIT
+    assert receipt["declared_text"] == DECL_TEXT
+    assert receipt["declared_text_sha256"] == rf.sha256_bytes(
+        DECL_TEXT.encode())
     assert receipt["starting_head"] == synthetic["head"]
     assert sorted(receipt["licensed_artwork"]) == sorted(
         synthetic["contract"]["ccby_artwork_paths"])
-    assert rf.validate_authorization_receipt(
+    assert rf.validate_licence_receipt(
         receipt, synthetic["contract"], record,
         starting_head=synthetic["head"], repo_root=synthetic["root"]) == []
 
 
+def test_the_receipt_names_no_comment_no_login_and_no_evidence(synthetic):
+    """Nothing in the durable record points at a person who was never asked.
+
+    A receipt carrying a login, a permalink or an evidence digest would be a
+    receipt pointing at things that do not exist for this release.
+    """
+    record = _record(synthetic)
+    receipt = rf.build_licence_receipt(
+        synthetic["root"], synthetic["contract"], record,
+        starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
+    for absent in ("comment_id", "permalink", "issue_url", "login", "body",
+                   "body_sha256", "pull_request", "evidence_sha256",
+                   "evidence_filename", "evidence_bytes", "custodian",
+                   "source_type", "approval_source"):
+        assert absent not in receipt, f"receipt carries {absent}"
+
+
 @pytest.mark.parametrize("field,value,code", [
-    ("login", "impostor", "RECEIPT_LOGIN"),
-    ("body", "I approve.", "RECEIPT_BODY"),
+    ("creator", "Somebody Else", "RECEIPT_CREATOR"),
+    ("declared_text", "I license everything.", "RECEIPT_DECLARED_TEXT"),
     ("starting_head", "0" * 40, "RECEIPT_STARTING_HEAD"),
-    ("comment_id", 999999, "RECEIPT_DISAGREES_WITH_LIVE_COMMENT"),
+    ("scientific_guidance_credit", "Dr. Nasser Najibi, co-licensor",
+     "RECEIPT_GUIDANCE_CREDIT"),
+    ("declaration_record_sha256", "a" * 64, "RECEIPT_DECLARATION_MISMATCH"),
     ("activated_at", "", "RECEIPT_ACTIVATED_AT"),
 ])
-def test_a_receipt_that_misstates_the_authorization_is_refused(
+def test_a_receipt_that_misstates_the_declaration_is_refused(
         synthetic, field, value, code):
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
     receipt[field] = value
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], record,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
-    assert code in codes
+    assert code in codes, codes
 
 
 def test_a_receipt_may_not_widen_the_licensed_scope(synthetic):
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
     receipt["licensed_artwork"]["assets/frozen_figures/fig09/Figure_09.png"] \
         = "f" * 64
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], record,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
     assert "RECEIPT_ARTWORK_SCOPE" in codes
 
 
-def test_a_receipt_missing_a_required_field_is_refused(synthetic):
+def test_a_receipt_naming_any_other_licence_source_is_refused(synthetic):
+    """There is one source, so the discriminator has one legal value."""
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
-    del receipt["permalink"]
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    for bogus in ("github_pr_comment", "external_evidence", "a_phone_call",
+                  None):
+        forged = dict(receipt)
+        if bogus is None:
+            del forged["licence_source"]
+        else:
+            forged["licence_source"] = bogus
+        codes = [c for c, _ in rf.validate_licence_receipt(
+            forged, synthetic["contract"], record,
+            starting_head=synthetic["head"], repo_root=synthetic["root"])]
+        assert codes == ["RECEIPT_LICENCE_SOURCE"], (bogus, codes)
+
+
+def test_a_receipt_missing_a_required_field_is_refused(synthetic):
+    record = _record(synthetic)
+    receipt = rf.build_licence_receipt(
+        synthetic["root"], synthetic["contract"], record,
+        starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
+    del receipt["declaration_record_path"]
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], record,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
     assert codes == ["RECEIPT_FIELD_MISSING"]
+
+
+def test_a_receipt_resting_on_a_deleted_declaration_is_refused(synthetic):
+    """A receipt naming a declaration that is not in the tree proves nothing.
+
+    This is what the builder and the guards face for years afterwards, with no
+    finalization running: it must fail on the tree alone.
+    """
+    record = _record(synthetic)
+    receipt = rf.build_licence_receipt(
+        synthetic["root"], synthetic["contract"], record,
+        starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
+    (synthetic["root"] / DECL_REL).unlink()
+    codes = [c for c, _ in rf.validate_licence_receipt(
+        receipt, synthetic["contract"], None,
+        starting_head=synthetic["head"], repo_root=synthetic["root"])]
+    assert "RECEIPT_DECLARATION_ABSENT" in codes, codes
 
 
 def test_the_receipt_is_created_transactionally_and_undone_on_rollback(
         synthetic):
     """A new file is a real transactional state: rollback deletes it."""
     record = _record(synthetic)
-    rel = synthetic["contract"]["authorization_receipt"]["tracked_path"]
+    rel = synthetic["contract"]["licence_receipt"]["tracked_path"]
     target = synthetic["root"] / rel
     assert not target.exists()
 
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
     receipt_edit = rf.Edit(rel, None, rf.receipt_bytes(receipt),
@@ -1900,16 +2074,40 @@ def test_the_receipt_is_created_transactionally_and_undone_on_rollback(
     assert snapshot(synthetic["root"]) == before
 
 
-def test_no_receipt_exists_in_the_real_repository():
-    """This pass defines the receipt. It does not create one."""
+def test_the_receipt_never_exists_without_a_valid_declaration_behind_it():
+    """State-aware, because this test runs in BOTH states.
+
+    It is a member of the frozen release collection, so it executes in this
+    repository AND inside the disposable validation copy a real finalization
+    builds - where the receipt legitimately exists. Asserting the receipt's
+    absence unconditionally would make a correct finalization unable to
+    validate itself, which is the same trap the publication-row guard fell
+    into.
+
+    What holds in every state is the ORDERING: a receipt may exist only where
+    the declaration it rests on exists, is committed, and validates.
+    """
+    als = rf._artwork
     contract = rf.load_contract()
-    rel = contract["authorization_receipt"]["tracked_path"]
-    assert not (REPO / rel).exists(), (
-        f"{rel} must not exist until a real D6 authorization is fetched")
+    receipt_rel = contract["licence_receipt"]["tracked_path"]
+    decl_rel = contract["declaration_source"]["tracked_record_path"]
+
+    if not (REPO / receipt_rel).exists():
+        return  # PENDING: nothing to prove beyond the receipt's absence.
+
+    assert (REPO / decl_rel).is_file(), (
+        f"{receipt_rel} exists but {decl_rel} does not; a receipt that rests "
+        f"on a declaration which is not in the tree is not evidence")
+    receipt = als.loads_strict(
+        (REPO / receipt_rel).read_text(encoding="utf-8"))
+    assert receipt.get(als.SOURCE_FIELD) == als.CREATOR_SOURCE
+    assert als.validate_receipt(receipt, contract, REPO) == []
+    state, issues, _detail = als.artwork_licence_state(REPO, contract)
+    assert state == als.ACTIVE, (state, issues)
 
 
 def test_a_premature_receipt_is_refused_by_preflight(synthetic):
-    rel = synthetic["contract"]["authorization_receipt"]["tracked_path"]
+    rel = synthetic["contract"]["licence_receipt"]["tracked_path"]
     target = synthetic["root"] / rel
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text('{"forged": true}', encoding="utf-8")
@@ -2060,7 +2258,7 @@ def _contract():
 
 
 def _receipt(contract):
-    path = REPO / contract["authorization_receipt"]["tracked_path"]
+    path = REPO / contract["licence_receipt"]["tracked_path"]
     return als.loads_strict(path.read_text(encoding="utf-8"))
 
 
@@ -2229,6 +2427,17 @@ def e2e(synthetic, tmp_path):
     (root / "scripts" / "release" / "finalizer_contract.json").write_text(
         json.dumps(contract, indent=2), encoding="utf-8", newline="\n")
 
+    # The creator's declaration, written BEFORE the commit below so that it is
+    # tracked at HEAD. A declaration that existed only in the working copy
+    # would exercise the untracked refusal, not the finalization.
+    decl_path = root / DECL_REL
+    decl_path.parent.mkdir(parents=True, exist_ok=True)
+    decl_path.write_text(
+        json.dumps(declaration_record(
+            {rel: rf.sha256_bytes(_artwork_bytes(rel))
+             for rel in ARTWORK_PATHS}), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8", newline="\n")
+
     # A real origin, so live ls-remote checks resolve. The URL is pinned in the
     # CONTRACT rather than left to be resolved through the remote name: r3f
     # stopped `live_remote_state` reading `origin` at all, because a name is
@@ -2267,8 +2476,7 @@ def run_finalize(e2e, github=None, **kw):
         e2e["root"], "chore/final-repository-cleanup", e2e["head"],
         contract=e2e["contract"], candidate_archive=e2e["candidate"],
         release_staging=e2e["staging"],
-        github=github or FakeGitHub(pr=good_pr(e2e["head"]),
-                                    comments=[comment()]),
+        github=github or FakeGitHub(pr=good_pr(e2e["head"])),
         final_docx_dir=e2e["docx_dir"], aptos_font=e2e["font"],
         confirm=rf.CONFIRM_PHRASE, activated_at=ACTIVATED_AT, **kw)
 
@@ -2297,11 +2505,13 @@ def test_synthetic_end_to_end_finalization_succeeds(e2e):
     assert stored["archive_sha256"] == final["archive_sha256"]
     assert stored["content_root_hash"] == final["content_root_hash"]
 
-    # the durable receipt exists, validates, and names the right comment
-    receipt_rel = contract["authorization_receipt"]["tracked_path"]
+    # the durable receipt exists, validates, and names the right declaration
+    receipt_rel = contract["licence_receipt"]["tracked_path"]
     receipt = rf.loads_strict((root / receipt_rel).read_text(encoding="utf-8"))
-    assert receipt["login"] == "nassernajibi"
-    assert receipt["body"] == AUTH_TEXT
+    assert receipt["licence_source"] == "creator_declaration"
+    assert receipt["creator"] == CREATOR
+    assert receipt["scientific_guidance_credit"] == GUIDANCE_CREDIT
+    assert receipt["declared_text"] == DECL_TEXT
     assert receipt["starting_head"] == e2e["head"]
     assert sorted(receipt["licensed_artwork"]) == sorted(
         contract["ccby_artwork_paths"])
@@ -2347,7 +2557,7 @@ def test_synthetic_end_to_end_finalization_succeeds(e2e):
     assert len(receipt["licensed_artwork"]) == 7
     for rel, digest in receipt["licensed_artwork"].items():
         assert rf.sha256_file(root / rel) == digest, rel
-    assert rf.validate_authorization_receipt(
+    assert rf.validate_licence_receipt(
         receipt, contract, None, starting_head=e2e["head"],
         repo_root=root) == []
 
@@ -2411,7 +2621,7 @@ def _assert_nothing_written(e2e, report):
                 contract["identity"]["final_archive_filename"]).exists(), \
         "an archive was placed despite the failure"
     assert not (root /
-                contract["authorization_receipt"]["tracked_path"]).exists(), \
+                contract["licence_receipt"]["tracked_path"]).exists(), \
         "a receipt survived a failed finalization"
     pkg = json.loads((root / contract["identity"]["package_record"])
                      .read_text(encoding="utf-8"))
@@ -2473,57 +2683,104 @@ def test_the_transaction_refuses_a_plan_made_against_stale_bytes(synthetic):
     assert snapshot(root) != before
 
 
-def test_the_authorization_withdrawn_before_the_write_is_refused(e2e):
-    """The comment is edited after validation and before the transaction."""
-    class Withdrawing(FakeGitHub):
-        def __init__(self, **kw):
-            super().__init__(**kw)
-            self.listings = 0
+def test_the_declaration_withdrawn_before_the_write_is_refused(e2e,
+                                                              monkeypatch):
+    """The declaration stops qualifying between validation and the write.
 
-        def issue_comments(self, owner, repo, number):
-            self.listings += 1
-            if self.listings >= 3:      # preflight, finalize, then pre-write
-                return [comment(body=AUTH_TEXT + " I revoke this.")]
-            return super().issue_comments(owner, repo, number)
+    The build is long. A declaration edited during it - or an artwork file
+    swapped underneath it - must be caught at the pre-write re-read rather
+    than recorded in the receipt as though it had always said this.
+    """
+    calls = {"n": 0}
+    real = rf.find_creator_declaration
 
-    gh = Withdrawing(pr=good_pr(e2e["head"]), comments=[comment()])
-    report = run_finalize(e2e, github=gh)
-    assert "AUTHZ_WITHDRAWN_BEFORE_WRITE" in report.codes
+    def failing(root, contract):
+        calls["n"] += 1
+        if calls["n"] >= 3:          # preflight, finalize, then pre-write
+            return None, [("LICENCE_DECLARATION_ABSENT", "withdrawn")]
+        return real(root, contract)
+
+    monkeypatch.setattr(rf, "find_creator_declaration", failing)
+    report = run_finalize(e2e)
+    assert "DECLARATION_WITHDRAWN_BEFORE_WRITE" in report.codes, report.codes
     _assert_nothing_written(e2e, report)
 
 
-@pytest.mark.parametrize("replacement,field", [
-    (dict(cid=101, created="2026-01-01T00:00:00Z",
-          updated="2026-09-09T00:00:00Z"), "updated_at"),
-    (dict(cid=777, created="2026-01-01T00:00:00Z"), "comment_id"),
+@pytest.mark.parametrize("field,value", [
+    ("declared_at", "2026-09-09T00:00:00Z"),
+    ("declaration_record_blob_sha1", "b" * 40),
+    ("scientific_guidance_credit", "Somebody Else"),
 ])
-def test_an_authorization_identity_change_before_the_write_is_refused(
-        e2e, replacement, field):
-    """Same TEXT is not the same AUTHORIZATION.
+def test_a_declaration_identity_change_before_the_write_is_refused(
+        e2e, monkeypatch, field, value):
+    """Same TEXT is not the same DECLARATION.
 
-    The pre-write re-read used to compare four fields, so a comment deleted
-    and reposted with identical text, or edited so only its `updated_at`
-    moved, passed as "unchanged" - and the receipt then recorded a comment
-    that is not the one validation approved. Every identity field the receipt
-    carries is compared.
+    Every identity field the receipt carries is compared at the pre-write
+    re-read, so a declaration whose digest, timestamp or credit moved is a
+    DIFFERENT declaration from the one validation approved - even when the
+    licensing paragraph is byte-identical.
     """
-    class Edited(FakeGitHub):
-        def __init__(self, later, **kw):
-            super().__init__(**kw)
-            self.later = later
-            self.listings = 0
+    calls = {"n": 0}
+    real = rf.find_creator_declaration
 
-        def issue_comments(self, owner, repo, number):
-            self.listings += 1
-            if self.listings >= 3:      # preflight, finalize, then pre-write
-                self._comments = [comment(**self.later)]
-            return list(self._comments)
+    def edited(root, contract):
+        calls["n"] += 1
+        record, issues = real(root, contract)
+        if calls["n"] >= 3 and record is not None:
+            record = dict(record, **{field: value})
+        return record, issues
 
-    gh = Edited(replacement, pr=good_pr(e2e["head"]), comments=[comment()])
-    report = run_finalize(e2e, github=gh)
-    assert "AUTHZ_CHANGED_BEFORE_WRITE" in report.codes, report.codes
-    assert field in report.detail["AUTHZ_CHANGED_BEFORE_WRITE"], \
-        report.detail["AUTHZ_CHANGED_BEFORE_WRITE"]
+    monkeypatch.setattr(rf, "find_creator_declaration", edited)
+    report = run_finalize(e2e)
+    assert "DECLARATION_CHANGED_BEFORE_WRITE" in report.codes, report.codes
+    assert field in report.detail["DECLARATION_CHANGED_BEFORE_WRITE"], \
+        report.detail["DECLARATION_CHANGED_BEFORE_WRITE"]
+    _assert_nothing_written(e2e, report)
+
+
+#: Every code that means "the licensed bytes are no longer the declared
+#: bytes". WHICH one fires depends on how far the run had got when the swap
+#: landed - the receipt builder re-hashes the seven works, and so does the
+#: pre-write re-read - and the test does not care which, only that the run
+#: refuses and writes nothing.
+ARTWORK_DRIFT_CODES = (
+    "RECEIPT_DISAGREES_WITH_DECLARATION",
+    "DECLARATION_CHANGED_BEFORE_WRITE",
+    "DECLARATION_WITHDRAWN_BEFORE_WRITE",
+    "DECLARATION_ARTWORK_MISMATCH",
+    "RECEIPT_ARTWORK_MISMATCH",
+)
+
+
+def test_an_artwork_swap_before_the_write_is_refused(e2e):
+    """The seven identities are re-hashed after the long build.
+
+    No monkeypatching of the resolver: the file really changes on disk
+    mid-run, which is the case the licensed bytes have to be defended
+    against. A grant covers the bytes that were declared, so a run that
+    finished over different bytes must not be able to record a receipt.
+    """
+    target = e2e["root"] / ARTWORK_PATHS[0]
+    original = target.read_bytes()
+    seen = {"n": 0}
+    real = rf.build_release_archive
+
+    def swap(*args, **kw):
+        seen["n"] += 1
+        out = real(*args, **kw)
+        target.write_bytes(b"SWAPPED ARTWORK BYTES\n")
+        return out
+
+    rf.build_release_archive = swap
+    try:
+        report = run_finalize(e2e)
+    finally:
+        rf.build_release_archive = real
+        target.write_bytes(original)
+    assert seen["n"] == 1, "the fixture never reached the archive build"
+    assert any(code in report.codes for code in ARTWORK_DRIFT_CODES), \
+        report.codes
+    _assert_nothing_written(e2e, report)
     _assert_nothing_written(e2e, report)
 
 
@@ -2685,7 +2942,7 @@ def test_a_late_failure_after_placement_restores_the_predecessor(e2e,
     # predecessor here, so the blanket _assert_nothing_written does not apply).
     root, contract = e2e["root"], e2e["contract"]
     assert not (root /
-                contract["authorization_receipt"]["tracked_path"]).exists()
+                contract["licence_receipt"]["tracked_path"]).exists()
     pkg = json.loads((root / contract["identity"]["package_record"])
                      .read_text(encoding="utf-8"))
     assert pkg["relocation"]["packages"][
@@ -2746,7 +3003,7 @@ def test_receipt_creation_failure_rolls_everything_back(e2e, monkeypatch):
     def exploding(*a, **kw):
         raise rf.FinalizerError("RECEIPT_ARTWORK_MISSING", "synthetic failure")
 
-    monkeypatch.setattr(rf, "build_authorization_receipt", exploding)
+    monkeypatch.setattr(rf, "build_licence_receipt", exploding)
     report = run_finalize(e2e)
     assert "RECEIPT_ARTWORK_MISSING" in report.codes
     _assert_nothing_written(e2e, report)
@@ -2917,7 +3174,7 @@ def test_a_destination_colliding_with_the_superseded_archive_is_refused(e2e):
         e2e["root"], "chore/final-repository-cleanup", e2e["head"],
         contract=contract, candidate_archive=e2e["candidate"],
         release_staging=old.parent,
-        github=FakeGitHub(pr=good_pr(e2e["head"]), comments=[comment()]),
+        github=FakeGitHub(pr=good_pr(e2e["head"])),
         final_docx_dir=e2e["docx_dir"], aptos_font=e2e["font"],
         confirm=rf.CONFIRM_PHRASE, activated_at=ACTIVATED_AT)
     assert "RELEASE_DESTINATION_COLLIDES_WITH_SUPERSEDED" in report.codes
@@ -2941,101 +3198,6 @@ def test_successful_finalization_preserves_the_superseded_archive(e2e):
     assert old.read_bytes() == before, "the superseded archive changed"
     assert report.data["superseded_archive_preserved"] == \
         e2e["contract"]["superseded_official_archive"]["path"]
-
-
-# ---------------------------------------------------------------------------
-# 18. Authorization is pinned to github.com
-# ---------------------------------------------------------------------------
-@pytest.mark.parametrize("url", [
-    "https://evil.example/fawazbouhamad/SCORCH/pull/1#issuecomment-101",
-    "https://github.com.evil.example/fawazbouhamad/SCORCH/pull/1"
-    "#issuecomment-101",
-    "http://github.com/fawazbouhamad/SCORCH/pull/1#issuecomment-101",
-    "https://github.example.com/fawazbouhamad/SCORCH/pull/1#issuecomment-101",
-])
-def test_a_foreign_host_permalink_is_refused(synthetic, url):
-    """The path may say anything; only the HOST decides whose comment it is."""
-    hostile = dict(comment(cid=77), html_url=url)
-    record, issues = rf.find_authorization(FakeGitHub(comments=[hostile]),
-                                           synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-def test_a_foreign_api_issue_url_is_refused(synthetic):
-    hostile = dict(comment(cid=78),
-                   issue_url="https://evil.example/repos/fawazbouhamad/"
-                             "SCORCH/issues/1")
-    record, issues = rf.find_authorization(FakeGitHub(comments=[hostile]),
-                                           synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-@pytest.mark.parametrize("issue_url", [
-    None,                                              # missing entirely
-    "",                                                # empty
-    "https://evil.example/repos/fawazbouhamad/SCORCH/issues/1",
-    "https://api.github.com/x/repos/fawazbouhamad/SCORCH/issues/1",
-    "https://api.github.com/repos/fawazbouhamad/SCORCH/issues/2",
-    "https://api.github.com/repos/someone/FORK/issues/1",
-    "http://api.github.com/repos/fawazbouhamad/SCORCH/issues/1",
-])
-def test_a_wrong_or_missing_api_issue_url_is_refused(synthetic, issue_url):
-    """Exact, not endswith: a prefixed foreign path ends the same way."""
-    bad = comment(cid=91)
-    if issue_url is None:
-        bad.pop("issue_url")
-    else:
-        bad["issue_url"] = issue_url
-    record, issues = rf.find_authorization(FakeGitHub(comments=[bad]),
-                                           synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-def test_a_permalink_naming_another_comment_is_refused(synthetic):
-    """The fragment must name the comment being read, not a neighbour."""
-    bad = dict(comment(cid=92),
-               html_url="https://github.com/fawazbouhamad/SCORCH/pull/1"
-                        "#issuecomment-999")
-    record, issues = rf.find_authorization(FakeGitHub(comments=[bad]),
-                                           synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_WRONG_TARGET"]
-
-
-@pytest.mark.parametrize("field,value", [
-    ("created_at", "2026-06-06T00:00:00Z"),
-    ("issue_url", "https://api.github.com/repos/someone/FORK/issues/1"),
-    ("user", {"login": "nassernajibi", "id": 999}),
-])
-def test_identity_fields_must_agree_across_both_live_reads(synthetic, field,
-                                                           value):
-    first = comment(cid=93)
-    second = dict(comment(cid=93))
-    second[field] = value
-    gh = FakeGitHub(comments=[first], sequence=[first, second])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert record is None
-    assert [c for c, _ in issues] in (["AUTHZ_MUTATED_DURING_READ"],
-                                      ["AUTHZ_WRONG_TARGET"])
-
-
-def test_the_authorization_record_carries_the_api_issue_url(synthetic):
-    record, issues = rf.find_authorization(FakeGitHub(comments=[comment()]),
-                                           synthetic["contract"])
-    assert issues == []
-    assert record["issue_url"] == EXPECTED_ISSUE_URL
-
-
-def test_the_github_cli_pins_the_host_and_drops_ambient_redirection():
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    body = src.split("class GitHubCLI", 1)[1].split("\ndef ", 1)[0]
-    assert '"--hostname", GITHUB_HOST' in body
-    for ambient in ("GH_HOST", "GH_ENTERPRISE_TOKEN", "GITHUB_API_URL"):
-        assert ambient in body, f"{ambient} is not cleared for the gh child"
-    assert rf.GITHUB_HOST == "github.com"
 
 
 # ---------------------------------------------------------------------------
@@ -3594,22 +3756,24 @@ def test_an_unreadable_restored_output_reports_rollback_failed(e2e,
 
 
 @pytest.mark.parametrize("stamps,expect", [
-    ({"created_at": "2026-01-02T00:00:00Z",
-      "updated_at": "2026-01-01T00:00:00Z"}, True),
-    ({"updated_at": "2026-01-03T00:00:00Z",
+    # the creator attested BEFORE the declaration they attest to
+    ({"declaration_date": "2026-01-02T00:00:00Z",
+      "declared_at": "2026-01-01T00:00:00Z"}, True),
+    # the release activated BEFORE the attestation it rests on
+    ({"declared_at": "2026-01-03T00:00:00Z",
       "activated_at": "2026-01-02T00:00:00Z"}, True),
-    ({"created_at": "2026-01-01T00:00:00Z",
-      "updated_at": "2026-01-02T00:00:00Z",
+    ({"declaration_date": "2026-01-01T00:00:00Z",
+      "declared_at": "2026-01-02T00:00:00Z",
       "activated_at": "2026-01-03T00:00:00Z"}, False),
 ])
 def test_receipt_timestamp_ordering_is_enforced(synthetic, stamps, expect):
-    """created_at <= updated_at <= activated_at."""
+    """declaration_date <= declared_at <= activated_at."""
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
     receipt.update(stamps)
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], None,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
     assert ("RECEIPT_TIMESTAMP_ORDER" in codes) is expect, codes
@@ -3629,53 +3793,59 @@ def test_fractional_seconds_are_not_collapsed():
 
 def test_fractional_ordering_is_enforced_in_the_receipt(synthetic):
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
-    receipt.update({"created_at": "2026-01-01T00:00:00.500Z",
-                    "updated_at": "2026-01-01T00:00:00.100Z"})
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    receipt.update({"declaration_date": "2026-01-01T00:00:00.500Z",
+                    "declared_at": "2026-01-01T00:00:00.100Z"})
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], None,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
     assert "RECEIPT_TIMESTAMP_ORDER" in codes
 
 
-@pytest.mark.parametrize("value", [True, False, 1.0, "1", None, [1]])
-def test_a_non_integer_pull_request_is_refused(synthetic, value):
-    """JSON true and 1.0 both compare equal to 1."""
+@pytest.mark.parametrize("value", [True, False, 1.0, "x", None, [1], 1])
+def test_a_non_string_guidance_credit_is_refused(synthetic, value):
+    """The credit is a NAME. Anything that is not the contracted string is
+    refused, including values that merely compare loosely equal to it."""
     record = _record(synthetic)
-    receipt = rf.build_authorization_receipt(
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
         starting_head=synthetic["head"], activated_at=ACTIVATED_AT)
-    receipt["pull_request"] = value
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    receipt["scientific_guidance_credit"] = value
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], None,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
-    assert "RECEIPT_PULL_REQUEST" in codes, (value, codes)
+    assert "RECEIPT_GUIDANCE_CREDIT" in codes, (value, codes)
 
 
-def test_an_edited_authorization_activates_at_its_updated_time(synthetic):
-    """activated_at defaults to updated_at, so an edit cannot invert order."""
-    edited = dict(comment(cid=55), updated_at="2026-03-03T00:00:00Z")
-    gh = FakeGitHub(comments=[edited], sequence=[edited, edited])
-    record, issues = rf.find_authorization(gh, synthetic["contract"])
-    assert issues == []
-    receipt = rf.build_authorization_receipt(
+def test_the_declaration_activates_at_its_attested_time(synthetic):
+    """activated_at defaults to declared_at, so it can never precede it."""
+    record = _record(synthetic)
+    receipt = rf.build_licence_receipt(
         synthetic["root"], synthetic["contract"], record,
-        starting_head=synthetic["head"], activated_at=record["updated_at"])
-    assert receipt["activated_at"] == "2026-03-03T00:00:00Z"
-    assert rf.validate_authorization_receipt(
+        starting_head=synthetic["head"],
+        activated_at=record["declared_at"])
+    assert receipt["activated_at"] == DECLARED_AT
+    assert rf.validate_licence_receipt(
         receipt, synthetic["contract"], record,
         starting_head=synthetic["head"], repo_root=synthetic["root"]) == []
-    receipt["activated_at"] = record["created_at"]
-    codes = [c for c, _ in rf.validate_authorization_receipt(
+    # Backdating the activation to the declaration's own date inverts the
+    # order the receipt requires.
+    receipt["activated_at"] = record["declaration_date"]
+    codes = [c for c, _ in rf.validate_licence_receipt(
         receipt, synthetic["contract"], None,
         starting_head=synthetic["head"], repo_root=synthetic["root"])]
     assert "RECEIPT_TIMESTAMP_ORDER" in codes
 
 
 def _active_tree_with_row(tmp_path, row):
-    """A minimal ACTIVE tree whose contract carries `row` as the active row."""
+    """A minimal ACTIVE tree whose contract carries `row` as the active row.
+
+    A real git repository, because ACTIVE now requires a receipt resting on a
+    declaration that is COMMITTED: a tree with the right files but no history
+    would exercise the untracked refusal rather than the accepting path.
+    """
     als = rf._artwork
     contract = rf.load_contract()
     contract["synthetic_fixture"] = True
@@ -3696,24 +3866,42 @@ def _active_tree_with_row(tmp_path, row):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(("S::" + rel + "\n").encode("utf-8"))
         artwork[rel] = als.sha256_file(target)
+
+    _run(root, "init", "-q", "-b", "chore/final-repository-cleanup")
+    _run(root, "config", "user.email", "t@example.invalid")
+    _run(root, "config", "user.name", "T")
+    _run(root, "config", "core.autocrlf", "false")
+
+    decl_rel = contract["declaration_source"]["tracked_record_path"]
+    decl_path = root / decl_rel
+    decl_path.parent.mkdir(parents=True, exist_ok=True)
+    decl_bytes = (json.dumps(declaration_record(artwork), indent=2,
+                             sort_keys=True) + "\n").encode("utf-8")
+    decl_path.write_bytes(decl_bytes)
+    _run(root, "add", "-A")
+    _run(root, "commit", "-qm", "active tree")
+    blob_sha1 = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD:" + decl_rel],
+        capture_output=True, text=True).stdout.strip()
+
     repo = contract["repository"]
-    body = contract["authorization"]["text"]
-    receipt_path = root / contract["authorization_receipt"]["tracked_path"]
+    receipt_path = root / contract["licence_receipt"]["tracked_path"]
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     receipt_path.write_text(json.dumps({
-        "schema_version": contract["authorization_receipt"]["schema_version"],
+        "schema_version": contract["licence_receipt"]["schema_version"],
         "repository": repo["owner"] + "/" + repo["name"],
-        "pull_request": repo["pull_request"],
-        "permalink": "https://github.com/" + repo["owner"] + "/"
-                     + repo["name"] + "/pull/" + str(repo["pull_request"])
-                     + "#issuecomment-101",
-        "issue_url": contract["authorization"]["expected_issue_url"],
-        "comment_id": 101,
-        "login": contract["authorization"]["required_login"],
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z", "body": body,
-        "body_sha256": als.sha256_hex(body), "licensed_artwork": artwork,
-        "activated_at": "2026-01-01T00:00:00Z",
+        "licence_source": "creator_declaration",
+        "declaration_date": DECL_DATE,
+        "declared_text": DECL_TEXT,
+        "declared_text_sha256": als.sha256_hex(DECL_TEXT),
+        "licensed_artwork": artwork,
+        "declaration_record_path": decl_rel,
+        "declaration_record_sha256": rf.sha256_bytes(decl_bytes),
+        "declaration_record_blob_sha1": blob_sha1,
+        "creator": CREATOR,
+        "declared_at": DECLARED_AT,
+        "scientific_guidance_credit": GUIDANCE_CREDIT,
+        "activated_at": "2026-01-03T00:00:00Z",
         "finalizer_version": contract["finalizer_version"],
         "starting_head": "a" * 40}, indent=2),
         encoding="utf-8", newline="\n")
@@ -3974,7 +4162,7 @@ def test_a_superseded_verification_that_raises_rolls_everything_back(
         "the predecessor was not restored"
     assert not list(e2e["staging"].glob("*finalizer-tmp*"))
     assert "ROLLBACK_FAILED" not in report.codes, report.codes
-    receipt = e2e["root"] / e2e["contract"]["authorization_receipt"][
+    receipt = e2e["root"] / e2e["contract"]["licence_receipt"][
         "tracked_path"]
     assert not receipt.exists(), "the receipt survived the rollback"
     for rel in e2e["contract"]["licence_records"]:
@@ -4019,7 +4207,7 @@ def test_a_cleanup_failure_after_the_commit_point_leaves_the_release_standing(
     contract = e2e["contract"]
     assert dest.is_file() and dest.stat().st_size > len(b"PREDECESSOR ARCHIVE")
     assert (e2e["root"]
-            / contract["authorization_receipt"]["tracked_path"]).is_file()
+            / contract["licence_receipt"]["tracked_path"]).is_file()
 
 
 @pytest.mark.parametrize("planter", ["file", "symlink"])
@@ -4304,7 +4492,7 @@ def test_a_regular_stale_temporary_is_refused_not_reused(tmp_path):
 def test_a_receipt_appearing_concurrently_is_preserved_and_refuses(synthetic):
     """A receipt that shows up mid-transaction is somebody's evidence."""
     root = synthetic["root"]
-    rel = synthetic["contract"]["authorization_receipt"]["tracked_path"]
+    rel = synthetic["contract"]["licence_receipt"]["tracked_path"]
     payload = b'{"mine": true}\n'
     txn = rf.Transaction(root, synthetic["contract"])
     txn._capture(rel, payload, True)                  # snapshot: absent
@@ -4698,7 +4886,7 @@ def test_a_symlinked_receipt_outside_the_repository_is_never_active(
     contract = rf.loads_strict(
         (root / "scripts/release/finalizer_contract.json")
         .read_text(encoding="utf-8"))
-    rel = contract["authorization_receipt"]["tracked_path"]
+    rel = contract["licence_receipt"]["tracked_path"]
     target = root / rel
     outside = tmp_path / "elsewhere" / "receipt.json"
     outside.parent.mkdir(parents=True, exist_ok=True)
@@ -4755,7 +4943,7 @@ def test_a_special_object_at_the_receipt_path_is_refused(tmp_path, kind):
     contract = rf.loads_strict(
         (root / "scripts/release/finalizer_contract.json")
         .read_text(encoding="utf-8"))
-    target = root / contract["authorization_receipt"]["tracked_path"]
+    target = root / contract["licence_receipt"]["tracked_path"]
     target.unlink()
     if kind == "directory":
         target.mkdir()
@@ -4776,7 +4964,7 @@ def test_a_receipt_resolving_outside_the_repository_is_refused(tmp_path,
     contract = rf.loads_strict(
         (root / "scripts/release/finalizer_contract.json")
         .read_text(encoding="utf-8"))
-    rel = contract["authorization_receipt"]["tracked_path"]
+    rel = contract["licence_receipt"]["tracked_path"]
     target = root / rel
     outside = tmp_path / "outside" / "receipt.json"
     outside.parent.mkdir(parents=True, exist_ok=True)
@@ -4816,88 +5004,6 @@ def test_every_receipt_surface_uses_the_same_containment_rule():
     fin = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
     assert fin.count("_artwork.resolve_receipt_path") >= 3, \
         "the finalizer does not apply the containment rule at every surface"
-
-
-# ---------------------------------------------------------------------------
-# 29. r3d: supersession by the author's LATEST ACTIVITY, not creation order
-# ---------------------------------------------------------------------------
-def _find(comments):
-    return rf.find_authorization(
-        FakeGitHub(pr=good_pr("h" * 40), comments=list(comments)),
-        rf.load_contract())
-
-
-@pytest.mark.parametrize("later_body,what", [
-    ("I revoke the authorization given above. Do not distribute the artwork.",
-     "revocation"),
-    ("The authorization above applies only to Figure 1, and not to Figure 4.",
-     "qualification"),
-])
-def test_an_older_comment_edited_after_the_grant_invalidates_it(later_body,
-                                                                what):
-    """created_at ordering read an edited-in revocation as ancient history."""
-    grant = comment(cid=200, created="2026-02-01T00:00:00Z",
-                    updated="2026-02-01T00:00:00Z")
-    # POSTED BEFORE the grant, EDITED AFTER it into a revocation/qualification.
-    edited = comment(body=later_body, cid=100,
-                     created="2026-01-01T00:00:00Z",
-                     updated="2026-03-01T00:00:00Z")
-    record, issues = _find([edited, grant])
-    assert record is None, f"an edited-in {what} was ignored"
-    assert [c for c, _ in issues] == ["AUTHZ_SUPERSEDED_OR_QUALIFIED"], issues
-    assert "last edited 2026-03-01T00:00:00Z" in issues[0][1], issues[0][1]
-
-
-def test_an_older_unedited_comment_does_not_supersede_the_grant():
-    """The control: without the edit the same pair MUST authorize."""
-    grant = comment(cid=200, created="2026-02-01T00:00:00Z")
-    earlier = comment(body="Looks good, reviewing now.", cid=100,
-                      created="2026-01-01T00:00:00Z")
-    record, issues = _find([earlier, grant])
-    assert issues == [], issues
-    assert record is not None and record["comment_id"] == 200
-
-
-def test_equal_activity_timestamps_break_deterministically_on_id():
-    """A tie must not depend on the order the API returned the page in."""
-    stamp = "2026-02-01T00:00:00Z"
-    for order in ([comment(cid=100, created=stamp),
-                   comment(body="Actually, hold off for now.", cid=101,
-                           created=stamp)],
-                  [comment(body="Actually, hold off for now.", cid=101,
-                           created=stamp),
-                   comment(cid=100, created=stamp)]):
-        record, issues = _find(order)
-        assert record is None, "the tie resolved in favour of the grant"
-        assert [c for c, _ in issues] == ["AUTHZ_SUPERSEDED_OR_QUALIFIED"]
-
-    # The mirror image: the GRANT carries the higher id and wins both orders.
-    for order in ([comment(cid=101, created=stamp),
-                   comment(body="Reviewing.", cid=100, created=stamp)],
-                  [comment(body="Reviewing.", cid=100, created=stamp),
-                   comment(cid=101, created=stamp)]):
-        record, issues = _find(order)
-        assert issues == [], issues
-        assert record["comment_id"] == 101
-
-
-def test_an_unparsable_timestamp_refuses_rather_than_guessing():
-    """An unorderable timeline cannot show that nothing came after."""
-    grant = comment(cid=200, created="2026-02-01T00:00:00Z")
-    broken = comment(body="hm", cid=100, created="2026-13-45T99:99:99Z",
-                     updated="not a date at all")
-    record, issues = _find([broken, grant])
-    assert record is None
-    assert [c for c, _ in issues] == ["AUTHZ_TIMESTAMP_UNPARSABLE"], issues
-
-
-def test_pagination_and_the_two_live_refetches_are_retained():
-    """The r3c improvements survive the r3d ordering change."""
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    assert '"--paginate", "--slurp"' in src
-    body = src.split("def find_authorization", 1)[1].split("\ndef ", 1)[0]
-    assert "live_fetches_required" in body
-    assert "github.issue_comment(owner, name, chosen" in body
 
 
 # ---------------------------------------------------------------------------
@@ -5901,7 +6007,7 @@ def test_the_receipt_open_refuses_an_object_swapped_after_inspection(tmp_path):
     contract = rf.loads_strict(
         (root / "scripts/release/finalizer_contract.json")
         .read_text(encoding="utf-8"))
-    target = root / contract["authorization_receipt"]["tracked_path"]
+    target = root / contract["licence_receipt"]["tracked_path"]
 
     path, issues = als.resolve_receipt_path(root, contract)
     assert path is not None and not issues, issues      # inspection approves
@@ -5940,7 +6046,7 @@ def test_the_receipt_open_protects_every_path_component(tmp_path):
     contract = rf.loads_strict(
         (root / "scripts/release/finalizer_contract.json")
         .read_text(encoding="utf-8"))
-    rel = contract["authorization_receipt"]["tracked_path"]
+    rel = contract["licence_receipt"]["tracked_path"]
     parent = (root / rel).parent
     receipt = (root / rel).read_bytes()
 
@@ -7823,13 +7929,43 @@ def test_the_publication_row_and_the_active_marker_are_pinned_too():
     assert rf.reviewed_activation_issues(contract)
 
 
-def test_the_approval_paragraph_itself_is_pinned():
-    """The paragraph a coauthor is asked to agree to cannot be swapped."""
+def test_the_declaration_paragraph_itself_is_pinned():
+    """The paragraph the creator's grant is stated in cannot be swapped."""
     contract = _real()
-    contract["authorization"]["text"] = \
-        contract["authorization"]["text"].replace("seven", "eight")
+    contract["licence_declaration"]["text"] = \
+        contract["licence_declaration"]["text"].replace("seven", "eight")
     codes = {c for c, _ in rf.reviewed_activation_issues(contract)}
-    assert codes == {"CCBY_APPROVAL_TEXT_UNREVIEWED"}
+    assert codes == {"CCBY_DECLARATION_TEXT_UNREVIEWED"}
+
+
+def test_the_public_credit_line_is_pinned_and_carried_everywhere():
+    """The credit is legal prose too, and every destination must carry it.
+
+    An edit that dropped the credit, or that turned it into a second grant,
+    would be a change to who this release says made the artwork - made from a
+    data file. It is pinned in code for the same reason the grant is.
+    """
+    contract = _real()
+    contract["licence_declaration"]["public_credit"] += " And Dr. Najibi."
+    codes = {c for c, _ in rf.reviewed_activation_issues(contract)}
+    assert "CCBY_PUBLIC_CREDIT_UNREVIEWED" in codes
+
+    # Every authored destination carries the reviewed credit verbatim.
+    contract = _real()
+    credit = contract["licence_declaration"]["public_credit"]
+    for item in contract["ccby_activation_plan"]["replacements"]:
+        assert credit in " ".join(item["to"].split()), item["file"]
+
+    # Strip it from one destination and the release is refused. `.zenodo.json`
+    # is the surface that carries the credit on a single unwrapped line, so a
+    # plain replace really removes it rather than missing a line break.
+    contract = _real()
+    target = next(r for r in contract["ccby_activation_plan"]["replacements"]
+                  if r["file"] == ".zenodo.json")
+    assert credit in target["to"], "fixture no longer demonstrates the case"
+    target["to"] = target["to"].replace(credit, "")
+    codes = {c for c, _ in rf.reviewed_activation_issues(contract)}
+    assert "CCBY_PUBLIC_CREDIT_MISSING" in codes, codes
 
 
 def test_the_reviewed_pins_are_code_not_contract():
@@ -8057,1605 +8193,3 @@ def test_an_undeclared_directory_scope_is_refused_and_a_declared_one_is_not():
     assert rf._scope_token_claim(
         "assets/frozen_figures/fig01/**", registered,
         {"assets/frozen_figures/fig01"}) is None
-
-
-# ---------------------------------------------------------------------------
-# 42. 4E1d: approval by preserved email or signed form - no GitHub task
-#
-# Dr. Najibi is asked for one thing: a reply, or a signature. He is never asked
-# to open GitHub, run a command or operate any tooling. What the release rests
-# on is a two-part chain, and neither half is sufficient alone:
-#
-#   the ORIGINAL evidence   the complete email with its headers, or the signed
-#                           scan. Private, kept OUTSIDE the repository, and
-#                           re-read and re-hashed at finalization time.
-#   the TRACKED record      committed, reviewable, and public: what was
-#                           approved, when, by which kind of evidence, over
-#                           which seven files, under whose custody - plus the
-#                           evidence's own digest and length.
-#
-# There is deliberately no boolean that means "approved", no way to supply the
-# approved text on the command line, and no way for this tool to write the
-# record.
-# ---------------------------------------------------------------------------
-APPROVAL_REL = "docs/FIGURE_01_04_CC_BY_APPROVAL_RECORD.json"
-APPROVAL_STATEMENT = (
-    "I, Fawaz Bouhamad, am the custodian of the original approval evidence "
-    "identified in this record. I received it directly from Dr. Nasser "
-    "Najibi, I have preserved it complete and unaltered outside this "
-    "repository, and the approved paragraph recorded here is a verbatim copy "
-    "of the paragraph that evidence contains.")
-EVIDENCE_BODY = (
-    "From: Nasser Najibi <redacted@example.invalid>\r\n"
-    "Date: Tue, 11 Aug 2026 09:14:02 +0000\r\n"
-    "Subject: Re: SCORCH - approval to license the Figure 1 and Figure 4 "
-    "artwork under CC BY 4.0\r\n"
-    "Message-ID: <synthetic-test-only@example.invalid>\r\n"
-    "\r\n" + AUTH_TEXT + "\r\n").encode("utf-8")
-
-
-def _approval_sources_block():
-    return {
-        "preferred": "external_evidence",
-        "enabled": ["external_evidence", "github_pr_comment"],
-        "external_evidence": {
-            "schema_version": "1.0.0",
-            "tracked_record_path": APPROVAL_REL,
-            "must_not_exist_before_approval": True,
-            "must_be_tracked_at_head": True,
-            "allowed_source_types": ["approval_email",
-                                     "signed_approval_form"],
-            "custodian": "Fawaz Bouhamad",
-            "evidence_must_be_outside_repository": True,
-            "max_evidence_bytes": 33554432,
-            "required_fields": ["schema_version", "source_type",
-                                "approval_date", "approved_text",
-                                "licensed_artwork", "evidence",
-                                "custodian_attestation"],
-            "evidence_required_fields": ["filename", "sha256", "bytes"],
-            "attestation_required_fields": ["custodian", "attested_at",
-                                            "statement"],
-            "attestation_statement": APPROVAL_STATEMENT}}
-
-
-def _approval_record_document(synthetic, evidence, **overrides):
-    root = synthetic["root"]
-    document = {
-        "schema_version": "1.0.0",
-        "source_type": "approval_email",
-        "approval_date": "2026-08-11T09:14:02Z",
-        "approved_text": AUTH_TEXT,
-        "licensed_artwork": {
-            rel: rf.sha256_file(root / rel)
-            for rel in synthetic["contract"]["ccby_artwork_paths"]},
-        "evidence": {
-            "filename": evidence.name,
-            "sha256": rf.sha256_bytes(evidence.read_bytes()),
-            "bytes": len(evidence.read_bytes())},
-        "custodian_attestation": {
-            "custodian": "Fawaz Bouhamad",
-            "attested_at": "2026-08-11T10:00:00Z",
-            "statement": APPROVAL_STATEMENT}}
-    document.update(overrides)
-    return document
-
-
-def _commit_approval_record(synthetic, document, *, commit=True, raw=None):
-    root = synthetic["root"]
-    path = root / APPROVAL_REL
-    path.parent.mkdir(parents=True, exist_ok=True)
-    text = raw if raw is not None else (
-        json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False)
-        + "\n")
-    path.write_text(text, encoding="utf-8", newline="\n")
-    if commit:
-        _run(root, "add", APPROVAL_REL)
-        _run(root, "commit", "-qm", "record the coauthor approval")
-    return path
-
-
-@pytest.fixture
-def approval(synthetic, tmp_path):
-    """A synthetic repository whose contract enables the external route.
-
-    The evidence file is written OUTSIDE the repository, which is where a real
-    one lives: full email headers are personal routing data and a signature is
-    a signature, so only the tracked record is ever published.
-    """
-    synthetic["contract"]["approval_sources"] = _approval_sources_block()
-    synthetic["contract"]["authorization_receipt"][
-        "required_fields_external_evidence"] = [
-            "schema_version", "repository", "approval_source", "source_type",
-            "approval_date", "approved_text", "approved_text_sha256",
-            "licensed_artwork", "approval_record_path",
-            "approval_record_sha256", "approval_record_blob_sha1",
-            "evidence_filename", "evidence_sha256", "evidence_bytes",
-            "custodian", "attested_at", "activated_at", "finalizer_version",
-            "starting_head"]
-    evidence = tmp_path / "najibi_approval_email.eml"
-    evidence.write_bytes(EVIDENCE_BODY)
-    assert synthetic["root"] not in evidence.parents
-    return {"synthetic": synthetic, "root": synthetic["root"],
-            "contract": synthetic["contract"], "evidence": evidence}
-
-
-def _resolve(approval, **kwargs):
-    return rf.find_external_approval(
-        approval["root"], approval["contract"],
-        kwargs.pop("evidence", approval["evidence"]))
-
-
-def _refused(approval, **kwargs):
-    record, issues = _resolve(approval, **kwargs)
-    assert record is None, "the approval was accepted and must not have been"
-    return {code for code, _ in issues}, " ".join(w for _, w in issues)
-
-
-# --- VALID ------------------------------------------------------------------
-def test_a_valid_email_approval_resolves(approval):
-    """The happy path, stated once: this is what a real approval looks like."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, issues = _resolve(approval)
-    assert issues == []
-    assert record["approval_source"] == "external_evidence"
-    assert record["source_type"] == "approval_email"
-    assert record["approved_text"] == AUTH_TEXT
-    assert record["evidence_filename"] == "najibi_approval_email.eml"
-    assert record["evidence_sha256"] == rf.sha256_bytes(EVIDENCE_BODY)
-    assert record["evidence_bytes"] == len(EVIDENCE_BODY)
-    assert len(record["approval_record_blob_sha1"]) == 40
-    assert len(record["approval_record_sha256"]) == 64
-    assert record["custodian"] == "Fawaz Bouhamad"
-
-
-def test_a_signed_form_is_the_other_accepted_source_type(approval, tmp_path):
-    """A signature on paper is as good as a reply by email, and is labelled.
-
-    The preserved evidence is the SCAN, so it is a .pdf and not an .eml - see
-    the source-type/format consistency rule below.
-    """
-    form = tmp_path / "najibi_signed_approval_form.pdf"
-    form.write_bytes(b"%PDF-1.7\n" + EVIDENCE_BODY)
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"], form,
-                                  source_type="signed_approval_form"))
-    record, issues = _resolve(approval, evidence=form)
-    assert issues == []
-    assert record["source_type"] == "signed_approval_form"
-
-
-@pytest.mark.parametrize("source_type,name", [
-    # An email "preserved" as a word processor document or a screenshot is a
-    # TRANSCRIPTION: the headers that carry the provenance are gone.
-    ("approval_email", "najibi_approval_email.docx"),
-    ("approval_email", "screenshot_of_approval.png"),
-    ("approval_email", "approval.pdf"),
-    # A signed form "preserved" as an .eml is not the signature.
-    ("signed_approval_form", "najibi_signed_form.eml"),
-    ("signed_approval_form", "signed_form.txt"),
-])
-def test_evidence_whose_format_contradicts_its_source_type_is_refused(
-        approval, tmp_path, source_type, name):
-    """The record's claim about HOW the approval arrived must match the file."""
-    evidence = tmp_path / name
-    evidence.write_bytes(EVIDENCE_BODY)
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"], evidence,
-                                  source_type=source_type))
-    record, issues = _resolve(approval, evidence=evidence)
-    assert record is None
-    assert "APPROVAL_EVIDENCE_FORMAT" in {code for code, _ in issues}
-
-
-def test_the_format_rule_is_a_consistency_check_only(approval):
-    """It must not claim to authenticate anything. See the trust model."""
-    issues = rf.evidence_format_issues("approval_email", "transcript.docx")
-    assert issues and issues[0][0] == "APPROVAL_EVIDENCE_FORMAT"
-    # An unknown source type is not this rule's business: the allowed-source
-    # -type check refuses it, and inventing a format rule for it here would
-    # report the wrong reason.
-    assert rf.evidence_format_issues("something_else", "x.docx") == []
-
-
-# --- MISSING ----------------------------------------------------------------
-def test_before_any_approval_the_record_is_absent_and_the_release_is_blocked(
-        approval):
-    """TODAY'S STATE. Nothing has been approved, so nothing can be finalized."""
-    rel, present = rf.approval_record_state(approval["root"],
-                                            approval["contract"])
-    assert rel == APPROVAL_REL
-    assert present is False
-    codes, why = _refused(approval)
-    assert codes == {"RELEASE_BLOCKED_D6"}
-    assert APPROVAL_REL in why
-
-
-def test_the_original_evidence_is_required_not_merely_the_record(approval):
-    """A tracked record alone does not finalize anything.
-
-    This is the property that stops the record from being a boolean: the run
-    must be given the ORIGINAL bytes and must find that they hash to what the
-    record committed to.
-    """
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    codes, _ = _refused(approval, evidence=None)
-    assert codes == {"APPROVAL_EVIDENCE_MISSING"}
-
-
-def test_a_missing_evidence_file_is_refused(approval, tmp_path):
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    codes, _ = _refused(approval, evidence=tmp_path / "not_there.eml")
-    assert codes == {"APPROVAL_EVIDENCE_MISSING"}
-
-
-# --- MALFORMED --------------------------------------------------------------
-def test_a_record_that_is_not_json_is_refused(approval):
-    _commit_approval_record(approval["synthetic"], None,
-                            raw="this is not JSON\n")
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_MALFORMED"}
-
-
-def test_a_record_with_a_duplicate_key_is_refused(approval):
-    """Strict parsing. Two `approved_text` keys parse cleanly under the stdlib
-    and one of them silently wins."""
-    _commit_approval_record(
-        approval["synthetic"], None,
-        raw='{"approved_text": "a", "approved_text": "b"}\n')
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_MALFORMED"}
-
-
-@pytest.mark.parametrize("field", ["source_type", "approval_date",
-                                   "approved_text", "licensed_artwork",
-                                   "evidence", "custodian_attestation"])
-def test_a_record_missing_any_required_field_is_refused(approval, field):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    del document[field]
-    _commit_approval_record(approval["synthetic"], document)
-    codes, why = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_MALFORMED"}
-    assert field in why
-
-
-# --- UNTRACKED --------------------------------------------------------------
-def test_an_untracked_record_is_refused(approval):
-    """An approval record that exists only in a working copy is not a record.
-
-    It has no history, no review and no author. Anybody who can write a file
-    could otherwise write an approval.
-    """
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]),
-        commit=False)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_UNTRACKED"}
-
-
-# --- LOCALLY MODIFIED -------------------------------------------------------
-def test_a_locally_modified_record_is_refused(approval):
-    """Committed once, edited afterwards: the reviewed bytes are not these."""
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    path = _commit_approval_record(approval["synthetic"], document)
-    document["approval_date"] = "2020-01-01T00:00:00Z"
-    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8", newline="\n")
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_MODIFIED"}
-
-
-# --- WRONG HASH -------------------------------------------------------------
-def test_evidence_whose_bytes_do_not_match_the_record_is_refused(approval,
-                                                                 tmp_path):
-    """A different email, with the same filename, is not this approval."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    approval["evidence"].write_bytes(EVIDENCE_BODY + b"PS: on second thought\r\n")
-    codes, why = _refused(approval)
-    assert "APPROVAL_EVIDENCE_MISMATCH" in codes
-    assert "APPROVAL_EVIDENCE_BYTES" in codes
-    assert rf.sha256_bytes(EVIDENCE_BODY) in why
-
-
-def test_a_record_that_records_the_wrong_digest_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["evidence"]["sha256"] = "0" * 64
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_EVIDENCE_MISMATCH"}
-
-
-def test_evidence_under_a_different_filename_is_refused(approval, tmp_path):
-    other = tmp_path / "some_other_message.eml"
-    other.write_bytes(EVIDENCE_BODY)
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    codes, _ = _refused(approval, evidence=other)
-    assert codes == {"APPROVAL_EVIDENCE_FILENAME"}
-
-
-def test_evidence_kept_inside_the_repository_is_refused(approval):
-    """Full headers and signatures are private and stay out of the tree."""
-    inside = approval["root"] / "najibi_approval_email.eml"
-    inside.write_bytes(EVIDENCE_BODY)
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    codes, _ = _refused(approval, evidence=inside)
-    assert codes == {"APPROVAL_EVIDENCE_IN_REPOSITORY"}
-
-
-# --- WRONG SCOPE ------------------------------------------------------------
-def test_a_record_approving_an_eighth_work_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["licensed_artwork"]["assets/other/Figure_09.png"] = "0" * 64
-    _commit_approval_record(approval["synthetic"], document)
-    codes, why = _refused(approval)
-    assert codes == {"APPROVAL_ARTWORK_SCOPE"}
-    assert "Figure_09.png" in why
-
-
-def test_a_record_approving_only_six_of_the_seven_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["licensed_artwork"].pop(
-        approval["contract"]["ccby_artwork_paths"][0])
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_ARTWORK_SCOPE"}
-
-
-def test_a_record_whose_artwork_digests_no_longer_hold_is_refused(approval):
-    """The approval covers the bytes that were shown, not the path."""
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    _commit_approval_record(approval["synthetic"], document)
-    rel = approval["contract"]["ccby_artwork_paths"][0]
-    (approval["root"] / rel).write_bytes(b"REPLACED ARTWORK\n")
-    codes, why = _refused(approval)
-    assert codes == {"APPROVAL_ARTWORK_MISMATCH"}
-    assert rel in why
-
-
-# --- WRONG TEXT -------------------------------------------------------------
-def test_a_paraphrased_approval_paragraph_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["approved_text"] = AUTH_TEXT.replace("seven", "all")
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_TEXT_MISMATCH"}
-
-
-def test_the_approval_paragraph_plus_a_revocation_is_not_approval(approval):
-    """Containment is not equality. The exact paragraph is a SUBSTRING of a
-    message that goes on to withdraw it."""
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["approved_text"] = AUTH_TEXT + " However, I withdraw this."
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_TEXT_MISMATCH"}
-
-
-def test_only_whitespace_is_normalized_in_the_approval_paragraph(approval):
-    """A reply wraps where the mail client wrapped it; that is not a change."""
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["approved_text"] = AUTH_TEXT.replace(" ", "\n   ", 4)
-    _commit_approval_record(approval["synthetic"], document)
-    record, issues = _resolve(approval)
-    assert issues == []
-    assert record is not None
-
-
-# --- the attestation and the other declared fields --------------------------
-def test_a_wrong_custodian_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["custodian_attestation"]["custodian"] = "Somebody Else"
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_ATTESTATION_CUSTODIAN"}
-
-
-def test_a_rewritten_attestation_statement_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["custodian_attestation"]["statement"] = "I attest to everything."
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_ATTESTATION_STATEMENT"}
-
-
-@pytest.mark.parametrize("value", ["", "yesterday", "2026-13-45T00:00:00Z",
-                                   "2026-08-11 09:14:02"])
-def test_an_unreal_approval_date_is_refused(approval, value):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["approval_date"] = value
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_DATE"}
-
-
-def test_an_unrecognised_source_type_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["source_type"] = "verbal_agreement"
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_SOURCE_TYPE"}
-
-
-def test_a_wrong_schema_version_is_refused(approval):
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document["schema_version"] = "9.9.9"
-    _commit_approval_record(approval["synthetic"], document)
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_RECORD_SCHEMA_VERSION"}
-
-
-def test_the_route_is_refused_outright_when_it_is_not_enabled(approval):
-    approval["contract"]["approval_sources"]["enabled"] = ["github_pr_comment"]
-    codes, _ = _refused(approval)
-    assert codes == {"APPROVAL_SOURCE_DISABLED"}
-
-
-# --- the receipt this route produces ----------------------------------------
-def test_the_receipt_records_the_source_the_record_and_the_evidence(approval):
-    """Years later, from the tree alone: which approval, of what, by what."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, _ = _resolve(approval)
-    receipt = rf.build_authorization_receipt(
-        approval["root"], approval["contract"], record,
-        starting_head="f" * 40, activated_at="2026-08-11T11:00:00Z")
-
-    assert receipt["approval_source"] == "external_evidence"
-    assert receipt["approval_record_path"] == APPROVAL_REL
-    assert receipt["approval_record_blob_sha1"] == \
-        record["approval_record_blob_sha1"]
-    assert receipt["evidence_sha256"] == rf.sha256_bytes(EVIDENCE_BODY)
-    assert receipt["evidence_bytes"] == len(EVIDENCE_BODY)
-    # NO fabricated GitHub fields. There was no comment.
-    for absent in ("comment_id", "permalink", "issue_url", "login", "body"):
-        assert absent not in receipt
-
-    assert rf.validate_authorization_receipt(
-        receipt, approval["contract"], record, starting_head="f" * 40,
-        repo_root=approval["root"]) == []
-
-
-def test_a_receipt_that_disagrees_with_the_resolved_approval_is_refused(
-        approval):
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, _ = _resolve(approval)
-    receipt = rf.build_authorization_receipt(
-        approval["root"], approval["contract"], record,
-        starting_head="f" * 40, activated_at="2026-08-11T11:00:00Z")
-    receipt["evidence_sha256"] = "0" * 64
-    codes = {c for c, _ in rf.validate_authorization_receipt(
-        receipt, approval["contract"], record, starting_head="f" * 40,
-        repo_root=approval["root"])}
-    assert "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD" in codes
-
-
-def test_a_hand_written_receipt_cannot_stand_in_for_the_chain(approval):
-    """Every field that would have to be forged is checked against something.
-
-    The record's digests, the evidence's digest and length, the artwork
-    identities in the tree and the contracted paragraph all have to agree, and
-    none of them is a value the writer of the receipt gets to choose.
-    """
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, _ = _resolve(approval)
-    forged = {
-        "schema_version": "1.0.0",
-        "repository": "fawazbouhamad/SCORCH",
-        "approval_source": "external_evidence",
-        "source_type": "approval_email",
-        "approval_date": "2026-08-11T09:14:02Z",
-        "approved_text": "Najibi said yes.",
-        "approved_text_sha256": rf.sha256_bytes(b"Najibi said yes."),
-        "licensed_artwork": {"assets/other/Figure_09.png": "0" * 64},
-        "approval_record_path": APPROVAL_REL,
-        "approval_record_sha256": "0" * 64,
-        "approval_record_blob_sha1": "0" * 40,
-        "evidence_filename": "made_up.eml",
-        "evidence_sha256": "0" * 64,
-        "evidence_bytes": 1,
-        "custodian": "Fawaz Bouhamad",
-        "attested_at": "2026-08-11T10:00:00Z",
-        "activated_at": "2026-08-11T11:00:00Z",
-        "finalizer_version": approval["contract"]["finalizer_version"],
-        "starting_head": "f" * 40}
-    codes = {c for c, _ in rf.validate_authorization_receipt(
-        forged, approval["contract"], record, starting_head="f" * 40,
-        repo_root=approval["root"])}
-    assert "RECEIPT_APPROVED_TEXT" in codes
-    assert "RECEIPT_ARTWORK_SCOPE" in codes
-    assert "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD" in codes
-
-
-def test_a_receipt_with_an_unknown_source_is_refused(approval):
-    codes = {c for c, _ in rf.validate_authorization_receipt(
-        {"approval_source": "a_phone_call"}, approval["contract"], None,
-        starting_head="f" * 40, repo_root=approval["root"])}
-    assert codes == {"RECEIPT_APPROVAL_SOURCE"}
-
-
-def test_a_receipt_with_no_source_is_still_read_as_the_github_route(approval):
-    """Isolation. The route that already existed is unchanged by this one, and
-    a receipt written before the discriminator existed still validates as what
-    it was."""
-    codes = {c for c, _ in rf.validate_authorization_receipt(
-        {"schema_version": "1.0.0"}, approval["contract"], None,
-        starting_head="f" * 40, repo_root=approval["root"])}
-    assert codes == {"RECEIPT_FIELD_MISSING"}
-
-
-def test_the_github_route_remains_available_and_is_not_mandatory(approval):
-    """Both sources are enabled; neither is required by the other."""
-    sources = approval["contract"]["approval_sources"]
-    assert sources["preferred"] == "external_evidence"
-    assert set(sources["enabled"]) == {"external_evidence",
-                                       "github_pr_comment"}
-    assert rf.SOURCE_GITHUB == "github_pr_comment"
-    assert rf.SOURCE_EXTERNAL == "external_evidence"
-
-
-def test_nothing_in_this_route_asks_dr_najibi_to_use_github(approval,
-                                                            monkeypatch):
-    """The stated requirement, asserted rather than assumed.
-
-    Resolving an approval from a preserved email touches no GitHub client at
-    all: substituting one that raises the moment it is constructed or used
-    proves it, rather than leaving it to be read off the code.
-    """
-    class Explode:
-        def __init__(self, *a, **k):
-            raise AssertionError(
-                "the external approval route constructed a GitHub client")
-
-    monkeypatch.setattr(rf, "GitHubCLI", Explode)
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, issues = _resolve(approval)
-    assert issues == []
-    assert record["approval_source"] == "external_evidence"
-
-
-# ===========================================================================
-# PHASE 4E1e - the integration blockers the 4E1d checkpoint left open
-# ===========================================================================
-class NoCommentsGitHub(FakeGitHub):
-    """A GitHub whose COMMENT methods explode if anything touches them.
-
-    PR metadata is still served, because that is a fact about the repository
-    and is verified on both routes. The comment authorization methods are the
-    ones the external route must never reach: reaching them is how preflight
-    came to report RELEASE_BLOCKED_D6 on a release that rests on a committed
-    approval record and needs no comment at all.
-    """
-
-    def issue_comments(self, owner, repo, number):
-        raise AssertionError(
-            "issue_comments was called on the external-evidence route")
-
-    def issue_comment(self, owner, repo, comment_id):
-        raise AssertionError(
-            "issue_comment was called on the external-evidence route")
-
-
-def _install_external_route(bundle, tmp_path, *, commit=True,
-                            document=None, evidence_name=None):
-    """Put a committed approval record and its evidence into a fixture repo.
-
-    Returns the bundle with a refreshed head, the origin refs moved to match,
-    and the evidence path added, so a full finalization can run against it.
-    """
-    root, contract = bundle["root"], bundle["contract"]
-    contract["approval_sources"] = _approval_sources_block()
-    contract["authorization_receipt"]["required_fields_external_evidence"] = [
-        "schema_version", "repository", "approval_source", "source_type",
-        "approval_date", "approved_text", "approved_text_sha256",
-        "licensed_artwork", "approval_record_path", "approval_record_sha256",
-        "approval_record_blob_sha1", "evidence_filename", "evidence_sha256",
-        "evidence_bytes", "custodian", "attested_at", "activated_at",
-        "finalizer_version", "starting_head"]
-
-    evidence = tmp_path / (evidence_name or "najibi_approval_email.eml")
-    evidence.write_bytes(EVIDENCE_BODY)
-    assert Path(root) not in evidence.parents, \
-        "the original evidence must live outside the repository"
-
-    if document is None:
-        document = {
-            "schema_version": "1.0.0",
-            "source_type": "approval_email",
-            "approval_date": "2026-08-11T09:14:02Z",
-            "approved_text": AUTH_TEXT,
-            "licensed_artwork": {
-                rel: rf.sha256_file(Path(root) / rel)
-                for rel in contract["ccby_artwork_paths"]},
-            "evidence": {
-                "filename": evidence.name,
-                "sha256": rf.sha256_bytes(evidence.read_bytes()),
-                "bytes": len(evidence.read_bytes())},
-            "custodian_attestation": {
-                "custodian": "Fawaz Bouhamad",
-                "attested_at": "2026-08-11T10:00:00Z",
-                "statement": APPROVAL_STATEMENT}}
-    record_path = Path(root) / APPROVAL_REL
-    record_path.parent.mkdir(parents=True, exist_ok=True)
-    record_path.write_text(
-        json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False)
-        + "\n", encoding="utf-8", newline="\n")
-
-    (Path(root) / "scripts" / "release"
-     / "finalizer_contract.json").write_text(
-        json.dumps(contract, indent=2), encoding="utf-8", newline="\n")
-
-    bundle["evidence"] = evidence
-    if not commit:
-        return bundle
-
-    _run(root, "add", "-A")
-    _run(root, "commit", "-qm", "external approval record")
-    head = _rev(root, "HEAD")
-    branch = contract["repository"]["head_branch"]
-    _run(root, "push", "-q", "-f", "origin", "HEAD:refs/heads/" + branch)
-    _run(root, "push", "-q", "-f", "origin", "HEAD:refs/heads/main")
-    _run(root, "tag", "-f", "-a", "v1.0.0", "-m", "v1.0.0")
-    _run(root, "push", "-q", "-f", "origin", "refs/tags/v1.0.0")
-    _run(root, "update-ref", "refs/remotes/origin/" + branch, head)
-    _run(root, "update-ref", "refs/remotes/origin/main", head)
-    contract["repository"]["expected_main_commit"] = head
-    contract["repository"]["expected_tag_object"] = _rev(root, "v1.0.0")
-    contract["repository"]["expected_tag_commit"] = head
-    bundle["head"] = head
-    return bundle
-
-
-@pytest.fixture
-def external_e2e(e2e, tmp_path):
-    """The full e2e repository, switched to the external-evidence route."""
-    return _install_external_route(e2e, tmp_path)
-
-
-# --- 1. approval-source selection is REAL -----------------------------------
-def test_preflight_selects_the_external_route_and_never_asks_for_a_comment(
-        external_e2e):
-    """A PRODUCTION preflight, not a unit call: the whole gate, one route.
-
-    This is the defect 4E1d left open. Preflight validated the GitHub comment
-    route unconditionally, so a repository holding a committed, valid approval
-    record - the route the authors actually intend to use - still reported
-    RELEASE_BLOCKED_D6 for want of a comment nobody was ever going to post.
-    """
-    report = rf.preflight(
-        external_e2e["root"], "chore/final-repository-cleanup",
-        external_e2e["head"], contract=external_e2e["contract"],
-        github=NoCommentsGitHub(pr=good_pr(external_e2e["head"])),
-        approval_evidence=external_e2e["evidence"])
-
-    assert report.data["approval_source_selected"] == "external_evidence"
-    assert "RELEASE_BLOCKED_D6" not in report.codes, \
-        "the external route was reported blocked: %s" % (report.detail,)
-    assert report.data["approval_record_valid"] is True
-    assert report.data["approval_source_type"] == "approval_email"
-    # PR metadata WAS still verified through GitHub.
-    assert report.data["pr_state"] == "open"
-
-
-def test_the_external_route_finalizes_end_to_end_without_any_comment(
-        external_e2e):
-    """The complete external-route happy path, with the comment API booby
-    trapped: any call to it fails the test rather than being tolerated."""
-    report = rf.finalize(
-        external_e2e["root"], "chore/final-repository-cleanup",
-        external_e2e["head"], contract=external_e2e["contract"],
-        candidate_archive=external_e2e["candidate"],
-        release_staging=external_e2e["staging"],
-        github=NoCommentsGitHub(pr=good_pr(external_e2e["head"])),
-        final_docx_dir=external_e2e["docx_dir"],
-        aptos_font=external_e2e["font"],
-        confirm=rf.CONFIRM_PHRASE, activated_at="2026-08-11T11:00:00Z",
-        approval_evidence=external_e2e["evidence"])
-    assert report.ok, "finalize failed: %s %s" % (report.codes, report.detail)
-
-    assert report.data["approval_source_selected"] == "external_evidence"
-    note = report.data["authorization_receipt"]
-    # SOURCE-AWARE reporting: indexing comment_id here raised KeyError in
-    # 4E1d, after the archive had already been built.
-    assert note["approval_source"] == "external_evidence"
-    assert "comment_id" not in note and "body_sha256" not in note
-    assert note["approval_record_path"] == APPROVAL_REL
-    assert len(note["approval_record_blob_sha1"]) == 40
-
-    written = json.loads((Path(external_e2e["root"])
-                          / note["path"]).read_text(encoding="utf-8"))
-    assert written["approval_source"] == "external_evidence"
-    assert "comment_id" not in written
-    assert sorted(written["licensed_artwork"]) == \
-        sorted(external_e2e["contract"]["ccby_artwork_paths"])
-
-
-def test_release_blocked_d6_means_neither_enabled_route_qualifies(approval):
-    """The code says "no source qualifies", not "this route has no evidence"."""
-    root, contract = approval["root"], approval["contract"]
-    # Both routes enabled, no record committed: the GitHub route is selected
-    # and D6 is NOT asserted by the external half on its own.
-    source, rel, present, issues = rf.select_approval_source(root, contract)
-    assert (source, rel, present, issues) == \
-        ("github_pr_comment", APPROVAL_REL, False, [])
-
-    # A committed record selects the external route, and no comment is needed.
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    source, _, present, issues = rf.select_approval_source(root, contract)
-    assert (source, present, issues) == ("external_evidence", True, [])
-
-    # Neither route: no record, and the comment route switched off.
-    (Path(root) / APPROVAL_REL).unlink()
-    contract["approval_sources"]["enabled"] = ["external_evidence"]
-    source, _, _, issues = rf.select_approval_source(root, contract)
-    assert source is None
-    assert [code for code, _ in issues] == ["RELEASE_BLOCKED_D6"]
-
-
-def test_preflight_and_finalize_cannot_disagree_about_the_source():
-    """One selector, called by both. A second copy is how they drifted."""
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    pre = src.split("def preflight(", 1)[1].split("\ndef ", 1)[0]
-    fin = src.split("\ndef finalize(", 1)[1].split("\ndef ", 1)[0]
-    for name, body in (("preflight", pre), ("finalize", fin)):
-        assert "select_approval_source(" in body, \
-            "%s does not use the shared approval-source selector" % name
-    # The comment finder is reached from ONE place in preflight, and only
-    # under the GitHub branch.
-    assert pre.count("find_authorization(") == 1
-    assert "if selected == SOURCE_GITHUB:" in pre
-
-
-# --- 2. the external receipt rests on a record that is REALLY there ---------
-def _valid_external_receipt(approval, **overrides):
-    """A receipt built from a genuinely committed record, then adjusted."""
-    _commit_approval_record(
-        approval["synthetic"],
-        overrides.pop("document", None)
-        or _approval_record_document(approval["synthetic"],
-                                     approval["evidence"]))
-    record, issues = _resolve(approval)
-    assert record is not None, issues
-    receipt = rf.build_authorization_receipt(
-        approval["root"], approval["contract"], record,
-        starting_head="f" * 40, activated_at="2026-08-11T11:00:00Z")
-    receipt.update(overrides)
-    return receipt, record
-
-
-def _receipt_codes(approval, receipt):
-    als = rf._artwork
-    return {code for code, _ in als.validate_receipt(
-        receipt, approval["contract"], approval["root"])}
-
-
-def _never_active(approval, receipt):
-    """Write the receipt where the guards look, and require NOT ACTIVE."""
-    als = rf._artwork
-    rel = approval["contract"]["authorization_receipt"]["tracked_path"]
-    path = Path(approval["root"]) / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(rf.receipt_bytes(receipt))
-    state, _, _ = als.artwork_licence_state(approval["root"],
-                                            approval["contract"])
-    assert state != als.ACTIVE, \
-        "a receipt whose approval record does not hold up reported ACTIVE"
-
-
-def test_an_external_receipt_whose_record_was_never_written_is_refused(
-        approval):
-    """The hand-written receipt's real target: a record that does not exist."""
-    receipt, _ = _valid_external_receipt(approval)
-    (Path(approval["root"]) / APPROVAL_REL).unlink()
-    assert "RECEIPT_APPROVAL_RECORD_ABSENT" in _receipt_codes(approval, receipt)
-    _never_active(approval, receipt)
-
-
-def test_an_external_receipt_resting_on_an_untracked_record_is_refused(
-        approval):
-    """A record that exists only in a working copy has no author."""
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    receipt, _ = _valid_external_receipt(approval, document=document)
-    # Same bytes on disk, but removed from the index and from HEAD.
-    _run(approval["root"], "rm", "-q", "--cached", APPROVAL_REL)
-    _run(approval["root"], "commit", "-qm", "untrack the approval record")
-    assert "RECEIPT_APPROVAL_RECORD_UNTRACKED" in \
-        _receipt_codes(approval, receipt)
-    _never_active(approval, receipt)
-
-
-def test_an_external_receipt_resting_on_a_locally_edited_record_is_refused(
-        approval):
-    """The record read must be the record that was reviewed and committed."""
-    receipt, _ = _valid_external_receipt(approval)
-    path = Path(approval["root"]) / APPROVAL_REL
-    document = json.loads(path.read_text(encoding="utf-8"))
-    document["approval_date"] = "2020-01-01T00:00:00Z"
-    path.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8", newline="\n")
-    assert "RECEIPT_APPROVAL_RECORD_MODIFIED" in \
-        _receipt_codes(approval, receipt)
-    _never_active(approval, receipt)
-
-
-@pytest.mark.parametrize("field", ["approval_record_blob_sha1",
-                                   "approval_record_sha256"])
-def test_an_external_receipt_naming_the_wrong_record_identity_is_refused(
-        approval, field):
-    """Both identities are RECOMPUTED from the tree, never copied across."""
-    receipt, _ = _valid_external_receipt(approval)
-    receipt[field] = "0" * len(receipt[field])
-    assert "RECEIPT_APPROVAL_RECORD_MISMATCH" in \
-        _receipt_codes(approval, receipt)
-    _never_active(approval, receipt)
-
-
-@pytest.mark.parametrize("mutate", [
-    ("approved_text", "Najibi said yes."),
-    ("source_type", "signed_approval_form"),
-    ("approval_date", "2020-01-01T00:00:00Z"),
-    ("evidence_sha256", "0" * 64),
-    ("evidence_bytes", 1),
-    ("evidence_filename", "something_else.eml"),
-    ("custodian", "Somebody Else"),
-    ("attested_at", "2020-01-01T00:00:00Z"),
-])
-def test_an_external_receipt_contradicting_its_record_is_refused(approval,
-                                                                mutate):
-    """Text, scope, evidence metadata and attestation, each compared."""
-    field, value = mutate
-    receipt, _ = _valid_external_receipt(approval)
-    receipt[field] = value
-    assert "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD" in \
-        _receipt_codes(approval, receipt)
-    _never_active(approval, receipt)
-
-
-def test_an_external_receipt_widening_the_artwork_scope_is_refused(approval):
-    """An eighth work in the receipt is not in the record and is caught."""
-    receipt, _ = _valid_external_receipt(approval)
-    receipt["licensed_artwork"] = dict(receipt["licensed_artwork"])
-    receipt["licensed_artwork"]["assets/other/Figure_09.png"] = "0" * 64
-    assert _receipt_codes(approval, receipt) & {
-        "RECEIPT_ARTWORK_SCOPE", "RECEIPT_DISAGREES_WITH_APPROVAL_RECORD"}
-    _never_active(approval, receipt)
-
-
-def test_a_hand_written_external_receipt_with_no_record_is_never_active(
-        approval):
-    """The whole point. A self-consistent JSON file somebody typed.
-
-    Every internal digest agrees with every other, because the writer chose
-    them all. What they could not do is commit an approval record that says
-    the same things - and that is now the check.
-    """
-    text = AUTH_TEXT
-    forged = {
-        "schema_version": "1.0.0",
-        "repository": "%s/%s" % (
-            approval["contract"]["repository"]["owner"],
-            approval["contract"]["repository"]["name"]),
-        "approval_source": "external_evidence",
-        "source_type": "approval_email",
-        "approval_date": "2026-08-11T09:14:02Z",
-        "approved_text": text,
-        "approved_text_sha256": rf.sha256_bytes(text.encode("utf-8")),
-        "licensed_artwork": {
-            rel: rf.sha256_file(Path(approval["root"]) / rel)
-            for rel in approval["contract"]["ccby_artwork_paths"]},
-        "approval_record_path": APPROVAL_REL,
-        "approval_record_sha256": "a" * 64,
-        "approval_record_blob_sha1": "b" * 40,
-        "evidence_filename": "najibi_approval_email.eml",
-        "evidence_sha256": rf.sha256_bytes(EVIDENCE_BODY),
-        "evidence_bytes": len(EVIDENCE_BODY),
-        "custodian": "Fawaz Bouhamad",
-        "attested_at": "2026-08-11T10:00:00Z",
-        "activated_at": "2026-08-11T11:00:00Z",
-        "finalizer_version": approval["contract"]["finalizer_version"],
-        "starting_head": "f" * 40,
-    }
-    assert not (Path(approval["root"]) / APPROVAL_REL).exists()
-    assert "RECEIPT_APPROVAL_RECORD_ABSENT" in _receipt_codes(approval, forged)
-    _never_active(approval, forged)
-
-
-def test_the_builder_refuses_to_rest_a_receipt_on_an_uncommitted_record(
-        approval):
-    """The builder checks too - it is the first place a receipt exists."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    record, _ = _resolve(approval)
-    _run(approval["root"], "rm", "-q", "--cached", APPROVAL_REL)
-    _run(approval["root"], "commit", "-qm", "untrack")
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.build_authorization_receipt(
-            approval["root"], approval["contract"], record,
-            starting_head="f" * 40, activated_at="2026-08-11T11:00:00Z")
-    assert exc.value.code == "RECEIPT_APPROVAL_RECORD_UNTRACKED"
-
-
-# --- 3. the legal scope is PINNED IN CODE -----------------------------------
-def _code_only(body):
-    """A function body with its docstring and comment lines stripped.
-
-    These assertions are about what the CODE does. Matching the prose that
-    explains why a call is absent is how a source-inspection test starts
-    failing for saying the right thing.
-    """
-    if '"""' in body:
-        body = body.split('"""', 2)[-1]
-    return "\n".join(line for line in body.splitlines()
-                     if not line.lstrip().startswith("#"))
-
-
-def test_the_shipped_contract_matches_the_code_owned_scope_pins():
-    """The four surfaces agree with each other AND with the pins."""
-    assert rf.reviewed_scope_issues(_real_contract()) == []
-    assert len(rf.REVIEWED_CCBY_ARTWORK_IDENTITIES) == 7
-    assert len(rf.REVIEWED_CCBY_SCOPE_GLOBS) == 5
-
-
-def test_the_scope_pins_are_enforced_before_approval_and_before_activation():
-    """Three sites, because coming through the loader must not be assumed.
-
-    The loader is the production entry point, but ``preflight`` and
-    ``plan_ccby_activation`` both accept a contract they were handed, and what
-    the activation grants is decided in the planner. The prose pins were
-    already checked in all three; the scope pins now are too.
-    """
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    for func in ("load_trusted_contract(", "def preflight(",
-                 "def plan_ccby_activation("):
-        body = _code_only(src.split(func, 1)[1].split("\ndef ", 1)[0])
-        assert "reviewed_scope_issues(" in body, \
-            "the code-owned scope pins are not enforced in %s" % func
-
-
-def test_activation_planning_refuses_an_unpinned_scope(tmp_path):
-    """Not just the source text - the planner actually refuses."""
-    contract = _real_contract()
-    contract["ccby_artwork_paths"] = list(contract["ccby_artwork_paths"]) + [
-        "assets/other/Figure_09.png"]
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.plan_ccby_activation(REPO, contract)
-    assert exc.value.code in {"CCBY_ARTWORK_SCOPE_UNREVIEWED",
-                              "CCBY_ARTWORK_IDENTITY_UNREVIEWED"}
-
-
-def test_the_pinned_identities_are_the_bytes_actually_in_the_tree():
-    """A pin nobody checks against the tree is a comment."""
-    for rel, want in rf.REVIEWED_CCBY_ARTWORK_IDENTITIES.items():
-        assert rf.sha256_file(REPO / rel) == want, rel
-
-
-@pytest.mark.parametrize("surface", [
-    "ccby_artwork_paths", "figures", "plan_assets", "scope_globs"])
-@pytest.mark.parametrize("how", ["add", "remove", "rename"])
-def test_every_scope_surface_must_equal_the_code_owned_pins(surface, how):
-    """Adding, removing or renaming an identity fails on EVERY surface."""
-    contract = _real_contract()
-    extra = "assets/other/Figure_09.png"
-    if surface == "ccby_artwork_paths":
-        paths = list(contract["ccby_artwork_paths"])
-        if how == "add":
-            paths.append(extra)
-        elif how == "remove":
-            paths.pop()
-        else:
-            paths[0] = paths[0].replace("Figure_01.png", "Figure_99.png")
-        contract["ccby_artwork_paths"] = paths
-    elif surface == "figures":
-        figures = dict(contract["figures"])
-        target = sorted(rf.REVIEWED_CCBY_ARTWORK_IDENTITIES)[0]
-        if how == "add":
-            figures[target] = "0" * 64            # a changed identity
-        elif how == "remove":
-            figures.pop(target)
-        else:
-            figures[target.replace("Figure_01.pdf", "Figure_99.pdf")] = \
-                figures.pop(target)
-        contract["figures"] = figures
-    elif surface == "plan_assets":
-        assets = list(contract["ccby_activation_plan"]["scope"]["assets"])
-        if how == "add":
-            assets.append(extra)
-        elif how == "remove":
-            assets.pop()
-        else:
-            assets[0] = assets[0].replace("Figure_01.png", "Figure_99.png")
-        contract["ccby_activation_plan"]["scope"]["assets"] = assets
-    else:
-        globs = list(contract["ccby_artwork_scope_globs"])
-        if how == "add":
-            globs.append("scripts/figures/**")
-        elif how == "remove":
-            globs.pop()
-        else:
-            globs[0] = "assets/**"
-        contract["ccby_artwork_scope_globs"] = globs
-
-    issues = rf.reviewed_scope_issues(contract)
-    assert issues, "%s/%s was accepted" % (surface, how)
-
-
-@pytest.mark.parametrize("token", [
-    "/etc/passwd",
-    "/assets/frozen_figures/fig01/Figure_01.png",
-    "//server/share/Figure_01.png",
-    "\\\\server\\share\\Figure_01.png",
-    "~/assets/frozen_figures/fig01/Figure_01.png",
-    "~fawaw/Figure_01.png",
-    "C:/assets/frozen_figures/fig01/Figure_01.png",
-    "../../outside/Figure_01.png",
-])
-def test_artwork_paths_that_escape_the_repository_are_refused(token):
-    """``Path(root) / "/etc/passwd"`` IS ``/etc/passwd``; pathlib drops root."""
-    contract = _real_contract()
-    contract["ccby_artwork_paths"] = list(contract["ccby_artwork_paths"])
-    contract["ccby_artwork_paths"][0] = token
-    codes = {code for code, _ in rf.reviewed_scope_issues(contract)}
-    assert "CCBY_ARTWORK_PATH_NOT_REPOSITORY_RELATIVE" in codes
-
-
-def test_the_production_loader_refuses_a_synthetic_fixture_declaration(
-        tmp_path, synthetic):
-    """One committed line must not be able to switch the pins off."""
-    als = rf._artwork
-    for value in (True, False, None, 0):
-        contract = json.loads(json.dumps(synthetic["contract"]))
-        contract["synthetic_fixture"] = value
-        issues = als.production_contract_issues(contract)
-        assert issues and issues[0][0] == "CONTRACT_DECLARES_SYNTHETIC_FIXTURE"
-    # ...and it is the LOADER that applies it, with the seam off by default.
-    root = _contract_repo(tmp_path, synthetic["contract"])
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.load_trusted_contract(root)
-    assert exc.value.code == "CONTRACT_DECLARES_SYNTHETIC_FIXTURE"
-
-
-def test_synthetic_fixture_cannot_be_switched_on_from_outside_the_code():
-    """No CLI flag, no environment variable, no contract field sets the seam."""
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    parser = src.split("def build_parser(", 1)[1].split("\ndef ", 1)[0]
-    assert "synthetic" not in parser, \
-        "a command-line surface for the test seam was introduced"
-    main = src.split("\ndef main(", 1)[1].split("\ndef ", 1)[0]
-    assert "allow_synthetic_fixture" not in main, \
-        "the production entry point passes the test seam"
-    loader = _code_only(src.split("def load_trusted_contract(", 1)[1].split(
-        "\ndef ", 1)[0])
-    assert "environ" not in loader, \
-        "an environment variable can reach the test seam"
-
-
-def test_a_synthetic_declaration_cannot_disable_the_prose_or_scope_pins(
-        tmp_path):
-    """Proof of the mechanism it would have disabled, not just the refusal."""
-    contract = _real_contract()
-    contract["ccby_artwork_paths"] = list(contract["ccby_artwork_paths"]) + [
-        "assets/other/Figure_09.png"]
-    contract["authorization"]["text"] = "I approve everything."
-    # Declared synthetic, both pin sets go quiet - which is exactly why a
-    # production contract may not declare it.
-    contract["synthetic_fixture"] = True
-    assert rf.reviewed_scope_issues(contract) == []
-    assert rf.reviewed_activation_issues(contract) == []
-    # Production never gets that far: the loader refuses the key first.
-    root = _contract_repo(tmp_path, contract)
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.load_trusted_contract(root)
-    assert exc.value.code == "CONTRACT_DECLARES_SYNTHETIC_FIXTURE"
-    # And with the key gone, both pin sets speak up about the same contract.
-    contract.pop("synthetic_fixture")
-    assert rf.reviewed_scope_issues(contract)
-    assert rf.reviewed_activation_issues(contract)
-
-
-@pytest.mark.parametrize("sentence", [
-    "The manuscript (manuscript_final/SCORCH_manuscript.docx) and the Figure "
-    "1 and Figure 4 artwork are licensed under CC BY 4.0.",
-    "assets/manuscript_final/SCORCH_slides.pptx is licensed under CC BY 4.0.",
-    "results/Table_S1.xlsx is licensed under CC BY 4.0.",
-])
-def test_an_affirmative_grant_over_a_document_is_refused(sentence):
-    """A manuscript is not artwork: it carries rights the authors lack."""
-    registered = set(rf.REVIEWED_CCBY_ARTWORK_IDENTITIES)
-    declared = [g.rstrip("/*") for g in rf.REVIEWED_CCBY_SCOPE_GLOBS]
-    claims = [rf._scope_token_claim(token, registered, declared)
-              for token in rf._SCOPE_TOKEN_RX.findall(sentence)]
-    documents = [c for c in claims if c and "document" in c]
-    assert documents, \
-        "the document token was classified as claiming nothing: %s" % (claims,)
-
-
-def test_document_extensions_are_no_longer_treated_as_mere_citations():
-    """They used to sit beside json and csv, which is how the grant passed."""
-    for ext in ("docx", "pptx", "xlsx"):
-        assert ext not in rf._REFERENCE_EXTENSIONS
-        assert ext in rf.NON_ARTWORK_GRANT_EXTENSIONS
-
-
-# --- declared /** scopes hold the seven works and nothing else --------------
-def _scope_tree(tmp_path):
-    """A tree holding exactly the seven registered works under five scopes."""
-    contract = _real_contract()
-    root = tmp_path / "scope_tree"
-    for rel in contract["ccby_artwork_paths"]:
-        path = root / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes((REPO / rel).read_bytes())
-    return root, contract
-
-
-def test_a_declared_scope_holding_exactly_the_registered_works_is_accepted(
-        tmp_path):
-    root, contract = _scope_tree(tmp_path)
-    rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-
-
-@pytest.mark.parametrize("name", [
-    "README.md",            # not artwork at all - used to pass
-    "caption.txt",          # copyrightable prose - used to pass
-    "Figure_01.source",     # unknown extension - used to pass
-    "thumbnail",            # no extension - used to pass
-    "Figure_99.png",        # unregistered artwork - the only one caught before
-])
-def test_any_extra_file_under_a_declared_scope_is_refused(tmp_path, name):
-    """``dir/**`` is shorthand for "these files"; an extra file breaks it."""
-    root, contract = _scope_tree(tmp_path)
-    (root / "assets/frozen_figures/fig01" / name).write_bytes(b"x")
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-    assert exc.value.code == "CCBY_SCOPE_DECLARATION_TOO_BROAD"
-
-
-def test_a_subdirectory_under_a_declared_scope_is_refused(tmp_path):
-    root, contract = _scope_tree(tmp_path)
-    (root / "assets/frozen_figures/fig01/drafts").mkdir()
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-    assert exc.value.code == "CCBY_SCOPE_DECLARATION_TOO_BROAD"
-
-
-def test_a_non_regular_object_under_a_declared_scope_is_refused(tmp_path):
-    """A link inside the folder must not launder unapproved work into it."""
-    root, contract = _scope_tree(tmp_path)
-    planted = root / "assets/frozen_figures/fig01/Figure_99.png"
-    outside = tmp_path / "unapproved.png"
-    outside.write_bytes(b"unapproved artwork")
-    if _can_symlink(tmp_path):
-        os.symlink(str(outside), str(planted))
-    else:
-        planted.mkdir()          # a different non-regular object, same rule
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-    assert exc.value.code == "CCBY_SCOPE_DECLARATION_TOO_BROAD"
-
-
-def test_a_declared_scope_missing_a_registered_work_is_refused(tmp_path):
-    root, contract = _scope_tree(tmp_path)
-    (root / "assets/frozen_figures/fig01/Figure_01.pdf").unlink()
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-    assert exc.value.code == "CCBY_SCOPE_DECLARATION_UNVERIFIABLE"
-
-
-def test_a_declared_scope_that_is_a_link_is_refused_not_followed(tmp_path):
-    root, contract = _scope_tree(tmp_path)
-    scope = root / "assets/frozen_figures/fig04"
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    shutil.rmtree(scope)
-    if not _link_dir(scope, elsewhere):
-        scope.write_bytes(b"not a directory")
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_declared_scopes_hold_only_registered_artwork(root, contract)
-    assert exc.value.code == "CCBY_SCOPE_DECLARATION_UNVERIFIABLE"
-
-
-# --- 5. the record and the evidence are read SAFELY -------------------------
-def test_the_approval_record_is_read_by_the_component_safe_walk():
-    """Not `_read_regular_file`, which protects the leaf and nothing above."""
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    body = src.split("def find_external_approval(", 1)[1].split("\ndef ", 1)[0]
-    assert "_artwork.safe_read_within(" in body, \
-        "the approval record is not read through the component-safe walk"
-    assert "_artwork.safe_read_external_evidence(" in body, \
-        "the original evidence is not read through the component-safe walk"
-    assert "_read_regular_file(" not in body, \
-        "a leaf-only reader is still used on the approval evidence"
-
-
-def test_a_symlinked_approval_record_is_refused(approval, tmp_path):
-    """A LEAF link at the record path is a refusal, not a redirection."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    path = Path(approval["root"]) / APPROVAL_REL
-    outside = tmp_path / "elsewhere_record.json"
-    outside.write_bytes(path.read_bytes())
-    path.unlink()
-    if _can_symlink(tmp_path):
-        os.symlink(str(outside), str(path))
-    else:
-        path.mkdir()
-    codes, _ = _refused(approval)
-    assert "APPROVAL_RECORD_UNREADABLE" in codes
-
-
-def test_a_junctioned_parent_of_the_approval_record_is_refused(approval,
-                                                               tmp_path):
-    """The defect a leaf-only no-follow open cannot see."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    docs = Path(approval["root"]) / "docs"
-    elsewhere = tmp_path / "shadow_docs"
-    elsewhere.mkdir()
-    shutil.copy2(docs / Path(APPROVAL_REL).name,
-                 elsewhere / Path(APPROVAL_REL).name)
-    staged = tmp_path / "real_docs"
-    shutil.move(str(docs), str(staged))
-    if not _link_dir(docs, elsewhere):
-        # Where no directory link can be made at all, a FILE where the parent
-        # directory belongs is the same refusal at the same component.
-        docs.write_bytes(b"not a directory")
-    codes, _ = _refused(approval)
-    assert "APPROVAL_RECORD_UNREADABLE" in codes
-
-
-@pytest.mark.parametrize("kind", ["leaf_link", "parent_link", "special"])
-def test_the_original_evidence_is_refused_when_its_path_is_not_plain(
-        approval, tmp_path, kind):
-    """Outside the repository is not outside the checks."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    evidence = approval["evidence"]
-    if kind == "leaf_link":
-        real = tmp_path / "real_evidence.eml"
-        real.write_bytes(evidence.read_bytes())
-        evidence.unlink()
-        if _can_symlink(tmp_path):
-            os.symlink(str(real), str(evidence))
-        else:
-            evidence.mkdir()
-        target = evidence
-    elif kind == "parent_link":
-        holder = tmp_path / "holder"
-        holder.mkdir()
-        shutil.copy2(evidence, holder / evidence.name)
-        link = tmp_path / "linked_holder"
-        if not _link_dir(link, holder):
-            link.write_bytes(b"not a directory")
-        target = link / evidence.name
-    else:
-        evidence.unlink()
-        evidence.mkdir()
-        target = evidence
-
-    record, issues = _resolve(approval, evidence=target)
-    assert record is None
-    assert {"APPROVAL_EVIDENCE_UNREADABLE", "APPROVAL_EVIDENCE_MISSING"} & \
-        {code for code, _ in issues}, issues
-
-
-def test_the_evidence_reader_never_falls_back_to_a_following_open():
-    """A fallback is the whole attack. Containment failures fail CLOSED."""
-    helper = (_RELEASE_DIR / "artwork_licence_state.py").read_text(
-        encoding="utf-8")
-    body = _code_only(helper.split("def safe_read_external_evidence", 1)[1]
-                      .split("\ndef ", 1)[0])
-    assert "safe_read_within(" in body
-    assert "open(" not in body.replace("safe_read_within(", ""), \
-        "the evidence reader has a path that opens the file directly"
-    anchor = _code_only(
-        helper.split("def volume_anchor", 1)[1].split("\ndef ", 1)[0])
-    assert "is_absolute()" in anchor, \
-        "a relative evidence path would anchor at an arbitrary directory"
-
-
-def test_evidence_inside_the_repository_is_still_refused(approval):
-    """The original stays outside the tree; only the record is published."""
-    _commit_approval_record(
-        approval["synthetic"],
-        _approval_record_document(approval["synthetic"],
-                                  approval["evidence"]))
-    inside = Path(approval["root"]) / "docs" / approval["evidence"].name
-    inside.write_bytes(approval["evidence"].read_bytes())
-    codes, _ = _refused(approval, evidence=inside)
-    assert "APPROVAL_EVIDENCE_IN_REPOSITORY" in codes
-
-
-# ===========================================================================
-# PHASE 4E1f - the narrow final repairs
-# ===========================================================================
-# --- 1. the ACTIVE publication row is a licence surface like any other ------
-BROAD_ACTIVE_ROW = (
-    "| `assets/frozen_figures/**` (Fig. 1, 4) | The Figure 1 and Figure 4 "
-    "slide artwork is licensed under the Creative Commons Attribution 4.0 "
-    "International licence (CC BY 4.0). |")
-
-
-def test_the_active_publication_row_names_both_scopes_exactly():
-    """Path-exact: the two declared folders, not everything under them."""
-    row = _real_contract()["publication_outputs_artwork_row"]["active"]
-    assert "assets/frozen_figures/fig01/**" in row
-    assert "assets/frozen_figures/fig04/**" in row
-    assert "assets/frozen_figures/**" not in row, \
-        "the published row still writes the broad frozen_figures glob"
-    # ...and the code-owned digest is the digest of THAT row.
-    assert rf._sha256_text(row) == rf.REVIEWED_PUBLICATION_ROW_ACTIVE
-
-
-def test_the_broad_frozen_figures_glob_is_refused_in_the_active_row():
-    """The adversary the row used to be.
-
-    ``assets/frozen_figures/**`` is not one of the five declared scopes and
-    reaches everything under that directory. It survived for so long because
-    the row was checked for its DIGEST and its MARKER and never for what its
-    scope token claimed - the one licence surface the semantic guard did not
-    see. Both halves are asserted: the guard refuses the row directly, and the
-    planner refuses it too.
-    """
-    contract = _real_contract()
-    contract["publication_outputs_artwork_row"]["active"] = BROAD_ACTIVE_ROW
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_publication_row_scope(contract)
-    assert exc.value.code == "CCBY_SCOPE_UNREGISTERED_ASSET"
-    assert "assets/frozen_figures/**" in str(exc.value.why)
-    # The row as SHIPPED passes the very same guard.
-    rf._assert_publication_row_scope(_real_contract())
-
-    # Through the PLANNER. `synthetic_fixture` switches off the digest pins so
-    # that what fires is the semantic guard and not the reviewed-prose digest -
-    # the point being that the scope check stands on its own.
-    contract["synthetic_fixture"] = True
-    contract["publication_outputs_artwork_row"]["active"] = BROAD_ACTIVE_ROW
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf.plan_ccby_activation(REPO, contract)
-    assert exc.value.code == "CCBY_SCOPE_UNREGISTERED_ASSET"
-
-
-def test_the_planner_reads_the_row_scope_not_only_its_marker_and_digest():
-    """A row can carry the right marker and still grant too much."""
-    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
-    body = _code_only(src.split("def _plan_ccby_activation(", 1)[1]
-                      .split("\ndef ", 1)[0])
-    assert "_assert_publication_row_scope(" in body, \
-        "the active publication row is not put through the scope guard"
-    # A row is ONE record: judged whole, because _sentences splits on the full
-    # stop in "(Fig. 1, 4)" and would put the scope cell and the licence cell
-    # in different fragments - which is exactly how the broad glob survived.
-    guard = _code_only(src.split("def _assert_publication_row_scope(", 1)[1]
-                       .split("\ndef ", 1)[0])
-    assert "_sentences(" not in guard, \
-        "the row guard splits the row into sentences and can miss its scope"
-
-
-# --- 2. raw root-anchored paths are refused, never normalized --------------
-ROOT_ANCHORED_GRANTS = [
-    ("posix_absolute", "/assets/frozen_figures/fig01/Figure_01.png"),
-    ("posix_absolute_root", "/etc/passwd"),
-    ("home_prefixed", "~/assets/frozen_figures/fig01/Figure_01.png"),
-    ("home_slash", "~/Figure_01.png"),
-    ("unc_forward", "//host/share/assets/frozen_figures/fig01/Figure_01.png"),
-    ("unc_backslash",
-     "\\\\host\\share\\assets\\frozen_figures\\fig01\\Figure_01.png"),
-]
-
-
-@pytest.mark.parametrize("label,token", ROOT_ANCHORED_GRANTS,
-                         ids=[x[0] for x in ROOT_ANCHORED_GRANTS])
-def test_a_root_anchored_path_in_a_fresh_grant_is_refused(label, token):
-    """A FRESH grant naming a path outside this repository.
-
-    The defect was in the TOKENIZER, not the classifier: the pattern required a
-    token to start with a word character, so in
-    ``/assets/frozen_figures/fig01/Figure_01.png`` the match began after the
-    slash and the classifier was handed a REGISTERED repository path. It
-    answered "claims nothing" - correct about what it was shown, and wrong
-    about what was written.
-    """
-    contract = _real_contract()
-    grant = ("%s is licensed under CC BY 4.0.\n" % token).encode("utf-8")
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_no_unregistered_artwork_scope(
-            "docs/LICENSES_AND_ATTRIBUTION.md", b"", grant, contract)
-    assert exc.value.code == "CCBY_SCOPE_UNREGISTERED_ASSET"
-
-
-@pytest.mark.parametrize("label,token", ROOT_ANCHORED_GRANTS,
-                         ids=[x[0] for x in ROOT_ANCHORED_GRANTS])
-def test_a_denial_flipped_into_a_root_anchored_grant_is_refused(label, token):
-    """The polarity bypass, over a path that is not in this repository."""
-    contract = _real_contract()
-    denial = ("No CC BY 4.0 licence is asserted over %s.\n"
-              % token).encode("utf-8")
-    grant = ("%s is licensed under CC BY 4.0.\n" % token).encode("utf-8")
-    with pytest.raises(rf.FinalizerError) as exc:
-        rf._assert_no_unregistered_artwork_scope(
-            "docs/LICENSES_AND_ATTRIBUTION.md", denial, grant, contract)
-    assert exc.value.code == "CCBY_SCOPE_UNREGISTERED_ASSET"
-
-
-@pytest.mark.parametrize("label,token", ROOT_ANCHORED_GRANTS,
-                         ids=[x[0] for x in ROOT_ANCHORED_GRANTS])
-def test_a_root_anchored_path_is_never_folded_onto_a_registered_one(
-        label, token):
-    """It must be REFUSED AS ITSELF, not normalized and then accepted."""
-    registered = set(rf.REVIEWED_CCBY_ARTWORK_IDENTITIES)
-    declared = [g.rstrip("/*") for g in rf.REVIEWED_CCBY_SCOPE_GLOBS]
-    sentence = "%s is licensed under CC BY 4.0." % token
-    keys = [rf._scope_token_claim(t, registered, declared)
-            for t in rf._SCOPE_TOKEN_RX.findall(sentence)]
-    keys = [k for k in keys if k]
-    assert keys, "the root-anchored token claimed nothing at all"
-    assert any(k.startswith(("POSIX absolute path:", "home-prefixed path:",
-                             "UNC/network path:")) for k in keys), keys
-
-
-def test_ordinary_prose_is_not_swept_up_by_the_root_anchored_pattern():
-    """The lookbehind exists so this stays quiet."""
-    registered = set(rf.REVIEWED_CCBY_ARTWORK_IDENTITIES)
-    declared = [g.rstrip("/*") for g in rf.REVIEWED_CCBY_SCOPE_GLOBS]
-    # A licence-deed URL is owned by the URL alternative, not read as UNC.
-    for token in rf._SCOPE_TOKEN_RX.findall(
-            "The deed is at https://creativecommons.org/licenses/by/4.0/."):
-        key = rf._scope_token_claim(token, registered, declared)
-        assert key is None or not key.startswith("UNC/network path:"), key
-    # ...and the real contract's own reviewed prose still passes every guard.
-    assert rf.reviewed_activation_issues(_real_contract()) == []
-
-
-# --- 3. the durable guard reads the RECORD, not only the agreement ---------
-def _recommit_matching(approval, receipt, document):
-    """Commit ``document`` as the record and make ``receipt`` agree with it.
-
-    The adversary is deliberately the STRONG one: the record is malformed AND
-    the receipt beside it repeats whatever the record says, so nothing is
-    caught by the record/receipt comparison. Only a check on the record's own
-    well-formedness can refuse it.
-    """
-    _commit_approval_record(approval["synthetic"], document)
-    root = Path(approval["root"])
-    raw = (root / APPROVAL_REL).read_bytes()
-    receipt = dict(receipt)
-    receipt["approval_record_sha256"] = rf.sha256_bytes(raw)
-    receipt["approval_record_blob_sha1"] = _rev(
-        approval["root"], "HEAD:" + APPROVAL_REL)
-    for field in ("source_type", "approval_date"):
-        if field in document:
-            receipt[field] = document[field]
-    if "approved_text" in document:
-        receipt["approved_text"] = document["approved_text"]
-        receipt["approved_text_sha256"] = rf.sha256_bytes(
-            str(document["approved_text"]).encode("utf-8"))
-    if isinstance(document.get("licensed_artwork"), dict):
-        receipt["licensed_artwork"] = dict(document["licensed_artwork"])
-    ev = document.get("evidence")
-    if isinstance(ev, dict):
-        receipt["evidence_filename"] = ev.get("filename")
-        receipt["evidence_sha256"] = ev.get("sha256")
-        receipt["evidence_bytes"] = ev.get("bytes")
-    att = document.get("custodian_attestation")
-    if isinstance(att, dict):
-        receipt["custodian"] = att.get("custodian")
-        receipt["attested_at"] = att.get("attested_at")
-    return receipt
-
-
-def test_a_record_missing_a_mandatory_field_is_refused_even_when_matched(
-        approval):
-    """Record and receipt agree perfectly, and the record is incomplete."""
-    receipt, _ = _valid_external_receipt(approval)
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"])
-    document.pop("custodian_attestation")
-    receipt = _recommit_matching(approval, receipt, document)
-    codes = _receipt_codes(approval, receipt)
-    assert "RECEIPT_APPROVAL_RECORD_MALFORMED" in codes, codes
-    _never_active(approval, receipt)
-
-
-def test_a_record_with_the_wrong_schema_version_is_refused(approval):
-    receipt, _ = _valid_external_receipt(approval)
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"],
-                                         schema_version="9.9.9")
-    receipt = _recommit_matching(approval, receipt, document)
-    codes = _receipt_codes(approval, receipt)
-    assert "RECEIPT_APPROVAL_RECORD_SCHEMA_VERSION" in codes, codes
-    _never_active(approval, receipt)
-
-
-def test_a_record_with_an_invented_source_type_is_refused(approval):
-    receipt, _ = _valid_external_receipt(approval)
-    document = _approval_record_document(approval["synthetic"],
-                                         approval["evidence"],
-                                         source_type="verbal_agreement")
-    receipt = _recommit_matching(approval, receipt, document)
-    codes = _receipt_codes(approval, receipt)
-    assert "RECEIPT_APPROVAL_RECORD_SOURCE_TYPE" in codes, codes
-    _never_active(approval, receipt)
-
-
-def test_a_record_whose_evidence_format_contradicts_its_source_type_is_refused(
-        approval, tmp_path):
-    """An 'email' preserved as a word processor document is a transcription."""
-    receipt, _ = _valid_external_receipt(approval)
-    transcript = tmp_path / "najibi_approval_email.docx"
-    transcript.write_bytes(EVIDENCE_BODY)
-    document = _approval_record_document(approval["synthetic"], transcript,
-                                         source_type="approval_email")
-    receipt = _recommit_matching(approval, receipt, document)
-    codes = _receipt_codes(approval, receipt)
-    assert "RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT" in codes, codes
-    _never_active(approval, receipt)
-
-
-def test_one_canonical_evidence_format_map_serves_both_paths():
-    """The finalization path and the durable guards must not drift apart."""
-    als = rf._artwork
-    assert rf.EVIDENCE_FORMATS is als.EVIDENCE_FORMATS
-    assert rf.evidence_format_issues("approval_email", "x.docx")[0][0] == \
-        "APPROVAL_EVIDENCE_FORMAT"
-    assert als.evidence_format_issues(
-        "approval_email", "x.docx",
-        code="RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT")[0][0] == \
-        "RECEIPT_APPROVAL_RECORD_EVIDENCE_FORMAT"
