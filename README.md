@@ -180,9 +180,9 @@ the NOAA/NCEI source and use terms; both are set out in
 
 | Check | Result |
 |---|---|
-| Frozen release test collection | 1,133 tests; sorted node-ID SHA-256 `1ba5856ca05adc710e28b322d88364fa162d62edb9869c7a1106359a48df90bb` |
-| Source-only profile | 1,087 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
-| Fully configured profile | 1,131 pass, with 2 expected pre-finalization identity check failures |
+| Frozen release test collection | 1,153 tests; sorted node-ID SHA-256 `1d76a36d354621126b615f9835c181f3617df693dfacba4659badf58ba5475f3` |
+| Source-only profile | 1,107 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
+| Fully configured profile | 1,151 pass, with 2 expected pre-finalization identity check failures |
 | NetCDF release gate | Pass against the corrected candidate archive |
 | Fast reproduction route | 33/33 stages pass, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages pass, weighted-centroid stage executing 760/760 |

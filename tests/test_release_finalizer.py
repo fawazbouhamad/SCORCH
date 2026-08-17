@@ -8667,3 +8667,353 @@ def test_the_finalizer_supplies_the_slide_faces_to_both_environments():
     assert src.count('env["SCORCH_REQUIRE_SLIDE_FONTS"] = "1"') == 2
     assert '"--slide-font-dir"' in src
     assert "SLIDE_FONT_MISMATCH" in src and "SLIDE_FONT_MISSING" in src
+
+
+# ---------------------------------------------------------------------------
+# 45. 4G-r4: bounded names, a recovery manifest, and a run-owned base directory
+#
+# Twenty-six transaction, rollback, cleanup and lock tests failed inside the
+# disposable validation run and passed everywhere else. The cause was not the
+# transaction logic: it was PATH AMPLIFICATION. A recovery slot was named
+# `orig.<seq>.<run id>.<the whole repository-relative path, flattened>`, so a
+# 99-character path produced a 125-character filename; under the validation
+# run's system-temporary base directory the total crossed the Windows limit,
+# which Windows reports as ENOENT - "no such file or directory" for a file
+# that is plainly there. The transaction failed as unwritable, and then the
+# rollback failed the same way, for the same reason.
+#
+# The repair is at the cause. Names are bounded; what they used to spell out
+# lives in a recovery manifest; the base directory is short, run-owned and
+# removed only against its own ownership token; and whether the layout fits at
+# all is decided BEFORE the first mutation.
+# ---------------------------------------------------------------------------
+def _tiny_repo(tmp_path, *rels):
+    root = tmp_path / "repo"
+    for rel in rels:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"ORIGINAL")
+    _init_repo(root)
+    return root
+
+
+def _tiny_edits(*rels):
+    return [rf.Edit(rel, b"ORIGINAL", b"REWRITTEN", {}, 1) for rel in rels]
+
+
+# --- 1. the names are bounded, and the old ones were not -------------------
+def test_every_transaction_slot_name_is_bounded(synthetic):
+    """The whole point: a slot's length must not depend on its target's."""
+    root, contract = synthetic["root"], synthetic["contract"]
+    txn = rf.Transaction(root, contract)
+    txn.apply(rf.plan_identity_edits(root, contract, old_identity(),
+                                     new_identity()))
+    created = sorted(p.name for p in Path(txn._recovery_root()).iterdir())
+    assert created, "the transaction staged nothing"
+    slots = [n for n in created if n != rf.Transaction.RECOVERY_MANIFEST]
+    assert slots
+    for name in slots:
+        assert len(name) <= rf.Transaction.MAX_SLOT_NAME, name
+        assert re.fullmatch(r"[a-z]+\.\d{3}\.[0-9a-f]{16}", name), name
+
+    # And the longest target in the tree really is long enough to have
+    # overflowed under the old scheme, so this is not a bound nothing tests.
+    longest = max(txn.journal, key=len)
+    assert len(longest) >= 90, longest
+    old_style = f"orig.000.{txn.run_id}." + re.sub(r"[^A-Za-z0-9._-]", "_",
+                                                   longest)
+    assert len(old_style) > 3 * rf.Transaction.MAX_SLOT_NAME, len(old_style)
+
+
+# --- 2. nothing is lost: the manifest carries what the name dropped --------
+def test_the_recovery_manifest_maps_every_slot_back_to_its_target(synthetic):
+    """A directory of digests is only safe if the mapping is written down."""
+    root, contract = synthetic["root"], synthetic["contract"]
+    txn = rf.Transaction(root, contract)
+    txn.apply(rf.plan_identity_edits(root, contract, old_identity(),
+                                     new_identity()))
+    manifest = Path(txn._recovery_root()) / rf.Transaction.RECOVERY_MANIFEST
+    assert manifest.is_file(), "no recovery manifest was written"
+    records = [json.loads(line) for line in
+               manifest.read_text(encoding="utf-8").splitlines() if line]
+    assert records
+    by_slot = {r["slot"]: r for r in records}
+    assert len(by_slot) == len(records), "the manifest repeats a slot"
+
+    for rel, path in txn.recovery_paths.items():
+        record = by_slot[Path(path).name]
+        # The EXACT repository-relative path, not a flattened approximation.
+        assert record["rel"] == rel
+        assert record["kind"] == "orig"
+        assert record["run_id"] == txn.run_id
+        assert record["original_sha256"] == txn.journal[rel].original_sha256
+        assert record["original_bytes"] == txn.journal[rel].original_bytes
+        assert record["expected_sha256"] == txn.journal[rel].expected_sha256
+        assert record["original_mode"], record
+        assert Path(path).read_bytes() == txn.journal[rel].original
+
+    # Every slot the transaction created on disk is described.
+    on_disk = {p.name for p in Path(txn._recovery_root()).iterdir()
+               if p.name != rf.Transaction.RECOVERY_MANIFEST}
+    assert on_disk <= set(by_slot), sorted(on_disk - set(by_slot))
+    # ...and the report carries the mapping too, so an operator reading the
+    # failure never has to go and decode a filename.
+    txn.rollback()
+    assert txn._rollback_result["slots"], txn._rollback_result.keys()
+    assert txn._rollback_result["recovery_manifest"]
+
+
+def test_the_recovery_manifest_is_never_recreated_after_the_first_record(
+        synthetic):
+    """A manifest somebody removed is a refusal, not a fresh start."""
+    root, contract = synthetic["root"], synthetic["contract"]
+    txn = rf.Transaction(root, contract)
+    txn._record_slot("docs/CANONICAL_SCIENCE.json", "orig",
+                     txn._slot_name("docs/CANONICAL_SCIENCE.json", "orig"))
+    manifest = Path(txn._recovery_root()) / rf.Transaction.RECOVERY_MANIFEST
+    assert manifest.is_file()
+    manifest.unlink()
+    with pytest.raises(rf.FinalizerError) as exc:
+        txn._record_slot("docs/RELOCATED_ARTIFACTS.csv", "orig",
+                         txn._slot_name("docs/RELOCATED_ARTIFACTS.csv",
+                                        "orig"))
+    assert exc.value.code == "TRANSACTION_UNWRITABLE", exc.value.code
+    assert not manifest.exists(), "the manifest was silently re-created"
+
+
+# --- 3. distinct targets get distinct slots, however they are spelled ------
+@pytest.mark.parametrize("rels", [
+    # Duplicate basenames under different directories.
+    ("docs/a/README.md", "docs/b/README.md"),
+    # Case variants - one file on a case-insensitive filesystem, two names.
+    ("docs/Readme.md", "docs/other.md"),
+    # Unicode, including two spellings of the same grapheme.
+    ("docs/caf\u00e9.md", "docs/cafe\u0301.md"),
+    # Names the old sanitizer flattened to the SAME text.
+    ("docs/a b.md", "docs/a_b.md"),
+])
+def test_distinct_targets_never_share_a_slot(tmp_path, rels):
+    """Uniqueness comes from the digest of the real path, not from the name.
+
+    The old sanitizer mapped every character outside [A-Za-z0-9._-] to an
+    underscore, so `a b.md` and `a_b.md` produced identical trailing text and
+    were told apart only by the sequence number that happened to precede it.
+    """
+    root = _tiny_repo(tmp_path, *rels)
+    txn = rf.Transaction(root, {"protected_historical_records": []})
+    txn.apply(_tiny_edits(*rels))
+    names = [Path(txn.recovery_paths[rel]).name for rel in rels]
+    assert len(set(names)) == len(rels), names
+    for name in names:
+        assert len(name) <= rf.Transaction.MAX_SLOT_NAME, name
+    for rel in rels:
+        assert (root / rel).read_bytes() == b"REWRITTEN"
+        assert Path(txn.recovery_paths[rel]).read_bytes() == b"ORIGINAL"
+
+
+def test_two_runs_two_kinds_and_two_targets_all_get_different_slots(synthetic):
+    """The digest covers all four coordinates, so none of them can collide."""
+    root, contract = synthetic["root"], synthetic["contract"]
+    first = rf.Transaction(root, contract, run_id="a" * 16)
+    second = rf.Transaction(root, contract, run_id="b" * 16)
+    names = {
+        first._slot_name("x/y.json", "orig"),
+        first._slot_name("x/y.json", "stage"),
+        first._slot_name("x/y.json", "quarantine"),
+        first._slot_name("x/z.json", "orig"),
+        second._slot_name("x/y.json", "orig"),
+    }
+    assert len(names) == 5, sorted(names)
+
+
+# --- 4. an impossible layout is refused before anything is touched --------
+def test_path_budget_issues_is_a_pure_length_question():
+    """Unit: the budget is arithmetic, and it is skipped where it cannot bite."""
+    long_dir = "C:\\" + "d" * 250
+    claims = [("recovery", long_dir, "dir", 32)]
+    assert rf.path_budget_issues(claims, long_paths=True) == []
+    issues = rf.path_budget_issues(claims, long_paths=False)
+    assert len(issues) == 1 and "recovery" in issues[0]
+    # A directory that fits but whose CONTENTS would not is caught too.
+    tight = "C:\\" + "d" * 240
+    assert rf.path_budget_issues([("x", tight, "dir", 32)], long_paths=False)
+    assert rf.path_budget_issues([("x", tight, "dir", 2)],
+                                 long_paths=False) == []
+
+
+def test_an_impossibly_deep_root_is_refused_with_nothing_written(
+        synthetic, monkeypatch):
+    """The whole failure mode, stated as a refusal instead of an ENOENT."""
+    root, contract = synthetic["root"], synthetic["contract"]
+    edits = rf.plan_identity_edits(root, contract, old_identity(),
+                                   new_identity())
+    before = {e.rel: (root / e.rel).read_bytes() for e in edits}
+
+    deep = Path("C:\\" if os.name == "nt" else "/") / ("d" * 200) / ".git"
+    monkeypatch.setattr(rf, "_long_paths_enabled", lambda: False)
+    monkeypatch.setattr(rf, "_git_admin_dir", lambda _root: deep)
+
+    txn = rf.Transaction(root, contract)
+    with pytest.raises(rf.FinalizerError) as exc:
+        txn.apply(edits)
+    assert exc.value.code == "TRANSACTION_PATH_TOO_LONG", exc.value.code
+    assert "Nothing has been written" in exc.value.why
+
+    # And it means it: no recovery directory, no journal, no target touched.
+    assert txn._recovery_dir is None
+    assert txn.journal == {}
+    assert not txn.applied
+    for rel, data in before.items():
+        assert (root / rel).read_bytes() == data, rel
+
+
+def test_the_real_layout_fits_with_room_to_spare(synthetic):
+    """The compact layout must not merely fit: it must fit by a margin."""
+    txn = rf.Transaction(synthetic["root"], synthetic["contract"])
+    root = txn._recovery_root_path()
+    assert rf.path_budget_issues(
+        [("recovery", root, "dir", 1 + rf.Transaction.MAX_SLOT_NAME)],
+        long_paths=False) == [], root
+    assert rf.Transaction.MAX_SLOT_NAME == 31
+
+
+# --- 5. the recovery root stays where atomic moves work -------------------
+def test_the_recovery_root_shares_the_worktrees_volume(synthetic):
+    """os.replace is atomic only within one filesystem."""
+    root = Path(synthetic["root"]).resolve()
+    txn = rf.Transaction(root, synthetic["contract"])
+    recovery = Path(txn._recovery_root_path()).resolve()
+    assert recovery.anchor == root.anchor, (recovery, root)
+    assert os.stat(root).st_dev == os.stat(recovery.parent).st_dev
+
+
+def test_a_linked_worktree_gets_bounded_slots_in_the_real_admin_dir(tmp_path):
+    """`.git` is a FILE in a linked worktree - and this repository is one."""
+    main = tmp_path / "main"
+    (main / "docs").mkdir(parents=True)
+    (main / "docs" / "a.md").write_bytes(b"ORIGINAL")
+    _init_repo(main)
+    linked = tmp_path / "linked"
+    _run(main, "worktree", "add", "-q", str(linked), "-b", "wt")
+    assert (linked / ".git").is_file(), "git did not create a linked worktree"
+
+    txn = rf.Transaction(linked, {"protected_historical_records": []})
+    txn.apply(_tiny_edits("docs/a.md"))
+    recovery = Path(txn.recovery_paths["docs/a.md"])
+    # Outside the working tree, so the clean-tree check this run depends on
+    # still sees a clean tree...
+    assert linked not in recovery.parents
+    # ...and still bounded.
+    assert len(recovery.name) <= rf.Transaction.MAX_SLOT_NAME
+    assert recovery.read_bytes() == b"ORIGINAL"
+    txn.rollback()
+    assert (linked / "docs" / "a.md").read_bytes() == b"ORIGINAL"
+
+
+# --- 6. the validation base directory ------------------------------------
+def test_the_validation_basetemp_is_short_run_owned_and_removed(tmp_path):
+    """The other half of the length budget, and it cleans up after itself."""
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    holder = rf._ValidationBasetemp(clone, "0123456789abcdef")
+    with holder as base:
+        assert base.is_dir()
+        # Short: the point of the exercise.
+        assert len(str(base)) <= 32, str(base)
+        # Run-owned, not a shared bare name.
+        assert holder.token and (base / rf._BASETEMP_OWNER).is_file()
+        assert base.name != "t" and base.name.startswith("bt")
+        # On the clone's own volume where that is possible.
+        assert base.anchor == Path(clone).resolve().anchor
+        assert (base / rf._BASETEMP_OWNER).read_text(
+            encoding="ascii") == holder.token
+        (base / "pytest-of-somebody").mkdir()
+    assert not base.exists(), "the base directory was left behind"
+    assert holder.failures == [] and holder.retained == []
+
+
+def test_a_second_run_never_reuses_the_first_runs_base_directory(tmp_path):
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    first = rf._ValidationBasetemp(clone, "1111111111111111")
+    second = rf._ValidationBasetemp(clone, "2222222222222222")
+    with first as a, second as b:
+        assert a != b
+    assert not a.exists() and not b.exists()
+
+
+def test_a_base_directory_replaced_underneath_a_run_is_retained(tmp_path):
+    """Concurrent replacement: this run deletes only what it can still prove."""
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    holder = rf._ValidationBasetemp(clone, "3333333333333333")
+    with holder as base:
+        keep = base / "somebody-elses-work.txt"
+        keep.write_text("not ours", encoding="utf-8")
+        # Somebody re-made the directory: same path, different token.
+        (base / rf._BASETEMP_OWNER).write_text("a" * 64, encoding="ascii")
+    assert base.is_dir(), "a directory this run could not prove was deleted"
+    assert keep.read_text(encoding="utf-8") == "not ours"
+    assert holder.retained == [str(base)]
+    assert any("ownership token" in f for f in holder.failures), \
+        holder.failures
+    shutil.rmtree(base)
+
+
+def test_a_base_directory_that_is_no_longer_a_plain_directory_is_retained(
+        tmp_path, monkeypatch):
+    """A junction or symlink at the path is never followed and deleted."""
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    holder = rf._ValidationBasetemp(clone, "4444444444444444")
+    with holder as base:
+        monkeypatch.setattr(rf, "_is_plain_directory",
+                            lambda p: Path(p) != base)
+    assert base.is_dir()
+    assert holder.retained == [str(base)]
+    assert any("plain directory" in f for f in holder.failures), \
+        holder.failures
+    shutil.rmtree(base)
+
+
+def test_an_interrupted_base_directory_cleanup_is_reported_not_swallowed(
+        tmp_path, monkeypatch):
+    """A base directory that will not delete is evidence, and it is named."""
+    clone = tmp_path / "clone"
+    clone.mkdir()
+    holder = rf._ValidationBasetemp(clone, "5555555555555555")
+    real_unlink = os.unlink
+
+    def refuse(path, *a, **kw):
+        if Path(path).name == "stuck.txt":
+            raise OSError("held open by another process")
+        return real_unlink(path, *a, **kw)
+
+    with holder as base:
+        (base / "stuck.txt").write_text("x", encoding="utf-8")
+        monkeypatch.setattr(os, "unlink", refuse)
+    monkeypatch.undo()
+    assert holder.retained == [str(base)]
+    assert any("stuck.txt" in f for f in holder.failures), holder.failures
+    shutil.rmtree(base)
+
+
+def test_run_validation_asks_for_its_own_short_base_directory():
+    """Structural: the system temporary directory is no longer the default."""
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    assert "_ValidationBasetemp(copy_root, new_run_id())" in src
+    assert '"--basetemp", str(base)' in src
+    assert 'tempfile.TemporaryDirectory(prefix="scorchbt") as basetemp' \
+        not in src, "the deep system temporary base directory is back"
+    # And a retained one reaches the report rather than being dropped.
+    assert '"retained_basetemp"' in src and '"basetemp_failures"' in src
+
+
+def test_the_machine_setting_is_read_and_never_written():
+    """LongPathsEnabled is the operator's setting, not this tool's."""
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    assert "LongPathsEnabled" in src
+    for forbidden in ("SetValueEx", "CreateKey", "DeleteValue", "KEY_WRITE",
+                      "KEY_SET_VALUE"):
+        assert forbidden not in src, forbidden
+    assert rf._long_paths_enabled() in (True, False)

@@ -1216,6 +1216,55 @@ rollback owner and it is **idempotent**; `apply()` no longer rolls back on its
 own, because the old inner-plus-outer arrangement ran the restore twice and the
 second pass reasoned about a tree the first had already changed.
 
+### Slot names are bounded, and the mapping is written down
+
+A slot inside the recovery directory used to be named
+`orig.<sequence>.<run id>.<the whole repository-relative path, flattened>`. That
+made the name's length depend on its target's: the tree's longest tracked path
+is 99 characters, which produced a 125-character filename, and under a deep
+temporary directory the total crossed the Windows 260-character limit. Windows
+reports that refusal as `ENOENT`, so it did not look like a length problem at
+all - the transaction failed as `TRANSACTION_UNWRITABLE` with *no such file or
+directory* for a file that was plainly there, and the rollback then failed the
+same way for the same reason. Twenty-six transaction, rollback, cleanup and
+lock tests failed this way inside the disposable validation run while passing
+everywhere else.
+
+Names are now `<kind>.<sequence>.<16-hex digest>` - **31 characters at most**,
+whatever the target is called. The digest covers the run id, the kind, the
+sequence and the exact repository-relative path, so two runs, two kinds and two
+targets can never collide, and neither can two paths the old sanitizer
+flattened to the same text (`a b.md` and `a_b.md`).
+
+Nothing is lost by shortening the name. Each slot is recorded in an append-only
+**recovery manifest**, `slots.jsonl`, inside the recovery directory: one JSON
+object per line carrying the slot name, kind, sequence, the exact
+repository-relative path, the original identity, size and mode, and the
+expected identity. It is created exclusively and flushed as it grows, and after
+the first record it is only ever appended to - a manifest that has been removed
+or replaced is a refusal, not a silently restarted mapping. The same mapping
+travels in the run's report under `slots`, so an operator reading a failure
+never has to decode a filename.
+
+### The budget is decided before the first mutation
+
+Whether this run's names can fit is arithmetic, and it is answered while
+nothing is on disk. Before a transaction touches anything it computes the
+longest path it could create - the recovery directory plus the longest possible
+slot name - and refuses with `TRANSACTION_PATH_TOO_LONG` if the platform will
+not take it. Every tracked file, archive, receipt, lock and temporary is left
+exactly as it was. The machine's `LongPathsEnabled` setting is **read and never
+written**: it belongs to the operator, and a tool that quietly changed it would
+be repairing the computer instead of its own names.
+
+The validation run gets the same treatment from the other end. Its pytest base
+directory is created **short**, on the same volume as the clone it validates,
+one per run and never a shared fixed name. It carries an ownership token, and
+it is removed only when that token is still the one this run wrote; a directory
+that has been replaced, that is no longer a plain directory, or that will not
+delete is **retained and reported** under `retained_basetemp` rather than swept
+away.
+
 ## 8a-bis. Nothing is deleted by pathname
 
 Every removal this tool performed was shaped the same way: inspect the object
@@ -1420,7 +1469,8 @@ touch it.
 | `RECEIPT_APPEARED_CONCURRENTLY` | a receipt appeared while this run was writing one; it is preserved and the run refuses |
 | `FINALIZER_LOCK_HELD` | another finalization holds the worktree or staging lock, or died holding it |
 | `TRANSACTION_TARGET_RECREATED` / `TRANSACTION_TARGET_NOT_REGULAR` | a tracked target was recreated after the move-aside, or is not a regular file |
-| `TRANSACTION_STAGING_OCCUPIED` / `TRANSACTION_RECOVERY_OCCUPIED` | a run-owned staging or recovery slot was already occupied |
+| `TRANSACTION_STAGING_OCCUPIED` / `TRANSACTION_RECOVERY_OCCUPIED` | a run-owned staging or recovery slot, or the recovery manifest, was already occupied |
+| `TRANSACTION_PATH_TOO_LONG` | the compact layout still will not fit on this platform; nothing was written |
 | `POSTIMAGE_MUTATED_BEFORE_COMMIT` | a file this run wrote was edited from outside before the commit point |
 | `PREDECESSOR_MUTATED` / `PREDECESSOR_RECOVERY_LOST` | the destination was rewritten during the move-aside, or a recovery copy disappeared |
 | `VALIDATION_TREE_SYMLINK` / `VALIDATION_TREE_SUBMODULE` | a tracked symlink or gitlink cannot be reproduced in the validation tree |

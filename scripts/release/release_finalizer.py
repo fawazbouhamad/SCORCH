@@ -3095,6 +3095,100 @@ def _run_owned_dir(repo_root, name, code):
     return admin / name
 
 
+# ---------------------------------------------------------------------------
+# The Windows path budget - decided BEFORE anything is created
+# ---------------------------------------------------------------------------
+#: Windows refuses a path longer than MAX_PATH unless long paths are enabled
+#: machine-wide, and it reports the refusal as ENOENT - "no such file or
+#: directory" for a file that is plainly there. That is why an overlong
+#: transaction slot did not look like a length problem at all: it surfaced
+#: halfway through as an unwritable transaction, and then the rollback failed
+#: the same way, for the same reason, and reported a missing file.
+_WINDOWS_MAX_PATH = 260
+#: Directory creation is stricter: ``CreateDirectory`` reserves room for an
+#: 8.3 name inside the directory it makes.
+_WINDOWS_MAX_DIR = 248
+
+
+def _long_paths_enabled():
+    """Whether this machine accepts paths past MAX_PATH. READ-ONLY.
+
+    The registry value is QUERIED and never written. It is a machine-wide
+    setting; a release tool that quietly changed it would be repairing the
+    operator's computer instead of its own names, and the next machine would
+    fail exactly as this one did.
+    """
+    if os.name != "nt":
+        return True
+    try:
+        import winreg
+    except ImportError:                                   # pragma: no cover
+        return False
+    try:
+        with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\FileSystem") as key:
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+    except OSError:
+        return False
+    try:
+        return bool(int(value))
+    except (TypeError, ValueError):                       # pragma: no cover
+        return False
+
+
+def path_budget_issues(claims, *, long_paths=None):
+    """Which of ``claims`` will not fit on this platform. Creates nothing.
+
+    ``claims`` is an iterable of ``(what, path, kind, extra)``: the longest
+    path that will exist under ``path`` is ``len(path) + extra``, and ``kind``
+    is ``"dir"`` when ``path`` itself is a directory that has to be created.
+
+    This exists so a length refusal is a decision taken up front, with every
+    tracked file, archive, receipt, lock and temporary still untouched, rather
+    than an ENOENT discovered with half a transaction already on disk.
+    """
+    if long_paths is None:
+        long_paths = _long_paths_enabled()
+    # The only question is whether this platform accepts the length.
+    # ``_long_paths_enabled`` already answers True everywhere the limit does
+    # not exist, which keeps this function pure and testable off Windows.
+    if long_paths:
+        return []
+    issues = []
+    for what, path, kind, extra in claims:
+        text = str(path)
+        if kind == "dir" and len(text) > _WINDOWS_MAX_DIR - 1:
+            issues.append(
+                f"{what}: the directory {text} is {len(text)} characters, "
+                f"past the {_WINDOWS_MAX_DIR - 1} this machine allows")
+            continue
+        longest = len(text) + extra
+        if longest > _WINDOWS_MAX_PATH - 1:
+            issues.append(
+                f"{what}: the longest path under {text} would be {longest} "
+                f"characters, past the {_WINDOWS_MAX_PATH - 1} this machine "
+                f"allows (long paths are disabled)")
+    return issues
+
+
+def _regular_file_mode(path):
+    """``path``'s mode as an octal string, or None if it is not a plain file.
+
+    Recorded alongside the bytes because the transaction's slot names no
+    longer spell out anything about their target: the manifest has to be able
+    to describe what was moved aside, not just how many bytes it was.
+    """
+    import stat as _stat
+    try:
+        info = os.lstat(str(path))
+    except OSError:
+        return None
+    if not _stat.S_ISREG(info.st_mode):
+        return None
+    return format(_stat.S_IMODE(info.st_mode), "#o")
+
+
 def _read_regular_file(path):
     """Read ``path`` without following a link, or None if it is not there.
 
@@ -3525,15 +3619,19 @@ class _TargetJournal:
     """
 
     __slots__ = ("rel", "original", "original_sha256", "original_bytes",
-                 "expected", "expected_sha256", "written", "recovery_path",
-                 "moved_aside", "creates", "preserved")
+                 "original_mode", "expected", "expected_sha256", "written",
+                 "recovery_path", "moved_aside", "creates", "preserved")
 
-    def __init__(self, rel, original, expected, creates=False):
+    def __init__(self, rel, original, expected, creates=False, mode=None):
         self.rel = rel
         self.original = original
         self.original_sha256 = (None if original is None
                                 else sha256_bytes(original))
         self.original_bytes = None if original is None else len(original)
+        #: The target's mode as it was found, recorded because the slot name no
+        #: longer carries anything about the target and a restore has to be
+        #: able to describe what it is putting back.
+        self.original_mode = mode
         self.expected = expected
         self.expected_sha256 = (None if expected is None
                                 else sha256_bytes(expected))
@@ -3549,6 +3647,7 @@ class _TargetJournal:
             "rel": self.rel,
             "original_sha256": self.original_sha256,
             "original_bytes": self.original_bytes,
+            "original_mode": self.original_mode,
             "expected_sha256": self.expected_sha256,
             "written": self.written,
             "moved_aside": self.moved_aside,
@@ -3604,8 +3703,40 @@ class Transaction:
         #: The identity of every temporary this transaction creates, so a
         #: later cleanup can prove an object is its own before removing it.
         self._temps = _RunTemporaries(self.run_id)
+        #: bounded slot name -> what the name no longer spells out. Mirrored
+        #: durably into RECOVERY_MANIFEST inside the recovery directory.
+        self.slots = {}
+        self._manifest_started = False
 
     # -- staging ----------------------------------------------------------
+    #: Every name this transaction creates is BOUNDED. A slot used to end with
+    #: the repository-relative path of its target, flattened - so
+    #: provenance/corrections/tmax_weighted_centroids_xlsx_equivalence/
+    #: XLSX_SEMANTIC_EQUIVALENCE_REPORT.md produced a 125-character filename,
+    #: and under a deep pytest temporary directory the whole path crossed the
+    #: Windows limit. The path is not lost by shortening the name: it is
+    #: written down in full in the recovery manifest, where an operator - or a
+    #: crash recovery - reads it from a fixed place instead of decoding it back
+    #: out of a filename.
+    SLOT_DIGEST_CHARS = 16
+    #: The longest kind ("quarantine"), a dot, a three-digit sequence, a dot
+    #: and the digest. Fixed, so the budget below is knowable before any name
+    #: is created.
+    MAX_SLOT_NAME = len("quarantine") + 1 + 3 + 1 + SLOT_DIGEST_CHARS
+    #: The append-only mapping from bounded slot name back to everything the
+    #: name no longer carries.
+    RECOVERY_MANIFEST = "slots.jsonl"
+
+    def _recovery_root_path(self):
+        """Where the recovery directory WOULD be. Creates nothing.
+
+        Separate from :meth:`_recovery_root` so the path budget can be decided
+        while the transaction has still touched nothing at all.
+        """
+        return _run_owned_dir(
+            self.repo_root, f"scorch_finalizer_recovery_{self.run_id}",
+            "TRANSACTION_UNWRITABLE")
+
     def _recovery_root(self):
         """A run-owned directory on the worktree's own filesystem.
 
@@ -3617,9 +3748,7 @@ class Transaction:
         worktree it is a file.
         """
         if self._recovery_dir is None:
-            path = _run_owned_dir(
-                self.repo_root, f"scorch_finalizer_recovery_{self.run_id}",
-                "TRANSACTION_UNWRITABLE")
+            path = self._recovery_root_path()
             try:
                 os.mkdir(str(path), 0o700)
             except FileExistsError:
@@ -3635,11 +3764,112 @@ class Transaction:
             self._recovery_dir = path
         return self._recovery_dir
 
+    def _slot_name(self, rel, kind):
+        """The bounded name of the slot for ``rel``: ``kind.NNN.<digest>``.
+
+        Run-unique and unpredictable without being variable-length: the run id,
+        the kind, the sequence and the repository-relative path all go into the
+        digest, so two runs, two kinds and two targets can never collide, and
+        the name is the same length whatever the target is called.
+        """
+        sequence = (self._order.index(rel) if rel in self._order
+                    else len(self._order))
+        token = hashlib.sha256(
+            "\x00".join((self.run_id, kind, str(sequence), rel))
+            .encode("utf-8")).hexdigest()[:self.SLOT_DIGEST_CHARS]
+        return f"{kind}.{sequence:03d}.{token}"
+
     def _slot(self, rel, kind):
-        """A run-unique, unpredictable path inside the recovery directory."""
-        safe = re.sub(r"[^A-Za-z0-9._-]", "_", rel)
-        return self._recovery_root() / (
-            f"{kind}.{len(self._order):03d}.{self.run_id}.{safe}")
+        """A run-unique, unpredictable, BOUNDED path in the recovery directory.
+
+        Allocating the name also records it, so the mapping back to the real
+        repository-relative path is durable BEFORE the slot is used rather than
+        after - a run that dies between the two would otherwise leave a
+        directory of undecodable digests.
+        """
+        name = self._slot_name(rel, kind)
+        path = self._recovery_root() / name
+        self._record_slot(rel, kind, name)
+        return path
+
+    def _record_slot(self, rel, kind, name):
+        """Write the slot's meaning into the recovery manifest, once."""
+        if name in self.slots:
+            return
+        entry = self.journal.get(rel)
+        expected = getattr(entry, "expected", None)
+        record = {
+            "slot": name,
+            "kind": kind,
+            "sequence": int(name.split(".")[1]),
+            "rel": rel,
+            "run_id": self.run_id,
+            "original_sha256": getattr(entry, "original_sha256", None),
+            "original_bytes": getattr(entry, "original_bytes", None),
+            "original_mode": getattr(entry, "original_mode", None),
+            "expected_sha256": getattr(entry, "expected_sha256", None),
+            "expected_bytes": None if expected is None else len(expected),
+        }
+        self.slots[name] = record
+        self._append_manifest(record)
+
+    def _append_manifest(self, record):
+        """Append one slot record durably. Exclusive on creation, append after.
+
+        The manifest is now the ONLY place a slot's repository-relative path,
+        identity, size and mode are written down, so it is flushed to the
+        platform as it grows rather than at the end: a run that dies part-way
+        leaves a file that already describes every slot it had created. After
+        the first record the file must ALREADY exist - it is not re-created -
+        so a manifest somebody removed or replaced is a refusal rather than a
+        silently restarted mapping.
+        """
+        path = self._recovery_root() / self.RECOVERY_MANIFEST
+        line = (json.dumps(record, sort_keys=True) + "\n").encode("utf-8")
+        if self._manifest_started:
+            flags = (os.O_WRONLY | os.O_APPEND
+                     | getattr(os, "O_NOFOLLOW", 0)
+                     | getattr(os, "O_BINARY", 0))
+        else:
+            flags = _EXCL_FLAGS | os.O_APPEND
+        try:
+            fd = os.open(str(path), flags, 0o600)
+        except FileExistsError:
+            raise FinalizerError(
+                "TRANSACTION_RECOVERY_OCCUPIED",
+                f"the recovery manifest {path} was already occupied")
+        except OSError as exc:
+            raise FinalizerError(
+                "TRANSACTION_UNWRITABLE",
+                f"the recovery manifest {path} could not be written: {exc}")
+        try:
+            os.write(fd, line)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        self._manifest_started = True
+
+    def _check_path_budget(self):
+        """Refuse an impossible layout BEFORE the first mutation.
+
+        Every name this transaction can create is bounded and its location is
+        known, so whether the whole thing fits is a question that can be
+        answered with nothing on disk. Answering it late is what turned a
+        length problem into a half-applied transaction whose rollback failed
+        with "no such file or directory".
+        """
+        root = self._recovery_root_path()
+        issues = path_budget_issues([
+            ("the transaction recovery directory", root, "dir",
+             1 + max(self.MAX_SLOT_NAME, len(self.RECOVERY_MANIFEST))),
+        ])
+        if issues:
+            raise FinalizerError(
+                "TRANSACTION_PATH_TOO_LONG",
+                "; ".join(issues) + ". Nothing has been written: every tracked "
+                "file, archive, receipt, lock and temporary is as it was. Run "
+                "from a shorter path, or enable long path support on this "
+                "machine")
 
     def _capture(self, rel, expected=None, creates=False):
         """Record the ACTUAL CURRENT BYTES, or None if the file is absent.
@@ -3656,7 +3886,8 @@ class Transaction:
         if rel in self.journal:
             return self.journal[rel]
         entry = _TargetJournal(rel, _read_regular_file(self.repo_root / rel),
-                               expected, creates)
+                               expected, creates,
+                               mode=_regular_file_mode(self.repo_root / rel))
         self.journal[rel] = entry
         self._order.append(rel)
         return entry
@@ -3670,6 +3901,10 @@ class Transaction:
         the restore twice - once here, once in the finalizer's handler - and
         the second pass reasoned about a tree the first had already changed.
         """
+        # BEFORE the first mutation, and before the recovery directory itself
+        # exists. Whether this run's names can fit on this platform is knowable
+        # with nothing on disk, so it is decided with nothing on disk.
+        self._check_path_budget()
         protected = list(self.contract["protected_historical_records"])
         for rel in protected:
             self._protected[rel] = _read_regular_file(self.repo_root / rel)
@@ -4027,6 +4262,14 @@ class Transaction:
                   "quarantined": {rel: str(slot)
                                   for rel, slot in self._quarantined.items()},
                   "recovery_paths": dict(self.recovery_paths),
+                  # The slot names are bounded digests now, so the mapping back
+                  # to real repository paths travels WITH the report instead of
+                  # being read off the filenames.
+                  "slots": {name: dict(record)
+                            for name, record in sorted(self.slots.items())},
+                  "recovery_manifest": (
+                      str(self._recovery_dir / self.RECOVERY_MANIFEST)
+                      if self._recovery_dir else None),
                   "journal": {rel: self.journal[rel].as_dict()
                               for rel in self._order}}
         self._rollback_result = result
@@ -4795,6 +5038,157 @@ def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
     return result
 
 
+#: The file a run writes inside its own base directory to prove, later, that
+#: the directory it is about to delete is still the one it made.
+_BASETEMP_OWNER = ".scorch-basetemp-owner"
+
+
+def _is_plain_directory(path):
+    """A real directory - not a symlink, junction or other reparse point.
+
+    ``Path.is_dir()`` follows links and answers about the target, which is the
+    wrong question when the point of asking is whether this run may delete
+    what is here.
+    """
+    import stat as _stat
+    try:
+        info = os.lstat(str(path))
+    except OSError:
+        return False
+    if not _stat.S_ISDIR(info.st_mode):
+        return False
+    attributes = getattr(info, "st_file_attributes", 0)
+    reparse = getattr(_stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return not (attributes & reparse)
+
+
+class _ValidationBasetemp:
+    """A SHORT, run-owned pytest base directory on the clone's own volume.
+
+    pytest builds a per-test directory under this root; the finalizer's own
+    end-to-end tests then build a repository, a git administrative directory
+    and a transaction recovery directory underneath THAT. Started from the
+    system temporary directory the total crossed the Windows limit, and 26
+    transaction, rollback, cleanup and lock tests failed inside the disposable
+    validation run while passing everywhere else.
+
+    The remedy is a short root - not a machine setting, and not a shared fixed
+    name either. This directory is created EXCLUSIVELY, per run, on the same
+    volume as the clone it validates, and it is removed only when the
+    ownership token written inside it is still the one this run wrote. A
+    directory that has been replaced, or that will not delete, is retained and
+    reported rather than swept away.
+    """
+
+    def __init__(self, copy_root, run_id):
+        self.copy_root = Path(copy_root)
+        self.run_id = run_id
+        self.path = None
+        self.token = None
+        self.retained = []
+        self.failures = []
+        self._fallback = None
+
+    def _candidates(self):
+        """Short parents to try, the clone's own volume first."""
+        anchors = []
+        try:
+            anchors.append(self.copy_root.resolve().anchor)
+        except OSError:                                   # pragma: no cover
+            pass
+        anchors.append(Path(tempfile.gettempdir()).anchor)
+        out = []
+        for anchor in anchors:
+            if not anchor:
+                continue
+            parent = Path(anchor) / ".scorchbt"
+            if parent not in out:
+                out.append(parent)
+        return out
+
+    def __enter__(self):
+        self.token = hashlib.sha256(
+            f"{self.run_id}|scorch-validation-basetemp".encode("utf-8")
+        ).hexdigest()
+        name = "bt" + self.token[:12]
+        for parent in self._candidates():
+            try:
+                parent.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
+            if not _is_plain_directory(parent):
+                continue
+            path = parent / name
+            try:
+                os.mkdir(str(path), 0o700)
+            except OSError:
+                # Occupied, or not creatable here. Never reused: a base
+                # directory this run did not make is somebody else's.
+                continue
+            if not _is_plain_directory(path):
+                continue
+            try:
+                _write_new(path / _BASETEMP_OWNER,
+                           self.token.encode("ascii"),
+                           exists_code="VALIDATION_BASETEMP_OCCUPIED",
+                           exists_why=f"{path} was already occupied")
+            except FinalizerError:
+                continue
+            self.path = path
+            return path
+        # Nowhere short was available. Fall back to the system temporary
+        # directory, exactly as before the repair: a platform without the
+        # length limit never needed the short root, and one that has it will
+        # now refuse with a named budget code rather than an ENOENT.
+        self._fallback = tempfile.TemporaryDirectory(prefix="scorchbt")
+        self.path = Path(self._fallback.name)
+        return self.path
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
+    def close(self):
+        if self._fallback is not None:
+            try:
+                self._fallback.cleanup()
+            except OSError as exc:
+                self.retained.append(str(self.path))
+                self.failures.append(f"{self.path} could not be removed: {exc}")
+            self._fallback = None
+            return
+        if self.path is None:
+            return
+        if not _is_plain_directory(self.path):
+            self.retained.append(str(self.path))
+            self.failures.append(
+                f"{self.path} is no longer a plain directory; it is retained "
+                f"rather than removed")
+            return
+        try:
+            owner = _read_regular_file(self.path / _BASETEMP_OWNER)
+        except FinalizerError:
+            owner = None
+        if owner is None or owner.decode("ascii", "replace") != self.token:
+            self.retained.append(str(self.path))
+            self.failures.append(
+                f"{self.path} does not carry this run's ownership token; it is "
+                f"retained rather than removed")
+            return
+        failures = _rmtree_checked(self.path, "the validation base directory")
+        if failures:
+            self.retained.append(str(self.path))
+            self.failures.extend(failures)
+            return
+        # Best effort only: the shared parent belongs to no single run, and
+        # another run's base directory inside it is a perfectly good reason
+        # for this to fail.
+        try:
+            self.path.parent.rmdir()
+        except OSError:
+            pass
+
+
 def run_validation(copy_root, python_exe, final_archive, extraction, *,
                    final_docx_dir=None, aptos_font=None, summary_path,
                    candidate_archive=None, slide_font_dir=None):
@@ -4857,17 +5251,26 @@ def run_validation(copy_root, python_exe, final_archive, extraction, *,
     # is accepted on the strength of what this run actually executed.
     env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
 
-    with tempfile.TemporaryDirectory(prefix="scorchbt") as basetemp:
+    # A SHORT base directory, owned by this run. pytest's own temporaries are
+    # only the first few segments of what the end-to-end tests build under
+    # here, and the system temporary directory left too little room.
+    basetemp = _ValidationBasetemp(copy_root, new_run_id())
+    with basetemp as base:
         proc = subprocess.run(
             [str(python_exe), "-m", "pytest", "tests",
              "-p", "no:cacheprovider", "-p", "scorch_summary_plugin",
-             "--basetemp", basetemp, "-rsxX", "-q"],
+             "--basetemp", str(base), "-rsxX", "-q"],
             cwd=str(copy_root), env=env, capture_output=True, text=True)
     result = {"exit_code": proc.returncode,
               "repository_root": str(copy_root),
               "data_archive": str(final_archive),
               "data_dir": str(extraction),
+              "basetemp": str(basetemp.path),
               "tail": proc.stdout[-4000:] + proc.stderr[-2000:]}
+    if basetemp.retained:
+        result["retained_basetemp"] = list(basetemp.retained)
+    if basetemp.failures:
+        result["basetemp_failures"] = list(basetemp.failures)
     if Path(summary_path).is_file():
         result.update(json.loads(Path(summary_path).read_text("utf-8")))
     return result
