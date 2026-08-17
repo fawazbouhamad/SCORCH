@@ -22,11 +22,11 @@ covered by any content row.
 | Path | Licence |
 |---|---|
 | `src/**`, `scripts/**`, `tests/**`, `run_reproduction.py`, `Makefile`, `configs/**` - **software and text only**, expressly EXCLUDING the three frozen artwork rasters carved out in the next row | **GPL-3.0-only** (see `LICENSE`) |
-| `scripts/figures/fig01/original/Figure_01_original.png`, `scripts/figures/fig04/original/Figure_04_original.png`, `scripts/figures/fig04/donor/Figure_04_approved_horizontal.png` (the archived-original and immutable-donor slide artwork that the Figure 1 and Figure 4 producers READ as input) | **CC BY 4.0 PENDING - NOT YET IN FORCE.** These three files are author-created slide ARTWORK that happens to sit under a code directory; they are NOT software and are NOT GPL-3.0-only. The row above must never be read as licensing them: a GPL grant over the SCORCH software is not artwork permission. The artwork creator's CC BY 4.0 declaration for these files **has not been recorded** in this repository state. Until it is, no public licence is granted over these three rasters and no CC BY 4.0 grant may be asserted anywhere for them |
+| `scripts/figures/fig01/original/Figure_01_original.png`, `scripts/figures/fig04/original/Figure_04_original.png`, `scripts/figures/fig04/donor/Figure_04_approved_horizontal.png` (the archived-original and immutable-donor slide artwork that the Figure 1 and Figure 4 producers READ as input) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). These three files are author-created slide ARTWORK that happens to sit under a code directory; they are NOT software and are NOT GPL-3.0-only. The row above must never be read as licensing them: a GPL grant over the SCORCH software is not artwork permission. Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0. The creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries reaches exactly the seven declared Figure 1 and Figure 4 artwork assets and nothing else |
 | `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | **GPL-3.0-only** (see `LICENSE`) |
 | `docs/**`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `CITATION.cff`, `.zenodo.json` (author-created documentation and record metadata) | CC BY 4.0 |
 | `assets/frozen_figures/README.md`, `assets/frozen_figures/SHA256SUMS` (the authors' own checksum and documentation records for this directory - text, not artwork) | CC BY 4.0 |
-| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (the shipped Figure 1 and Figure 4 slide artwork, PNG and PDF) | **CC BY 4.0 PENDING - NOT YET IN FORCE.** Same artwork, same gate as the donor rasters above: the artwork creator's CC BY 4.0 declaration **has not been recorded** in this repository state. No CC BY 4.0 grant is in force over Figure 1 or Figure 4 in this repository, in the companion deposit, in `publication_outputs/`, or in any PNG/PDF export derived from them. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no provider terms attach to them; the gate here is the creator's own recorded declaration alone |
+| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (the shipped Figure 1 and Figure 4 slide artwork, PNG and PDF) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Same artwork, same declaration as the donor rasters above: the creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The grant reaches exactly the seven artwork assets identified by path and SHA-256 in that receipt, wherever an exact copy of one of them appears - including the copies carried in the companion deposit and in `publication_outputs/`. CC BY 4.0 permits reproduction, technical format changes and adaptation of that Licensed Material on the terms of the licence itself. What the grant does not do is make an eighth artwork path Licensed Material: an unrelated SCORCH figure is not covered here. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no provider terms attach to them; the grant here is the creator's own recorded declaration alone |
 | `assets/frozen_figures/figS1_station_donor/**` (frozen station-comparison artwork) | CC BY 4.0 for the authors' artwork; the depicted station observations remain subject to the GHCN-Daily source/use terms and attribution, and the depicted reanalysis values to the current Copernicus ERA5 terms and required attribution |
 | `assets/manuscript_final/**` (the **six** authenticated manuscript-final figure rasters - Figures 8, 9, 10, 11 and Appendices A and C - and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the frozen slide exports. The count is **six, not nine**: the pre-correction Figure 5, 6 and 7 exports are no longer shipped here (see `docs/RELOCATED_ARTIFACTS.csv`), and the CC BY 4.0 grant in this row covers only these six rasters and the directory's own records |
 | `data/auxiliary/**` (author-generated Method-A analysis data) | CC BY 4.0 for the authors' original processing and contribution + current Copernicus ERA5 terms and required attribution for the underlying ERA5-derived material |
@@ -37,28 +37,28 @@ covered by any content row.
 | Data deposit: ERA5-derived files (`gridded/**`, `lgcp/tmax_covariate_grid_all_boxes.csv`, `lgcp/covariate_raster_km.csv`, `validation_station/era5_*`, `figure_table_source_data/fig02/*`) | CC BY 4.0 for the authors' processing + current Copernicus ERA5 terms and required attribution |
 | Data deposit: `validation_station/ghcnd_*`, `merged_station_validation.csv`, `recompute_result.json` | GHCN-Daily source/use terms and attribution (applicable source-provider rights retained); authors' processing CC BY 4.0; the merged file's ERA5 column also carries the Copernicus terms; `recompute_result.json` is the authors' derived output under CC BY 4.0 |
 
-## Figure 1 / Figure 4 artwork: CC BY 4.0 PENDING, not yet in force
+## Figure 1 / Figure 4 artwork: CC BY 4.0 in force
 
 The Figure 1 and Figure 4 slide artwork - the shipped assets under
 `assets/frozen_figures/fig01/` and `fig04/`, the archived-original and
 immutable-donor rasters under `scripts/figures/fig01/original/` and
-`scripts/figures/fig04/{original,donor}/`, and every PNG/PDF export derived
-from them, including anything materialized into `publication_outputs/` - is
-**CC BY 4.0 PENDING and NOT YET IN FORCE.**
+`scripts/figures/fig04/{original,donor}/`, and exact copies of those seven
+assets wherever they are shipped - is covered by the grant recorded on its
+own line immediately below.
 
-This artwork was created by Fawaz Bouhamad, who is its copyright holder
-and sole licensor. Dr. Nasser Najibi provided scientific guidance, review
-and corrections for these figures and is credited for that contribution,
-and is not a licensor of this artwork. The creator's CC BY 4.0
-declaration **has not been recorded** in this repository state, so no
-CC BY 4.0 grant exists over this artwork anywhere in this repository, the
-companion data deposit, or any export. Two things that are NOT that
-declaration: the GPL-3.0 licence covering the SCORCH software, and the
-fact that the artwork's producers and some of its donor rasters sit under
-`scripts/`. No record may state or imply an active
-CC BY 4.0 licence for Figure 1 or Figure 4 while this section stands; that
-contradiction is machine-enforced by
-`tests/test_public_consistency_guards.py`.
+The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).
+
+Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific
+guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
+
+This artwork was created by Fawaz Bouhamad, its copyright holder and sole
+licensor; Dr. Najibi is credited for scientific guidance and is not a
+licensor of it. The creator's CC BY 4.0 declaration is recorded in
+`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries is
+limited to the seven assets identified by path and SHA-256 in it, and to
+exact copies of them. CC BY 4.0 permits adaptation of that Licensed Material
+on its own terms; no eighth artwork path is covered. The GPL-3.0 licence
+covers the SCORCH software, and no third-party data acquires any licence. The activated state is machine-enforced by `tests/test_public_consistency_guards.py`.
 
 `validate_deposit.py` is SOFTWARE and is licensed MIT. Any earlier statement
 assigning it to CC BY 4.0 alone is superseded. The deposit's own

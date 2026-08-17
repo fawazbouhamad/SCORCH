@@ -36,7 +36,7 @@ where the correct doubled-angle axial mean is +68.98532754765856 deg
 Both are binary PNGs, so their historical Windows-worktree bytes and their
 repository-normalized bytes are the same bytes; the archive members are those
 exact bytes, added verbatim with no transformation. The archive itself is
-SHA-256 `8d6ca0c5cd77d672a7c73924a1d243dab01d1a592c1730389aa0f1a864871383`.
+SHA-256 `48a43ca7f1daeaaa831918eea4451447a8e514bbff450ff013b433998c90b9d4`.
 
 The corrected chain (v1.0.0) uses the doubled-angle axial mean via
 `scripts/figures/common/scorch_axial.py`; the canonical full-resolution

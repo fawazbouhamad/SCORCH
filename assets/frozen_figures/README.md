@@ -167,11 +167,11 @@ that span is stated separately and is not the notice's year token. CC BY 4.0
 covers only the authors' plotting contribution, never the underlying
 GHCN-Daily or ERA5 observations.
 
-Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0
-licensing is PENDING and not yet in force:** this artwork was created by
-Fawaz Bouhamad, with scientific guidance from Dr. Nasser Najibi, and the
-creator's CC BY 4.0 declaration has not been recorded in this repository
-state. The GPL-3.0 licence covering
+Figures 1 and 4 carry no such third-party material.
+The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).
+Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
+The creator's declaration that this grant rests on is recorded in
+`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The GPL-3.0 licence covering
 the SCORCH software is not artwork permission.
 
 `SHA256SUMS` in this directory carries the same digests in checkable form

@@ -93,8 +93,8 @@ What is never claimed for them is regeneration **from data**: their content
 originates in author slide artwork, not in the deposited catalogs, so a producer
 run reproduces approved artwork rather than deriving a figure from ERA5-derived
 values. They ship as frozen approved artwork in `assets/frozen_figures/`; see
-that directory's `README.md` for the full provenance chains and for the standing
-**CC BY 4.0 PENDING - not yet in force** status of this artwork.
+that directory's `README.md` for the full provenance chains and for the
+recorded licence status of this artwork. The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
 
 Fig. 2, 3, 12, B, D and S.1 reproduce byte-identical to their manuscript embed
 directly from the deposited data, so no frozen copy is needed or shipped.
