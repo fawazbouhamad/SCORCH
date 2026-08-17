@@ -38,6 +38,24 @@ MASTER_COLUMNS = [
     "eigval_major", "eigval_minor", "pc1_explained_var",
 ]
 
+# Remediation (fix/tmax-weighted-centroids): explicit coordinate definitions.
+# Generic aliases above carry the Tmax-weighted location in post-remediation
+# catalogs; the unweighted PCA origin is preserved separately. A catalog is
+# valid with either NONE of these columns (pre-remediation baseline /
+# fixtures) or ALL of them; a partial block is a schema violation.
+MASTER_COLUMNS_REMEDIATION = [
+    "pca_origin_lon_unweighted", "pca_origin_lat_unweighted",
+    "centroid_lon_unweighted", "centroid_lat_unweighted",
+    "centroid_lon_tmax_weighted", "centroid_lat_tmax_weighted",
+    "tmax_weight_sum_c", "tmax_min_c", "tmax_max_c", "tmax_mean_c",
+    "tmax_sd_c", "centroid_displacement_km",
+    "centroid_displacement_bearing_deg",
+    "E_ellipse_cells_translated", "interH_intersection_cells_translated",
+    "union_cells_translated", "target_component_purity_translated",
+    "same_day_hw_purity_translated", "containment_translated",
+    "iou_jaccard_translated",
+]
+
 # Columns that must parse as integers / floats for the schema to be valid.
 MASTER_INT_COLUMNS = [
     "new_event_id", "event_id", "v3_type", "duration_days",
@@ -53,6 +71,12 @@ MASTER_FLOAT_COLUMNS = [
     "centroid_lon", "centroid_lat", "major_axis_km", "minor_axis_km",
     "ellipse_area_km2", "orientation_deg", "axis_ratio",
     "eigval_major", "eigval_minor", "pc1_explained_var",
+    "pca_origin_lon_unweighted", "pca_origin_lat_unweighted",
+    "centroid_lon_unweighted", "centroid_lat_unweighted",
+    "centroid_lon_tmax_weighted", "centroid_lat_tmax_weighted",
+    "tmax_weight_sum_c", "tmax_min_c", "tmax_max_c", "tmax_mean_c",
+    "tmax_sd_c", "centroid_displacement_km",
+    "centroid_displacement_bearing_deg",
 ]
 
 PARAMETERS_COLUMNS = [
@@ -113,6 +137,13 @@ def validate_master(df, expect_canonical_counts=False, expected_counts=None):
     missing = [c for c in MASTER_COLUMNS if c not in df.columns]
     if missing:
         problems.append(f"missing required columns: {missing}")
+    rem_present = [c for c in MASTER_COLUMNS_REMEDIATION if c in df.columns]
+    if rem_present and len(rem_present) != len(MASTER_COLUMNS_REMEDIATION):
+        rem_missing = [c for c in MASTER_COLUMNS_REMEDIATION
+                       if c not in df.columns]
+        problems.append(
+            f"partial Tmax-weighted-centroid column block: missing "
+            f"{rem_missing}")
 
     for col in MASTER_INT_COLUMNS:
         if col in df.columns:

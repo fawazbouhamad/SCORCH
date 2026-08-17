@@ -8,7 +8,27 @@ and in `docs/MANUSCRIPT_FIGURE_IDENTITY.csv`.
 
 Two distinct situations are represented, and they are NOT the same claim.
 
-## `deployment_export_of_reproduced_original` - Fig. 5, 6, 7, 9, 10, 11, A, C
+## Figs. 5, 6 and 7 are no longer shipped here
+
+`docs/MANUSCRIPT_FIGURE_IDENTITY.csv` records Figs. 5, 6 and 7 as
+`materialization = reproduced_output` with no shipped asset: since the
+weighted-centroid correction the manuscript embeds their **full-resolution
+reproduced renders** directly, so no downscaled deployment export is needed.
+The pre-correction exports that used to sit here are superseded.
+
+They were **removed from Git** and **staged** under
+`provenance_evidence/superseded_manuscript_assets/` in the **locally built and
+locally verified v1.0.0 data-archive candidate**
+`scorch_processed_data_v1.0.0.zip`, which is intended for the reserved data DOI
+10.5281/zenodo.21717752. **That archive has not been uploaded, deposited, or
+published, and the DOI is reserved on an unpublished draft:** these files are
+therefore NOT currently retrievable from Zenodo or from anywhere else public.
+Nothing in this repository may describe them as already deposited.
+`docs/RELOCATED_ARTIFACTS.csv` gives their exact archive member paths, byte
+counts and hashes, and carries an explicit `archive_publication_state` column
+recording that local-only status.
+
+## `deployment_export_of_reproduced_original` - Fig. 9, 10, 11, A, C
 
 The **plotted content is fully reproducible from the deposited data**: running
 the producing script yields a full-resolution original that is byte-identical
@@ -28,8 +48,12 @@ arithmetic mean) regenerated its approved original end-to-end from the
 deposit, and the shipped `Figure_09.png` is the deterministic width-1950
 LANCZOS downscale produced by
 `scripts/figures/common/make_manuscript_artwork.py`. The superseded
-arithmetic-mean artifacts are archived under `legacy_defective_figure09/`
-and are historical only.
+arithmetic-mean rasters are historical only and no longer sit in this
+repository: `provenance/legacy/figure09/` retains only its explanatory
+pointer README, and the rasters themselves are staged at
+`provenance_evidence/legacy_defective_figure09/` inside the LOCAL,
+UNPUBLISHED processed-data archive candidate. They are not deposited,
+not published and not publicly retrievable.
 
 ## `manually_postprocessed_approved_artwork` - Fig. 8
 
@@ -47,10 +71,30 @@ presented as the publication figure. See `reproduction_note` in
 
 ## What is deliberately NOT here
 
-Fig. 1 and Fig. 4 are author-created slide exports with no runnable producer.
-They ship as frozen approved artwork in `assets/frozen_figures/` and are
-classified `frozen_approved_artwork`; regeneration from data is never claimed
-for them.
+Fig. 1 and Fig. 4 are author-created slide exports that **do** have runnable
+producers, and those producers are deterministic and donor-based. They are
+nonetheless **frozen artwork rather than data-generated figures**, which is why
+they are not shipped here. `docs/MANUSCRIPT_FIGURE_IDENTITY.csv` records both as
+`reproduction_class = deterministic_producer` with
+`materialization = frozen_artwork_asset`, and for both rows
+`script_render_sha256` equals `manuscript_final_sha256` - the producer output is
+byte-identical to the manuscript embed.
+
+* Fig. 1: `scripts/figures/fig01/restore_fig01_original_threshold.py` restores
+  the archived original slide export
+  (`scripts/figures/fig01/original/Figure_01_original.png`) and applies exactly
+  one authorized wording change.
+* Fig. 4: `scripts/figures/fig04/make_fig04_symmetry_final.py` reads the
+  immutable approved-horizontal donor
+  (`scripts/figures/fig04/donor/Figure_04_approved_horizontal.png`) and emits
+  the shipped asset in one deterministic pass.
+
+What is never claimed for them is regeneration **from data**: their content
+originates in author slide artwork, not in the deposited catalogs, so a producer
+run reproduces approved artwork rather than deriving a figure from ERA5-derived
+values. They ship as frozen approved artwork in `assets/frozen_figures/`; see
+that directory's `README.md` for the full provenance chains and for the
+recorded licence status of this artwork. The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
 
 Fig. 2, 3, 12, B, D and S.1 reproduce byte-identical to their manuscript embed
 directly from the deposited data, so no frozen copy is needed or shipped.
@@ -60,8 +104,12 @@ directly from the deposited data, so no frozen copy is needed or shipped.
 That column is copied verbatim from `docs/FIGURE_PROVENANCE.csv` and is not
 always the same artifact as the manuscript embed:
 
-* For the eight `deployment_export_*` figures it is the **approved
-  full-resolution original**, of which the embed is a downscale.
+* For the **five** `deployment_export_of_reproduced_original` figures - Fig. 9,
+  Fig. 10, Fig. 11, Fig. A and Fig. C - it is the **approved full-resolution
+  original**, of which the embed is a downscale. (Five, not eight: the count is
+  `reproduction_class == "deployment_export_of_reproduced_original"` in
+  `docs/MANUSCRIPT_FIGURE_IDENTITY.csv`, and Fig. 8 is not in this class - it is
+  `manually_postprocessed_approved_artwork`.)
 * For Fig. 8 it is the **post-processed** approved original.
 * For Fig. 1 and Fig. 4 it equals the embed - the frozen artwork *is* the
   approved original.

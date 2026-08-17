@@ -21,31 +21,92 @@ covered by any content row.
 
 | Path | Licence |
 |---|---|
-| `src/**`, `scripts/**`, `tests/**`, `run_reproduction.py`, `Makefile`, `configs/**` | MIT (see `LICENSE`) |
-| `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | MIT (see `LICENSE`) |
+| `src/**`, `scripts/**`, `tests/**`, `run_reproduction.py`, `Makefile`, `configs/**` - **software and text only**, expressly EXCLUDING the three frozen artwork rasters carved out in the next row | **GPL-3.0-only** (see `LICENSE`) |
+| `scripts/figures/fig01/original/Figure_01_original.png`, `scripts/figures/fig04/original/Figure_04_original.png`, `scripts/figures/fig04/donor/Figure_04_approved_horizontal.png` (the archived-original and immutable-donor slide artwork that the Figure 1 and Figure 4 producers READ as input) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). These three files are author-created slide ARTWORK that happens to sit under a code directory; they are NOT software and are NOT GPL-3.0-only. The row above must never be read as licensing them: a GPL grant over the SCORCH software is not artwork permission. Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0. The creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries reaches exactly the seven declared Figure 1 and Figure 4 artwork assets and nothing else |
+| `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | **GPL-3.0-only** (see `LICENSE`) |
 | `docs/**`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `CITATION.cff`, `.zenodo.json` (author-created documentation and record metadata) | CC BY 4.0 |
-| `assets/frozen_figures/**` except `figS1_station_donor/**` (author-created frozen figure assets and their checksum/README records) | CC BY 4.0 |
+| `assets/frozen_figures/README.md`, `assets/frozen_figures/SHA256SUMS` (the authors' own checksum and documentation records for this directory - text, not artwork) | CC BY 4.0 |
+| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (the shipped Figure 1 and Figure 4 slide artwork, PNG and PDF) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Same artwork, same declaration as the donor rasters above: the creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The grant reaches exactly the seven artwork assets identified by path and SHA-256 in that receipt, wherever an exact copy of one of them appears - including the copies carried in the companion deposit and in `publication_outputs/`. CC BY 4.0 permits reproduction, technical format changes and adaptation of that Licensed Material on the terms of the licence itself. What the grant does not do is make an eighth artwork path Licensed Material: an unrelated SCORCH figure is not covered here. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no provider terms attach to them; the grant here is the creator's own recorded declaration alone |
 | `assets/frozen_figures/figS1_station_donor/**` (frozen station-comparison artwork) | CC BY 4.0 for the authors' artwork; the depicted station observations remain subject to the GHCN-Daily source/use terms and attribution, and the depicted reanalysis values to the current Copernicus ERA5 terms and required attribution |
-| `assets/manuscript_final/**` (the nine authenticated manuscript-final figure rasters and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the two frozen slide exports |
+| `assets/manuscript_final/**` (the **six** authenticated manuscript-final figure rasters - Figures 8, 9, 10, 11 and Appendices A and C - and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the frozen slide exports. The count is **six, not nine**: the pre-correction Figure 5, 6 and 7 exports are no longer shipped here (see `docs/RELOCATED_ARTIFACTS.csv`), and the CC BY 4.0 grant in this row covers only these six rasters and the directory's own records |
 | `data/auxiliary/**` (author-generated Method-A analysis data) | CC BY 4.0 for the authors' original processing and contribution + current Copernicus ERA5 terms and required attribution for the underlying ERA5-derived material |
-| `LICENSE` (repository licence file) | The repository's controlling legal and attribution notice: it carries the MIT licence text and the data attribution notices and governs the rows above rather than being separately licensed content |
+| `LICENSE` (repository licence file) | The complete, unmodified GNU General Public License v3.0 text, reproduced verbatim under the FSF's own terms for copying that document. It is the controlling software licence for the rows marked GPL-3.0-only above and is not itself separately licensed content. The data attribution notices that earlier revisions appended to this file now live in the "Relocated data and attribution notices" section of **this** document, so that `LICENSE` remains the unmodified GPL text and is machine-detectable as `GPL-3.0-only` |
 | Data deposit: `LICENSE.txt` | The deposit's controlling legal and attribution notice; its section 0 is the deposit's authoritative path table |
 | Data deposit: `validate_deposit.py` | **MIT** (software, not CC BY) |
 | Data deposit: author-created processed data and documentation not otherwise identified in this table | CC BY 4.0 for the authors' original contributions |
 | Data deposit: ERA5-derived files (`gridded/**`, `lgcp/tmax_covariate_grid_all_boxes.csv`, `lgcp/covariate_raster_km.csv`, `validation_station/era5_*`, `figure_table_source_data/fig02/*`) | CC BY 4.0 for the authors' processing + current Copernicus ERA5 terms and required attribution |
 | Data deposit: `validation_station/ghcnd_*`, `merged_station_validation.csv`, `recompute_result.json` | GHCN-Daily source/use terms and attribution (applicable source-provider rights retained); authors' processing CC BY 4.0; the merged file's ERA5 column also carries the Copernicus terms; `recompute_result.json` is the authors' derived output under CC BY 4.0 |
 
+## Figure 1 / Figure 4 artwork: CC BY 4.0 in force
+
+The Figure 1 and Figure 4 slide artwork - the shipped assets under
+`assets/frozen_figures/fig01/` and `fig04/`, the archived-original and
+immutable-donor rasters under `scripts/figures/fig01/original/` and
+`scripts/figures/fig04/{original,donor}/`, and exact copies of those seven
+assets wherever they are shipped - is covered by the grant recorded on its
+own line immediately below.
+
+The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).
+
+Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific
+guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.
+
+This artwork was created by Fawaz Bouhamad, its copyright holder and sole
+licensor; Dr. Najibi is credited for scientific guidance and is not a
+licensor of it. The creator's CC BY 4.0 declaration is recorded in
+`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries is
+limited to the seven assets identified by path and SHA-256 in it, and to
+exact copies of them. CC BY 4.0 permits adaptation of that Licensed Material
+on its own terms; no eighth artwork path is covered. The GPL-3.0 licence
+covers the SCORCH software, and no third-party data acquires any licence. The activated state is machine-enforced by `tests/test_public_consistency_guards.py`.
+
 `validate_deposit.py` is SOFTWARE and is licensed MIT. Any earlier statement
 assigning it to CC BY 4.0 alone is superseded. The deposit's own
 `LICENSE.txt` carries the same path table together with the FULL legal texts
 of the MIT licence and the CC BY 4.0 summary, and the ERA5 and NOAA notices.
 
-Full licence texts: the complete MIT text is in this repository's `LICENSE`
-file and in section 2 of the deposit's `LICENSE.txt`. The complete CC BY 4.0
-legal code is at https://creativecommons.org/licenses/by/4.0/legalcode
+Full licence texts: the complete GNU General Public License v3.0 text
+governing the SCORCH software is in this repository's `LICENSE` file
+(verbatim, unmodified) and at https://www.gnu.org/licenses/gpl-3.0.txt. The
+complete MIT text applying to the deposit's `validate_deposit.py` is in
+section 2 of the deposit's `LICENSE.txt`. The complete CC BY 4.0 legal code
+is at https://creativecommons.org/licenses/by/4.0/legalcode
 (summary: https://creativecommons.org/licenses/by/4.0/); section 1 of the
 deposit's `LICENSE.txt` reproduces the operative summary and points to that
 legal code.
+
+## Relocated data and attribution notices
+
+Revisions of this repository up to and including v1.0.0 carried these
+notices appended beneath the licence text inside the root `LICENSE` file.
+They were moved here so that `LICENSE` can hold the complete, unmodified GNU
+GPL v3.0 text and be correctly detected as `GPL-3.0-only` by automated
+licence scanners. The notices themselves are unchanged in substance and
+remain in force.
+
+- This repository is the controlling collection for the path table above.
+  The complete non-overlapping path table that assigns rights to every
+  deployed file is **this document**; the companion deposit's own
+  controlling notice is its `LICENSE.txt`.
+- This repository redistributes no raw provider data. Derived data products
+  and their attribution requirements are described above, including the
+  required Copernicus/ECMWF notice for ERA5-derived content and the
+  applicable GHCN-Daily source/use terms and NOAA/NCEI attribution for
+  GHCN-Daily-derived content.
+- The auxiliary Method-A analysis data under `data/auxiliary/` is the
+  authors' original processing under CC BY 4.0, with the Copernicus terms
+  continuing to apply to the underlying ERA5-derived material.
+- The frozen station-donor artwork under
+  `assets/frozen_figures/figS1_station_donor/` is the authors' CC BY 4.0
+  artwork depicting GHCN-Daily and ERA5 material that remains subject to
+  those providers' terms.
+- Author-created processed data and documentation in the companion archive
+  use CC BY 4.0 as the primary licence for the authors' contributions. Other
+  files retain the path-specific MIT, GHCN-Daily source/use, and Copernicus
+  terms described above and in the deposit's `LICENSE.txt`.
+
+The licensing status of earlier public revisions is recorded separately in
+`docs/LICENSING_HISTORY.md`.
 
 ## Source datasets (not owned by the SCORCH authors; not redistributed raw)
 
@@ -53,17 +114,18 @@ legal code.
 - Dataset: ERA5 hourly data on single levels from 1940 to present,
   DOI 10.24381/cds.adbb2d47. Accessed for this work through the ARCO-ERA5
   public mirror on Google Cloud (Google Research arco-era5 project).
-- Licence: ERA5 is distributed under Creative Commons Attribution 4.0 terms
-  together with the Copernicus licence conditions accepted at download time.
-  The terms in force are published on the dataset's Licence tab at
-  https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels
-  which supersedes the retired ECMWF licence URL
-  (`apps.ecmwf.int/datasets/licences/copernicus/`) cited by earlier versions
-  of this release.
-- Required notice, which must accompany all ERA5-derived content:
-  "Contains modified Copernicus Climate Change Service information
-  [1940-2025]; neither the European Commission nor ECMWF is responsible for
-  any use of the Copernicus information."
+- Licence: the underlying Copernicus information is provided under the licence
+  to use Copernicus products, https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products
+  That URL replaces the legacy licence URLs cited by earlier versions of this
+  release (`apps.ecmwf.int/datasets/licences/copernicus/` and the CDS dataset
+  Licence tab). The authors' CC BY 4.0 licence covers only their own
+  contribution; no CC BY licence is granted or implied over the underlying
+  ERA5 information, and no copyright is claimed over it.
+- ERA5 coverage used in this work: 1940-2025 (warm seasons, April-September).
+  This coverage span is stated separately and is NOT the notice's year token.
+- Required notice, which must accompany all ERA5-derived content, reproduced
+  verbatim and without brackets:
+  Contains modified Copernicus Climate Change Service information 2026. Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.
 - Citation: Hersbach et al. (2020), Q. J. R. Meteorol. Soc., 10.1002/qj.3803.
 
 ### GHCN-Daily (NOAA NCEI)

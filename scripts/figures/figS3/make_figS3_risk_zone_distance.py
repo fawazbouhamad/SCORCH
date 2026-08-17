@@ -19,8 +19,12 @@ neutral boxes (the population is all held-out centroids, not event types),
 box = Q1-Q3, line = median, diamond = mean (annotated in km), whiskers =
 min/max; slide title removed (caption carries it).
 
-Runtime checks: n = 760 centroids, 5 folds; mean distances match the slide
-(438 / 286 / 181 / 81 km).
+Runtime checks: n = 760 centroids, 5 folds. The displayed means are DERIVED
+from the validated per-centroid table; they are additionally pinned against
+the corrected (Tmax-weighted centroid, v1.0.1) regression values
+389.670 / 231.808 / 151.672 / 69.065 km for the top-10/20/30/50% zones.
+The pre-remediation slide means (438 / 286 / 181 / 81 km) are stale
+unweighted-centroid values and are intentionally NOT accepted.
 
 Outputs: outputs/supplementary/Figure_S3_risk_zone_distance.{png,pdf}
          outputs/supplementary/Figure_S3_risk_zone_distance_stats.csv
@@ -49,10 +53,13 @@ OUT_DIR = os.path.join(os.environ.get(
     "SCORCH_OUT_DIR", os.path.join(_ROOT, "reproduced")), "supplement")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-ZONES = [("Top 10%", "dist_to_top10_km", 438),
-         ("Top 20%", "dist_to_top20_km", 286),
-         ("Top 30%", "dist_to_top30_km", 181),
-         ("Top 50%", "dist_to_top50_km", 81)]
+# Corrected v1.0.1 regression pins (Tmax-weighted centroids, seed 20260704,
+# unchanged fold assignment). Values are km, derived from the corrected
+# validation table; pinned to 1e-6 km for regression only.
+ZONES = [("Top 10%", "dist_to_top10_km", 389.670138931229),
+         ("Top 20%", "dist_to_top20_km", 231.807728434158),
+         ("Top 30%", "dist_to_top30_km", 151.672109636537),
+         ("Top 50%", "dist_to_top50_km", 69.064508207406)]
 
 
 def main() -> None:
@@ -66,10 +73,10 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(8.6, 5.6))
     stats, rows = [], []
-    for label, col, slide_mean in ZONES:
+    for label, col, pinned_mean in ZONES:
         v = d[col].to_numpy(float)
         m = v.mean()
-        assert abs(m - slide_mean) < 1.0, (label, m, slide_mean)
+        assert abs(m - pinned_mean) < 1e-6, (label, m, pinned_mean)
         stats.append(dict(label=label, med=np.median(v), mean=m,
                           q1=np.percentile(v, 25), q3=np.percentile(v, 75),
                           whislo=v.min(), whishi=v.max(), fliers=[]))
@@ -77,7 +84,8 @@ def main() -> None:
                          median_km=float(np.median(v)), min_km=v.min(),
                          max_km=v.max(), q1_km=np.percentile(v, 25),
                          q3_km=np.percentile(v, 75)))
-        print(f"[FIGS3] {label}: mean {m:.0f} km (slide {slide_mean})")
+        print(f"[FIGS3] {label}: mean {m:.3f} km "
+              f"(corrected v1.0.1 pin {pinned_mean:.3f})")
     arts = ax.bxp(stats, showmeans=True, showfliers=False, widths=0.5,
                   meanprops=dict(marker="D", markerfacecolor="white",
                                  markeredgecolor="black", markersize=6),

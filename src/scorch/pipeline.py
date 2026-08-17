@@ -68,6 +68,7 @@ RECON_DAILY_PARAMS_CSV = "daily_selected_parameters.csv"
 RECON_EVENT_PARAMS_CSV = "event_global_max_parameters.csv"
 RECON_STRUCT_LABELS_CSV = "structure_labels.csv"
 RECON_CATALOG_CSV = "master_cluster_ellipse_catalog.csv"
+RECON_WEIGHTED_CSV = "weighted_centroids.csv"
 RECON_TYPOLOGY_CSV = "event_typology.csv"
 
 SIGMA = 1.25
@@ -692,8 +693,17 @@ def stage_rebuild_catalog(stage, base_dir, out_dir=None, config=None):
             raise PipelineError(
                 f"{len(got)} components vs {len(cat)} catalog rows on {d}")
         n_structures += len(got)
-        # match by centroid nearest neighbour, then compare geometry
-        cat_pts = cat[["centroid_lon", "centroid_lat"]].to_numpy(dtype=float)
+        # match by centroid nearest neighbour, then compare geometry.
+        # The recomputed values are UNWEIGHTED PCA origins, so match against
+        # the catalog's preserved unweighted origin columns when present
+        # (post-remediation catalogs report the Tmax-weighted location in the
+        # generic centroid_lon/centroid_lat aliases).
+        if "centroid_lon_unweighted" in cat.columns:
+            cat_pts = cat[["centroid_lon_unweighted",
+                           "centroid_lat_unweighted"]].to_numpy(dtype=float)
+        else:
+            cat_pts = cat[["centroid_lon",
+                           "centroid_lat"]].to_numpy(dtype=float)
         used = set()
         for k, e in enumerate(got):
             dists = np.hypot(cat_pts[:, 0] - e["centroid_lon"],
@@ -738,6 +748,176 @@ def stage_rebuild_catalog(stage, base_dir, out_dir=None, config=None):
           f"newly derived event parameters: partitions identical; "
           f"{n_structures} structures; ellipse geometry max relative diff "
           f"{geo_max_rel:.2e} -> {RECON_SUBDIR}/{RECON_CATALOG_CSV}")
+    return "ok"
+
+
+# ---------------------------------------------------------------------------
+# Stage: weighted-centroids  (h2)  [pre-release v1.0.0 remediation]
+# ---------------------------------------------------------------------------
+def stage_weighted_centroids(stage, base_dir, out_dir=None, config=None):
+    """(h2) STRICT post-PCA raw-Celsius Tmax-weighted centroid stage.
+
+    Reads the member Tmax values of every reconstructed structure from the
+    deposited CF NetCDF field (units checked), computes the raw-Celsius
+    Tmax-weighted centroid with the strict kernel (no clipping, no
+    transformation, no unweighted fallback), reconstructs the rigid
+    translation fields, and compares EVERY remediation column of the
+    canonical corrected master catalog: generic centroid aliases
+    (centroid_lon/lat, centroid_x/y, x/y, lon/lat) must equal the weighted
+    location; pca_origin_*/centroid_*_unweighted must equal the unweighted
+    PCA origin; weight diagnostics and geodesic displacement fields must
+    match. The weighted stage must run exactly once per structure (760)."""
+    from ._kernel import tmax_weighted_centroid as twc
+    _, expected = _cfg_params_expected(config)
+    n_ell_exp = int(expected["ellipses"])
+    base = Path(base_dir)
+    recon = _recon_dir(out_dir)
+    struct = pd.read_csv(_require(recon / RECON_STRUCT_LABELS_CSV,
+                                  "reconstructed structure labels "
+                                  "(run rebuild-catalog)"))
+    struct["date"] = struct["date"].astype(str)
+    master = pd.read_csv(_require(base / MASTER_CSV,
+                                  "master catalog comparison target"))
+    master["date"] = master["date"].astype(str)
+    required_cols = [
+        "cluster_id", "centroid_lon", "centroid_lat", "centroid_x",
+        "centroid_y", "x", "y", "lon", "lat",
+        "pca_origin_lon_unweighted", "pca_origin_lat_unweighted",
+        "centroid_lon_unweighted", "centroid_lat_unweighted",
+        "centroid_lon_tmax_weighted", "centroid_lat_tmax_weighted",
+        "tmax_weight_sum_c", "tmax_min_c", "tmax_max_c", "tmax_mean_c",
+        "tmax_sd_c", "centroid_displacement_km",
+        "centroid_displacement_bearing_deg"]
+    missing_cols = [c for c in required_cols if c not in master.columns]
+    if missing_cols:
+        raise PipelineError(
+            f"master catalog lacks remediation columns {missing_cols}; "
+            "the deposit is pre-remediation (unweighted) and cannot pass "
+            "the weighted-centroid comparison")
+
+    ds, dates_f, lat_f, lon_f = _open_field(base)
+    try:
+        tvar = ds.variables["tmax"]
+        units = str(getattr(tvar, "units", "")).lower()
+        if units not in ("degc", "celsius", "degrees_celsius", "deg_c"):
+            raise PipelineError(
+                f"Tmax field units are '{units}', not degrees Celsius; "
+                "refusing to weight")
+
+        def _close(a, b, rel=1e-9, absol=1e-9):
+            return abs(a - b) <= max(absol, rel * abs(b))
+
+        out_rows = []
+        n_calls = 0
+        worst = 0.0
+        for day, day_struct in struct.groupby("date"):
+            i = int(np.where(dates_f == day)[0][0])
+            sl = np.ma.filled(np.ma.masked_invalid(tvar[i]), np.nan)
+            tmax_day = {}
+            for yi, la in enumerate(lat_f.tolist()):
+                for xi, lo in enumerate(lon_f.tolist()):
+                    v = float(sl[yi, xi])
+                    if np.isfinite(v):
+                        tmax_day[(lo, la)] = v
+            cat = master[master["date"] == day]
+            comps = sorted(set(day_struct["label"].astype(int)) - {-1})
+            if len(comps) != len(cat):
+                raise PipelineError(
+                    f"{len(comps)} components vs {len(cat)} catalog rows "
+                    f"on {day}")
+            used = set()
+            for lab in comps:
+                mem = day_struct[day_struct["label"].astype(int) == lab]
+                mlon = mem["lon"].to_numpy(dtype=float)
+                mlat = mem["lat"].to_numpy(dtype=float)
+                w = []
+                for lo, la in zip(mlon.tolist(), mlat.tolist()):
+                    key = (float(lo), float(la))
+                    if key not in tmax_day:
+                        raise PipelineError(
+                            f"member cell {key} has no Tmax on {day}")
+                    w.append(tmax_day[key])
+                wc = twc.tmax_weighted_centroid(
+                    mlon, mlat, w, context=f"{day} component {lab}")
+                n_calls += 1
+                o_lon, o_lat = float(mlon.mean()), float(mlat.mean())
+                disp_km, disp_bearing = twc.geodesic_displacement_km(
+                    o_lon, o_lat, wc["lon_w"], wc["lat_w"])
+                # match the catalog row by the weighted location
+                dists = np.hypot(
+                    cat["centroid_lon_tmax_weighted"].to_numpy(float)
+                    - wc["lon_w"],
+                    cat["centroid_lat_tmax_weighted"].to_numpy(float)
+                    - wc["lat_w"])
+                j = int(np.argmin(dists))
+                if j in used or dists[j] > 1e-6:
+                    raise PipelineError(
+                        f"no matching catalog structure on {day} "
+                        f"(nearest {dists[j]:.3e} deg)")
+                used.add(j)
+                row = cat.iloc[j]
+                checks = [
+                    ("pca_origin_lon_unweighted", o_lon),
+                    ("pca_origin_lat_unweighted", o_lat),
+                    ("centroid_lon_unweighted", o_lon),
+                    ("centroid_lat_unweighted", o_lat),
+                    ("centroid_lon_tmax_weighted", wc["lon_w"]),
+                    ("centroid_lat_tmax_weighted", wc["lat_w"]),
+                    ("centroid_lon", wc["lon_w"]),
+                    ("centroid_lat", wc["lat_w"]),
+                    ("centroid_x", wc["lon_w"]), ("centroid_y", wc["lat_w"]),
+                    ("x", wc["lon_w"]), ("y", wc["lat_w"]),
+                    ("lon", wc["lon_w"]), ("lat", wc["lat_w"]),
+                    ("tmax_weight_sum_c", wc["weight_sum_c"]),
+                    ("tmax_min_c", wc["tmax_min_c"]),
+                    ("tmax_max_c", wc["tmax_max_c"]),
+                    ("tmax_mean_c", wc["tmax_mean_c"]),
+                    ("tmax_sd_c", wc["tmax_sd_c"]),
+                    ("centroid_displacement_km", disp_km),
+                    ("centroid_displacement_bearing_deg", disp_bearing),
+                ]
+                for col, val in checks:
+                    ref = float(row[col])
+                    err = abs(val - ref) / max(1e-12, abs(ref))
+                    worst = max(worst, err)
+                    if not _close(val, ref):
+                        raise PipelineError(
+                            f"{col} differs on {day} structure {lab}: "
+                            f"recomputed {val!r} vs catalog {ref!r}")
+                # a production location column equal to the unweighted origin
+                # (while a nonzero displacement exists) is the original defect
+                if disp_km > 1e-6 and _close(float(row["centroid_lon"]),
+                                             o_lon) \
+                        and _close(float(row["centroid_lat"]), o_lat):
+                    raise PipelineError(
+                        f"generic centroid on {day} structure {lab} equals "
+                        "the unweighted origin: the catalog is NOT "
+                        "Tmax-weighted")
+                out_rows.append(dict(
+                    date=day, cluster_id=int(row["cluster_id"]),
+                    n_member_cells=int(len(mem)),
+                    pca_origin_lon_unweighted=o_lon,
+                    pca_origin_lat_unweighted=o_lat,
+                    centroid_lon_tmax_weighted=wc["lon_w"],
+                    centroid_lat_tmax_weighted=wc["lat_w"],
+                    tmax_weight_sum_c=wc["weight_sum_c"],
+                    tmax_min_c=wc["tmax_min_c"],
+                    tmax_max_c=wc["tmax_max_c"],
+                    tmax_mean_c=wc["tmax_mean_c"],
+                    tmax_sd_c=wc["tmax_sd_c"],
+                    centroid_displacement_km=disp_km,
+                    centroid_displacement_bearing_deg=disp_bearing))
+    finally:
+        ds.close()
+
+    if n_calls != n_ell_exp:
+        raise PipelineError(
+            f"weighted stage ran {n_calls} times, expected {n_ell_exp}")
+    pd.DataFrame(out_rows).to_csv(recon / RECON_WEIGHTED_CSV, index=False)
+    print(f"  [ok] weighted stage executed {n_calls}/{n_ell_exp} times; "
+          f"all remediation columns match the canonical corrected catalog "
+          f"(worst rel diff {worst:.2e}) -> {RECON_SUBDIR}/"
+          f"{RECON_WEIGHTED_CSV}")
     return "ok"
 
 
@@ -791,5 +971,6 @@ PIPELINE_STAGES = {
     "daily_dbscan_params": stage_daily_dbscan_params,
     "event_global_params": stage_event_global_params,
     "rebuild_catalog": stage_rebuild_catalog,
+    "weighted_centroids": stage_weighted_centroids,
     "classify_reconstructed": stage_classify_reconstructed,
 }

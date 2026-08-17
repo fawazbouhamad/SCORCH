@@ -5,7 +5,7 @@ message: >-
 type: software
 title: "SCORCH (Spatiotemporal Classification of Regional Compound Heatwaves): software and reproducibility workflow"
 version: 1.0.0
-license: MIT
+license: GPL-3.0-only
 repository-code: "https://github.com/fawazbouhamad/SCORCH"
 url: "https://github.com/fawazbouhamad/SCORCH"
 identifiers:
@@ -62,18 +62,17 @@ abstract: >-
   centroid-concentration model. The fitted surface is a relative
   concentration summary, not a probability, risk, hazard, or susceptibility
   estimate.
-preferred-citation:
-  type: article
-  title: >-
-    Understanding the Spatiotemporal Organization of Regionally Extensive
-    Heatwaves Using the SCORCH Framework
-  authors:
-    - family-names: Bouhamad
-      given-names: Fawaz
-    - family-names: Najibi
-      given-names: Nasser
-  journal: Weather and Climate Extremes
-  year: 2026
-  notes: >-
-    Manuscript prepared for submission to Weather and Climate Extremes. Add
-    the article DOI when assigned.
+# NOTE ON THE ASSOCIATED ARTICLE
+#
+# No `preferred-citation` is declared while the article is unpublished. The
+# manuscript "Understanding the Spatiotemporal Organization of Regionally
+# Extensive Heatwaves Using the SCORCH Framework" (Bouhamad, F., and
+# Najibi, N.) is prepared for submission to Weather and Climate Extremes and
+# has no DOI, volume, issue, page range, publication date or acceptance
+# status. Publishing an incomplete article record here would make tools
+# emit an unverifiable citation, so the software archive above remains the
+# machine-readable citation and the manuscript is described in prose in
+# README.md instead.
+#
+# On publication, add the verified article as `preferred-citation` with its
+# real DOI and bibliographic metadata, and update README.md to match.

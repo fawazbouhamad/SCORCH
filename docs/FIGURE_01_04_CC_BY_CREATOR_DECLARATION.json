@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "declaration_date": "2026-08-16T00:00:00Z",
+  "declared_text": "I, Fawaz Bouhamad, created the SCORCH Figure 1 and Figure 4 schematic artwork and am the copyright holder and sole licensor of it. I license the seven Figure 1 and Figure 4 artwork files identified by path and SHA-256 in this declaration under the Creative Commons Attribution 4.0 International licence (CC BY 4.0), including the permissions for sharing and adaptation provided by that licence. Dr. Nasser Najibi provided scientific guidance, review and corrections for these figures and is credited for that contribution, and is not a licensor of this artwork. This licence does not extend to unrelated SCORCH figures and does not alter the rights or licences of the software, fonts, or underlying third-party data.",
+  "licensed_artwork": {
+    "assets/frozen_figures/fig01/Figure_01.png": "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "assets/frozen_figures/fig01/Figure_01.pdf": "fce1921839131e761cabe894e7b71f8226efafba654cd7f488539af78809917b",
+    "assets/frozen_figures/fig04/Figure_04.png": "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "assets/frozen_figures/fig04/Figure_04.pdf": "53a3f4fe6c15075ed956367712123cd9cc26290c4a09017b7beb87d06d5fc3e4",
+    "scripts/figures/fig01/original/Figure_01_original.png": "cc561b368f84b298b3ee38a39415799cc31d8ca932fa586a32bd7624831ec787",
+    "scripts/figures/fig04/original/Figure_04_original.png": "d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png": "c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2eefc829f"
+  },
+  "creator_attestation": {
+    "creator": "Fawaz Bouhamad",
+    "declared_at": "2026-08-16T00:00:00Z",
+    "statement": "I, Fawaz Bouhamad, am the creator and copyright holder of the seven Figure 1 and Figure 4 artwork files identified by path and SHA-256 in this declaration. I license exactly those files under CC BY 4.0, no other party's permission is required for this grant, and no other party is represented as granting it."
+  },
+  "scientific_guidance_credit": "Dr. Nasser Najibi"
+}

@@ -1,0 +1,97 @@
+{
+ "created_utc": "2026-08-07T06:43:09Z",
+ "base_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5",
+ "counts": {
+  "valid_cells": 1800,
+  "warm_season_days": 15738,
+  "selected_days": 395,
+  "events": 51,
+  "structures": 760,
+  "event_counts_by_type": {
+   "1": 3,
+   "2": 4,
+   "3": 20,
+   "4": 24
+  },
+  "event_day_counts_by_type": {
+   "1": 3,
+   "2": 4,
+   "3": 75,
+   "4": 313
+  },
+  "structure_counts_by_type": {
+   "1": 3,
+   "2": 13,
+   "3": 185,
+   "4": 559
+  },
+  "member_cell_day_rows": 188720,
+  "label_rows": 191098
+ },
+ "geometry": {
+  "median_area_km2": 1310172.2673208509,
+  "max_area_km2": 6507975.194717499,
+  "median_axis_ratio": 0.5737523809747391
+ },
+ "sector_counts_unweighted": {
+  "structures": "145/760",
+  "daily_largest": "144/395",
+  "event_largest": "18/51"
+ },
+ "power_law": {
+  "daily": {
+   "dataset_group": "All types (pooled)",
+   "n_ellipses": 395,
+   "n_tail": 43,
+   "pct_tail": 10.9,
+   "xmin_Amin_km2": 4851424.0,
+   "alpha_exponent": 10.519,
+   "gof_p_value": 0.1344,
+   "decision_at_0p10": "retain (not rejected)"
+  },
+  "event": {
+   "dataset_group": "All types (pooled)",
+   "n_ellipses": 51,
+   "n_tail": 19,
+   "pct_tail": 37.3,
+   "xmin_Amin_km2": 3590049.0,
+   "alpha_exponent": 5.341,
+   "gof_p_value": 0.3592,
+   "decision_at_0p10": "retain (not rejected)",
+   "note": "MAIN result"
+  }
+ },
+ "lgcp_variant3_unweighted": {
+  "(Intercept)": -11.352611,
+  "lon": -0.016062,
+  "lat": 0.063142,
+  "mean_tmax_z": 0.464404,
+  "std_tmax_z": -0.007187,
+  "var_sigma2": 1.647219,
+  "scale_km": 287.70796,
+  "phi": "not available for this fitted LGCP object"
+ },
+ "cv_unweighted": {
+  "pooled_hit": {
+   "top10": 0.17105263157894737,
+   "top20": 0.33289473684210524,
+   "top30": 0.45,
+   "top50": 0.6723684210526316
+  },
+  "mean_dist_top20_km": 285.6560407072894,
+  "median_dist_top20_km": 173.23423787378547,
+  "heldout_risk_quantile_mean": 0.6348968421958578,
+  "heldout_risk_quantile_median": 0.6550000512770646
+ },
+ "weights_audit": {
+  "units": "degC",
+  "member_rows": 188720,
+  "missing": 0,
+  "nonfinite": 0,
+  "zero_or_negative": 0,
+  "min_tmax_c": 19.234,
+  "max_tmax_c": 52.505,
+  "mean_tmax_c": 37.441,
+  "sd_tmax_c": 6.409
+ }
+}

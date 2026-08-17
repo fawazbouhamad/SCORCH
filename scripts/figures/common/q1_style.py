@@ -33,22 +33,76 @@ from matplotlib import font_manager as fm
 from matplotlib.lines import Line2D
 
 # ---- fonts -------------------------------------------------------------------
-_ABADI_CACHE = os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                            "Microsoft", "FontCache", "4", "CloudFonts",
-                            "Abadi")
+# THE HEADING FACE IS AN INPUT, not an ambient convenience.
+#
+# Abadi ships with Microsoft 365 and is cached per user under LOCALAPPDATA. It
+# is NOT redistributable, so it cannot live in this repository - the same
+# position the pinned Aptos face is in. What went wrong was not that the font
+# is external; it is that the dependency was INVISIBLE and the failure SILENT:
+# the directory was resolved from ambient LOCALAPPDATA, and when it was not
+# there the family quietly became Arial. The producers then rendered different
+# glyphs, Figures 5, 6, 7 and S.1 came out a few pixels different, and the
+# publication builder - which routes by SHA-256 and never by filename -
+# correctly reported that the declared manuscript-final raster did not exist.
+# A whole release was blocked by a fallback nobody could see.
+#
+# So the directory may now be named EXPLICITLY through SCORCH_SLIDE_FONT_DIR,
+# and a caller that cannot tolerate the fallback sets SCORCH_REQUIRE_SLIDE_FONTS
+# to make its absence an error instead of a silent substitution. The release
+# finalizer sets both, so a release can never again be produced with the wrong
+# glyphs and a green report.
+_SLIDE_FONT_DIR_VAR = "SCORCH_SLIDE_FONT_DIR"
+_REQUIRE_VAR = "SCORCH_REQUIRE_SLIDE_FONTS"
+_FALLBACK_FAMILY = "Arial"
+
+#: Every face this module actually registered, in resolution order. Read by
+#: the release tooling to prove the pinned faces - and no others - were used.
+SLIDE_FONT_FILES: list = []
+
+
+def slide_font_dir() -> str:
+    """The directory the Abadi faces are read from.
+
+    An explicit ``SCORCH_SLIDE_FONT_DIR`` wins over the ambient Microsoft 365
+    cloud-font cache, so a hermetic run can be given the same faces the
+    figures were authored with without inheriting a personal machine's
+    environment wholesale.
+    """
+    explicit = os.environ.get(_SLIDE_FONT_DIR_VAR, "").strip()
+    if explicit:
+        return explicit
+    return os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                        "Microsoft", "FontCache", "4", "CloudFonts", "Abadi")
 
 
 def register_slide_fonts() -> str:
-    """Register the slide's Abadi faces; return the heading font family."""
-    found = False
-    for ttf in glob.glob(os.path.join(_ABADI_CACHE, "*.ttf")):
+    """Register the slide's Abadi faces; return the heading font family.
+
+    Returns ``"Abadi"`` when the faces are registered. Falls back to
+    ``"Arial"`` only when the caller has not demanded otherwise - and that
+    fallback CHANGES THE RENDERED PIXELS, so anything reproducing declared
+    figure identities must set ``SCORCH_REQUIRE_SLIDE_FONTS``.
+    """
+    del SLIDE_FONT_FILES[:]
+    directory = slide_font_dir()
+    for ttf in sorted(glob.glob(os.path.join(directory, "*.ttf"))):
         try:
             fm.fontManager.addfont(ttf)
-            found = True
+            SLIDE_FONT_FILES.append(ttf)
         except Exception:
             pass
     names = {f.name for f in fm.fontManager.ttflist}
-    return "Abadi" if (found and "Abadi" in names) else "Arial"
+    if SLIDE_FONT_FILES and "Abadi" in names:
+        return "Abadi"
+    if os.environ.get(_REQUIRE_VAR, "").strip():
+        raise RuntimeError(
+            f"the Abadi slide faces are required but were not registered from "
+            f"{directory!r}. Falling back to {_FALLBACK_FAMILY} would render "
+            f"different glyphs, so the figures would not reproduce their "
+            f"declared identities. Set {_SLIDE_FONT_DIR_VAR} to the directory "
+            f"holding the faces, or clear {_REQUIRE_VAR} to accept the "
+            f"substitution and the different output that comes with it")
+    return _FALLBACK_FAMILY
 
 
 HEADING_FAMILY = register_slide_fonts()

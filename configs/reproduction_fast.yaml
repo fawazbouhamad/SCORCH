@@ -183,6 +183,21 @@ stages:
       - catalogs/final_labels_event_global_max.csv
       - catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv
 
+  # (h2) pre-release v1.0.0 remediation: strict post-PCA raw-Celsius Tmax-weighted
+  # centroid + rigid-translation reconstruction, compared column-by-column
+  # against the corrected master catalog (weighted stage runs exactly 760x)
+  - name: weighted-centroids
+    kind: builtin
+    builtin: weighted_centroids
+    route: fast
+    inputs:
+      struct_labels_csv: reconstruction/structure_labels.csv
+      field_nc: gridded/scorch_processed_daily_tmax_field_v1.0.0.nc
+    outputs:
+      - reconstruction/weighted_centroids.csv
+    comparison_targets:
+      - "catalogs/scorch_new_algorithm_master_cluster_ellipse_event_global_max.csv (weighted-centroid remediation columns)"
+
   # (i, j) typology of the reconstructed catalog
   - name: classify-reconstructed
     kind: builtin

@@ -51,8 +51,11 @@ TIME_FS = 15                           # t / t+1 ... labels (bold math style)
 def _render(ax, labels_df, date: str) -> None:
     lo, la = C.day_cells(labels_df, date)
     lab = labels_df[labels_df["date"] == date]["label"].to_numpy(int)
-    SN.render_day(ax, lo, la, lab, SN.STUDY_EXTENT, draw_ellipses=True,
-                  show_centroid_numbers=False, title=None)
+    # Canonical convention: rigidly translate each completed sigma=1.25 PCA
+    # ellipse to the raw-Celsius Tmax-weighted centroid (tmax_day REQUIRED).
+    SN.render_day_tmax_weighted(ax, lo, la, lab, SN.STUDY_EXTENT,
+                                SN.load_tmax_day(date), draw_ellipses=True,
+                                show_centroid_numbers=False, title=None)
     Q.date_label(ax, date)
 
 

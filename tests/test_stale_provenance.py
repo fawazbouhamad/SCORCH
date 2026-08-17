@@ -32,6 +32,7 @@ Guarded invariants (docs/CANONICAL_SCIENCE.json is the contract):
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -42,6 +43,13 @@ import pytest
 
 TESTS = Path(__file__).resolve().parent
 ROOT = TESTS.parent
+#: The same directory under the name the finalizer's isolation probe reads.
+#: That probe imports this module and asks which repository root it resolved,
+#: so a validation run can PROVE it executed the disposable copy rather than
+#: the real worktree. This module spelled its root `ROOT`, so the probe found
+#: nothing and could only report the module as unresolved. The answer was
+#: always here; it just had another name.
+REPO = ROOT
 
 # --- canonical constants (docs/CANONICAL_SCIENCE.json) ----------------------
 TABLE1_CANONICAL_SHA = (
@@ -50,7 +58,7 @@ TABLE1_SUPERSEDED_SHA_PREFIX = "778e08ab"
 FIG9_EMBED_SHA = (
     "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431")
 FIGS1_CANONICAL_SHA = (
-    "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538")
+    "d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634")
 FINAL_MANUSCRIPT_SHA = (
     "9e140b9ea8927ae3b69c4e50afb8301006e8802dcf3e601f1c80c511ca3ca2e3")
 FINAL_SUPPLEMENT_SHA = (
@@ -71,7 +79,7 @@ ACTIVE_DOC_GLOBS = (
     "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CITATION.cff",
     ".zenodo.json", "docs/*.md", "docs/*.csv", "docs/*.json",
     "assets/frozen_figures/README.md", "assets/manuscript_final/README.md",
-    "legacy_defective_figure09/README.md",
+    "provenance/legacy/figure09/README.md",
 )
 
 
@@ -85,6 +93,11 @@ def _active_docs():
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _csv_rows(path: Path) -> list[dict]:
+    with open(path, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
 
 
 def _sha256(path: Path) -> str:
@@ -253,10 +266,13 @@ def test_all_version_fields_are_1_0_0():
 _EXTERNAL_LABELS = ("research repository", "research tree", "external",
                     "not shipped", "research working tree")
 _PATH_PREFIXES = ("scripts/", "docs/", "assets/", "src/", "tests/",
-                  "configs/", "environment/", "legacy_defective_figure09")
+                  "configs/", "environment/", "provenance/")
+# "provenance" is matched with a lookbehind-free alternation; the archive
+# member prefix "provenance_evidence/..." matches only its leading
+# "provenance" token, which resolves to the real provenance/ directory.
 _PATH_RE = re.compile(
     r"(?:scripts|docs|assets|src|tests|configs|environment|"
-    r"legacy_defective_figure09)(?:/[\w.\-]+)*")
+    r"provenance)(?:/[\w.\-]+)*")
 
 
 def _iter_json_strings(node):
@@ -290,11 +306,16 @@ def test_science_contract_paths_exist():
 
 
 def test_key_active_paths_exist():
+    # The two legacy Figure 9 rasters are deliberately absent: they were
+    # relocated into the LOCAL, UNPUBLISHED processed-data archive candidate
+    # (not a deposit - nothing has been uploaded or published; saying
+    # "deposit" here is the very claim FORBIDDEN_DEPOSIT_CLAIM rejects in
+    # tests/test_public_consistency_guards.py). Their identities are verified
+    # against the relocation manifest and the archive crosswalk by
+    # test_relocated_legacy_figure9_rasters_are_accounted_for below, not by an
+    # existence assertion here.
     for rel in (
-        "legacy_defective_figure09/README.md",
-        "legacy_defective_figure09/"
-        "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
-        "legacy_defective_figure09/Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png",
+        "provenance/legacy/figure09/README.md",
         "scripts/figures/common/scorch_axial.py",
         "scripts/figures/common/ellipse_pca.py",
         "scripts/figures/figA1/make_figA1_sigma_matrices.py",
@@ -305,6 +326,58 @@ def test_key_active_paths_exist():
         "docs/ALIGNMENT_DECISIONS.md",
     ):
         assert (ROOT / rel).exists(), f"active release path missing: {rel}"
+
+
+# Keys are the rasters' HISTORICAL pre-relocation repository paths, exactly as
+# the crosswalk's old_repository_path column records them; values name
+# immutable archive members. Neither may be rewritten to the current
+# provenance/legacy/figure09/ layout: the rasters never lived there.
+LEGACY_FIG9_RASTERS = {
+    "legacy_defective_figure09/"
+    "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png": (
+        "provenance_evidence/legacy_defective_figure09/"
+        "Figure9_assembled_LEGACY_ARITHMETIC_DEFECTIVE.png",
+        "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
+        944684),
+    "legacy_defective_figure09/Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png": (
+        "provenance_evidence/legacy_defective_figure09/"
+        "Figure_09_LEGACY_ARITHMETIC_DEFECTIVE.png",
+        "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
+        274118),
+}
+
+
+def test_relocated_legacy_figure9_rasters_are_accounted_for():
+    """The defective rasters left the tree; they must still be pinned.
+
+    Replaces the former existence assertions. Absence is only legal when the
+    relocation crosswalk names the exact archive member and pins its hash and
+    byte count, and the surviving pointer README carries both the reserved DOI
+    and the exact member paths.
+    """
+    rows = {r["old_repository_path"]: r
+            for r in _csv_rows(ROOT / "docs" / "RELOCATED_ARTIFACTS.csv")}
+    readme = _read(ROOT / "provenance" / "legacy" / "figure09" / "README.md")
+    assert "10.5281/zenodo.21717752" in readme, (
+        "the pointer README must carry the reserved data DOI")
+    assert "scorch_processed_data_v1.0.0.zip" in readme
+
+    for rel, (member, sha, nbytes) in LEGACY_FIG9_RASTERS.items():
+        assert not (ROOT / rel).exists(), (
+            f"{rel} is relocated; it must not be back in the tree")
+        row = rows.get(rel)
+        assert row is not None, f"{rel} missing from the relocation crosswalk"
+        assert row["state"] == "relocated"
+        assert row["archive_member_path"] == member, (
+            f"{rel}: crosswalk names member {row['archive_member_path']!r}")
+        assert row["member_sha256"] == sha, f"{rel}: member hash changed"
+        assert int(row["member_bytes"]) == nbytes, f"{rel}: member size changed"
+        # binary PNG: both byte identities are the same bytes
+        assert row["repository_sha256"] == sha
+        assert row["historical_byte_identity_sha256"] == sha
+        assert len(row["archive_sha256"]) == 64
+        assert sha in readme, f"{rel}: hash absent from the pointer README"
+        assert member in readme, f"{rel}: member path absent from the README"
 
 
 # --- frequency inference must stay removed -----------------------------------
@@ -454,20 +527,107 @@ def test_publication_builder_table1_prose_consistent():
 
 # --- R3: no S.1 producer contradiction ---------------------------------------
 
+# The first version of this guard searched each LINE for the literal string
+# "no runnable producer". Three things were wrong with that:
+#
+#   1. It pinned the guard to one phrasing. The 2026-08 correction round
+#      removed that exact sentence from the generated publication text (and
+#      tests/test_publication_builder_contracts.py now forbids it there), so
+#      the literal is on its way out of the tree entirely. Any reworded claim
+#      - "lacks a producer", "producerless", "not reproducible from code" -
+#      walked straight past it.
+#   2. It was line-scoped, so a hard wrap between the figure reference and the
+#      claim defeated it. That was not hypothetical: in
+#      assets/frozen_figures/README.md the claim sits on a line carrying
+#      neither "s.1" nor "station", so the old guard skipped the one place in
+#      the tree where the sentence still appears.
+#   3. With no match anywhere it asserted nothing and still went green.
+#
+# The replacement asserts the STRUCTURED truth first - S.1 has runnable
+# producers and the identity CSV classifies it accordingly - and only then
+# sweeps the prose, whole-document-normalized, over a family of producerless
+# phrasings, requiring a superseded/fallback label. Coverage is asserted, so
+# an inspection that matched nothing is a failure rather than a pass.
+
+_PRODUCERLESS_RX = re.compile(
+    r"no runnable producer|had no producer|lacks? a(?: runnable)? producer|"
+    r"producerless|without a(?: runnable)? producer|"
+    r"no(?:t)? reproducible from code|no code[ -]native producer|"
+    r"cannot be regenerated", re.I)
+
+# "S.1" survives normalization as "s.1"; "s 1" covers a hyphen/space variant.
+_S1_REF_RX = re.compile(r"s\.? ?1\b|station", re.I)
+
+_S1_FALLBACK_MARKERS = (
+    "fallback", "supersed", "historical", "legacy", "donor", "hand-drawn",
+    "pre-correction", "provisional", "figures 1 and 4", "fig. 1",
+)
+
+_S1_PRODUCERS = (
+    "scripts/figures/figS1/make_figS1_station_panels.py",
+    "scripts/figures/figS1/make_figS1_station_strip.py",
+    "scripts/figures/figS1/make_new_figS1_candidate.py",
+)
+
+
+def test_canonical_s1_has_runnable_producers_of_record():
+    """The structured truth the prose guard exists to protect."""
+    for rel in _S1_PRODUCERS:
+        assert (ROOT / rel).is_file(), (
+            f"{rel} is missing; the canonical Fig. S.1 is declared "
+            f"data_generated, which requires its producers to be present")
+    rows = {r["label"].strip(): r
+            for r in _csv_rows(ROOT / "docs" /
+                               "MANUSCRIPT_FIGURE_IDENTITY.csv")}
+    s1 = rows["Fig. S.1."]
+    assert s1["reproduction_class"] == "data_generated", (
+        "Fig. S.1 is no longer classified data_generated; the canonical "
+        "station panels are regenerated from deposited GHCN-Daily and ERA5 "
+        "series, not transcribed from the frozen donor drawing")
+    # shipped_asset is legitimately empty for S.1 (the reproduced output IS
+    # the manuscript embed), so the producer evidence is the render hash.
+    assert re.fullmatch(r"[0-9a-f]{64}", s1["script_render_sha256"]), (
+        "Fig. S.1 carries no script_render_sha256; a data_generated figure "
+        "must have a recorded producer render")
+    assert s1["script_render_sha256"] == FIGS1_CANONICAL_SHA, (
+        "Fig. S.1's producer render no longer matches the pinned canonical "
+        "composite")
+
+
+# The subject and the claim routinely sit in ADJACENT sentences - "...the
+# superseded provisional station comparison drawing... It was transcribed from
+# approved slide artwork and had no runnable producer." - so a sentence-scoped
+# association finds nothing. The claim is therefore judged on a character
+# window around the match, which is what a reader actually takes in.
+_S1_CONTEXT_CHARS = 320
+
+
 def test_canonical_s1_never_described_as_producerless():
-    marker_ok = ("fallback", "superseded", "historical", "legacy",
-                 "figures 1 and 4", "fig. 1", "hand-drawn")
+    inspected = 0
+    problems = []
     for doc in _active_docs():
-        for lineno, line in enumerate(_read(doc).splitlines(), start=1):
-            low = line.lower()
-            if "no runnable producer" not in low:
+        flat = _normalize_lifecycle(_read(doc))
+        for m in _PRODUCERLESS_RX.finditer(flat):
+            lo = max(0, m.start() - _S1_CONTEXT_CHARS)
+            window = flat[lo:m.end() + _S1_CONTEXT_CHARS]
+            if not _S1_REF_RX.search(window):
                 continue
-            if "s.1" in low or "station" in low:
-                assert any(m in low for m in marker_ok), (
-                    f"{doc.relative_to(ROOT)}:{lineno}: claims S.1/station "
-                    "material lacks a producer without labelling it as the "
-                    "superseded legacy fallback; the canonical S.1 station "
-                    "panels ARE regenerated by shipped producers")
+            inspected += 1
+            if not any(mark in window for mark in _S1_FALLBACK_MARKERS):
+                problems.append(
+                    f"{doc.relative_to(ROOT)}: {window.strip()[:180]}")
+    assert not problems, (
+        "an active record claims S.1/station material lacks a producer "
+        "without labelling it as the superseded donor fallback; the canonical "
+        "S.1 station panels ARE regenerated by shipped producers: "
+        + " ;; ".join(problems))
+    assert inspected, (
+        "this guard inspected ZERO sentences. The superseded station-donor "
+        "drawing is still described in assets/frozen_figures/README.md, so a "
+        "producerless claim about station material should have been found and "
+        "checked for its fallback label. Zero matches means the phrasing "
+        "moved outside _PRODUCERLESS_RX / _S1_REF_RX and the guard has gone "
+        "blind - extend the pattern rather than deleting the assertion")
 
 
 # --- R4: hardened lifecycle-language guard -----------------------------------
@@ -550,6 +710,13 @@ def test_no_false_lifecycle_phrases_in_release_tree():
         if not path.is_file() or ".git" in path.parts:
             continue
         if "__pycache__" in path.parts or ".pytest_cache" in path.parts:
+            continue
+        # release_staging/ is the gitignored LOCAL deposit-staging area (the
+        # v1.0.1 corrected data overlay + archives). Deposit payload docs
+        # carry their own approved wording and were always outside the
+        # release source tree this guard scopes (the v1.0.0 deposit lived in
+        # an external directory); they are validated by validate_deposit.py.
+        if "release_staging" in path.parts:
             continue
         if path.resolve() == this_file:
             continue

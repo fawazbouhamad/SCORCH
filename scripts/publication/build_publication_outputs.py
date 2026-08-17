@@ -36,11 +36,18 @@ wrong root is an error, not a pass.
 
 HONEST REPRODUCTION CLASSES
 ---------------------------
-The four classes are carried through to every PROVENANCE.txt and manifest
-row unchanged. In particular this builder never claims that frozen artwork
-(Figs. 1, 4) was regenerated from data, and never presents the data-derived
-pre-post-processing render of Fig. 8 as the publication figure -- it
-ships only under ``source_components/`` under a name that says so.
+Each figure's class is read from ``docs/MANUSCRIPT_FIGURE_IDENTITY.csv`` and
+carried through to every PROVENANCE.txt and manifest row unchanged. The class
+list and its count are DERIVED from those records rather than written here as
+a literal, because a hand-written count goes stale the moment a class is added
+-- which is what happened when ``deterministic_producer`` appeared and this
+text still said "four classes" while the generated list omitted it entirely.
+
+In particular this builder never claims that Figs. 1 and 4 were regenerated
+from deposited data -- they are donor-based schematic producers, not
+data-driven ones -- and never presents the data-derived pre-post-processing
+render of Fig. 8 as the publication figure: it ships only under
+``source_components/`` under a name that says so.
 
 SAFETY
 ------
@@ -79,6 +86,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -108,6 +116,12 @@ REPRODUCTION_CLASSES = {
         "Script output is BYTE-IDENTICAL to the raster embedded in the "
         "manuscript. This figure is fully regenerated from the deposited "
         "data by the producing script.",
+    # CURRENTLY UNUSED: no figure carries this class since the 2026-08
+    # correction round moved Figures 1 and 4 to `deterministic_producer`.
+    # The definition is retained so the vocabulary stays complete, but the
+    # generated documents derive their class list from the identity records,
+    # so a class with zero members is never listed as if it described a
+    # shipped figure.
     "frozen_approved_artwork":
         "Author-created slide export. NO runnable producer exists and none "
         "is claimed: this figure is NOT regenerated from data. The shipped "
@@ -120,6 +134,23 @@ REPRODUCTION_CLASSES = {
         "downscaled deployment export of that original, so the embed bytes "
         "themselves are not a script output and are shipped as a "
         "hash-verified asset.",
+    "deterministic_producer":
+        "Schematic figure with a deterministic, donor-based runnable producer "
+        "(2026-08 correction round). Neither reads deposited data: each "
+        "applies a localized, lossless correction to an immutable "
+        "hash-pinned donor RASTER whose hash and canvas are verified before "
+        "anything is touched. Figure 1 restores the original approved slide "
+        "export (original/Figure_01_original.png, cc561b36...) with the one "
+        "authorized threshold-wording change, which is why it additionally "
+        "requires the pinned Aptos Regular face to re-render that text line; "
+        "Figure 4 squares the Type 4 lattice and levels the Type 3 rows on "
+        "the approved-horizontal donor (c35d9ed6...). Both reproduce their "
+        "shipped figure's raw RGB PIXELS exactly "
+        "on every supported platform. Exact PNG BYTE identity is a property "
+        "of the canonical encoder stack (Pillow 12.2.x with zlib 1.3.1), not "
+        "of the figure: a different Pillow or zlib build legitimately "
+        "serialises the identical pixels to different bytes. The shipped PNG "
+        "is hash-verified against the manuscript embed.",
     "manually_postprocessed_approved_artwork":
         "The approved full-resolution original carries a MANUAL "
         "post-processing pass that the producing script does not reproduce, "
@@ -932,7 +963,80 @@ def tables_provenance_text(table1_notes, trend_checks):
     return "\n".join(lines) + "\n"
 
 
-def readme_text(identity, geom):
+# ---------------------------------------------------------------------------
+# Figure 1 / Figure 4 artwork licence: a state, not a constant
+# ---------------------------------------------------------------------------
+#: The repository root, derived from this file rather than from the caller's
+#: working directory.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# The artwork licence state and both wordings live in ONE place, shared with
+# the release finalizer and the repository guards. Importing it here rather
+# than reimplementing it is deliberate: this builder used to decide the state
+# by asking whether a receipt FILE EXISTED, so an empty JSON object with the
+# right filename was enough to make it publish an active CC BY claim over a
+# coauthor's artwork.
+_RELEASE_DIR = _REPO_ROOT / "scripts" / "release"
+if str(_RELEASE_DIR) not in sys.path:
+    sys.path.insert(0, str(_RELEASE_DIR))
+
+import artwork_licence_state as _artwork  # noqa: E402  (sys.path set above)
+
+ARTWORK_RECEIPT_REL = "docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json"
+ARTWORK_LICENCE_PENDING = _artwork.PENDING
+ARTWORK_LICENCE_ACTIVE = _artwork.ACTIVE
+
+
+def artwork_licence_state(repo_root=None, contract=None):
+    """The artwork licence state: PENDING, ACTIVE or INCONSISTENT.
+
+    ACTIVE requires a receipt that VALIDATES - schema, login, exact
+    authorization body, timestamps, and exactly the seven contracted artwork
+    paths whose hashes still match the tree. A receipt that merely exists
+    activates nothing.
+
+    A receipt that is PRESENT but does not validate is a REFUSAL, not a
+    PENDING answer. Returning PENDING for it published a licence table
+    describing a coherent repository while a forged, corrupt or half-written
+    receipt sat in the tree - the one case in which this builder's own output
+    is what hides the problem.
+    """
+    state, issues, _detail = _artwork.artwork_licence_state(
+        repo_root or _REPO_ROOT, contract)
+    receipt_issues = [(code, why) for code, why in issues
+                      if code.startswith("RECEIPT_")]
+    if receipt_issues:
+        raise RuntimeError(
+            f"ARTWORK_RECEIPT_INVALID: a D6 authorization receipt is present "
+            f"but does not validate, so the artwork licence state cannot be "
+            f"established and no licence row may be published: "
+            f"{receipt_issues}")
+    if state == _artwork.INCONSISTENT:
+        raise RuntimeError(
+            f"ARTWORK_LICENCE_STATE_INCONSISTENT: the licence surfaces do not "
+            f"agree, and this builder will not publish a row for a state that "
+            f"does not exist: {issues}")
+    return state
+
+
+def artwork_licence_row(repo_root=None, contract=None):
+    """The licence-table row for the Fig. 1 / Fig. 4 artwork, by state.
+
+    BOTH wordings come from the trusted tracked contract, so production can
+    render the active README with no manual injection and no invented prose.
+    There is deliberately no parameter for passing licence text in: a caller
+    able to inject arbitrary wording into published output would be a way to
+    publish a licence claim nobody authored.
+
+    The state is established FIRST, so an invalid receipt refuses here too.
+    Serving the pending row while an unvalidatable receipt sits in the tree
+    would publish the reassuring answer at exactly the wrong moment.
+    """
+    artwork_licence_state(repo_root, contract)
+    return _artwork.publication_artwork_row(repo_root or _REPO_ROOT, contract)
+
+
+def readme_text(identity, geom, repo_root=None, contract=None):
     n_panels = sum(int(r["panel_count"]) for r in identity)
     lines = [
         "# SCORCH publication outputs",
@@ -981,14 +1085,21 @@ def readme_text(identity, geom):
         "",
         "## Reproduction classes",
         "",
-        "Each figure carries one of four classes, stated verbatim in its",
+    ]
+    # Derived from the identity records, never hardcoded. A count written by
+    # hand goes stale the moment a class is added - which is exactly what
+    # happened when `deterministic_producer` appeared and the generated text
+    # still said "four classes" while omitting it from the loop below.
+    used_classes = [c for c in REPRODUCTION_CLASSES
+                    if any(r["reproduction_class"] == c for r in identity)]
+    lines += [
+        f"Each figure carries one of {len(used_classes)} classes, stated "
+        f"verbatim in its",
         "`PROVENANCE.txt`. They are not interchangeable and the distinction",
         "is deliberate:",
         "",
     ]
-    for cls in ("data_generated", "frozen_approved_artwork",
-                "deployment_export_of_reproduced_original",
-                "manually_postprocessed_approved_artwork"):
+    for cls in used_classes:
         members = [r["label"] for r in identity
                    if r["reproduction_class"] == cls]
         lines += [f"* **`{cls}`** ({', '.join(members)})",
@@ -996,9 +1107,12 @@ def readme_text(identity, geom):
     lines += [
         "Two consequences worth stating plainly:",
         "",
-        "* Figures 1 and 4 are frozen author-created artwork with no runnable",
-        "  producer. They are **not** regenerated from data and no such claim",
-        "  is made anywhere in this tree.",
+        "* Figures 1 and 4 DO have runnable producers: deterministic,",
+        "  donor-based schematic producers that reproduce their raw RGB",
+        "  pixels exactly on every supported platform. They are not",
+        "  regenerated from deposited data, and exact PNG byte identity is",
+        "  claimed only on the canonical encoder stack (Pillow 12.2.x with",
+        "  zlib 1.3.1) -- pixel identity is the portable guarantee.",
         "* Figure 8 carries a manual post-processing pass that the",
         "  producing script does not reproduce. The script's data-derived",
         "  render ships under `source_components/`, named so it cannot be",
@@ -1049,14 +1163,31 @@ def readme_text(identity, geom):
         "",
         "| Materialized from | Rights it inherits |",
         "|---|---|",
-        "| `assets/manuscript_final/**` (Fig. 5, 6, 7, 8, 9, 10, 11, A, C) |"
-        " CC BY 4.0 authors' artwork + current Copernicus ERA5 terms and"
-        " required attribution |",
-        "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 |",
-        "| `reproduced/**` (Fig. 2, 3, 12, B, D, S.1 and both table sets) |"
+        "| `assets/manuscript_final/**` (Fig. 8, 9, 10, 11, A, C) |"
+        " CC BY 4.0 for the authors' contribution only + Copernicus ERA5"
+        " terms and required attribution |",
+        "| `reproduced/**` (Fig. 5, 6, 7) | CC BY 4.0 for the authors'"
+        " contribution only + Copernicus ERA5 terms and required"
+        " attribution |",
+        # State-aware, served from the trusted contract. PENDING today; the
+        # builder refuses to render an active row the authors have not
+        # written, rather than shipping a licence claim nobody authored.
+        artwork_licence_row(repo_root, contract),
+        "| `reproduced/**` (Fig. 2, 3, 12, B, D and both table sets) |"
         " CC BY 4.0 for the authors' contributions + current Copernicus ERA5"
         " terms and required attribution for the depicted ERA5-derived"
         " values |",
+        # Fig. S.1 gets its OWN row. It is the only figure here that depicts
+        # GHCN-Daily station observations, and folding it into the generic
+        # ERA5 row silently dropped the NOAA/NCEI attribution it owes.
+        "| `reproduced/**` (Fig. S.1 -- station validation) | CC BY 4.0 for"
+        " the authors' contribution only. The depicted station observations"
+        " are from **GHCN-Daily** (NOAA National Centers for Environmental"
+        " Information), used under the GHCN-Daily terms of use and requiring"
+        " NOAA/NCEI attribution: cite Menne et al. (2012) and the GHCN-Daily"
+        " dataset. Where ERA5-derived values are shown alongside them, the"
+        " current Copernicus ERA5 terms and required attribution also apply."
+        " Neither source is CC BY licensed by this tree |",
         "",
         "Panels and source components inherit from the figure they were cut",
         "from. The ERA5 attribution requirement therefore reaches every",
@@ -1068,8 +1199,14 @@ def readme_text(identity, geom):
 
 
 def build_tree(dest: Path, plan, identity, geom, tables, table1_notes,
-               trend_checks):
-    """Write the complete tree under `dest`. Returns the manifest rows."""
+               trend_checks, repo_root=None):
+    """Write the complete tree under `dest`. Returns the manifest rows.
+
+    ``repo_root`` is the operator's selected ``--root``. It is threaded through
+    to the licence-state lookup so a build against an alternate root reads THAT
+    root's contract and receipt, rather than silently classifying the artwork
+    from whichever repository this file happens to live in.
+    """
     rows = []
 
     for item in plan:
@@ -1204,7 +1341,7 @@ def build_tree(dest: Path, plan, identity, geom, tables, table1_notes,
 
     # --- README, manifest, checksums --------------------------------------
     readme = dest / README_NAME
-    write_text(readme, readme_text(identity, geom))
+    write_text(readme, readme_text(identity, geom, repo_root=repo_root))
     rows.append({
         "kind": "readme", "label": "", "folder": "", "panel": "",
         "path": README_NAME, "bytes": readme.stat().st_size,
@@ -1543,7 +1680,7 @@ def run(root: Path, reproduced: Path, out_dir: Path, args, echo) -> int:
     try:
         scratch.mkdir(parents=True)
         rows = build_tree(scratch, plan, identity, geom, tables,
-                          table1_notes, trend_checks)
+                          table1_notes, trend_checks, repo_root=root)
         echo(f"  wrote {len(rows)} manifest entries into the scratch tree")
         if out_dir.exists():
             os.replace(out_dir, previous)

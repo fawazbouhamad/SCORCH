@@ -43,10 +43,16 @@ were downloaded 2025-09-25 through 2025-10-08, with 2025 refreshed 2026-02-22.
 - Provider: Copernicus Climate Change Service (C3S), ECMWF
 - Identifier/DOI: 10.24381/cds.adbb2d47 (CDS dataset `reanalysis-era5-single-levels`)
 - Variable: 2 m temperature (t2m), units K, native ~31 km, regular 0.25 degree lat-lon distribution
-- Licence: Copernicus Products licence. Required attribution: "Contains
-  modified Copernicus Climate Change Service information [1940-2025]; neither
-  the European Commission nor ECMWF is responsible for any use of the
-  Copernicus information."
+- Licence: licence to use Copernicus products,
+  https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products
+  It covers the underlying ERA5 information; the authors' CC BY 4.0 licence
+  covers only their own contribution and is not asserted over it.
+- ERA5 coverage used in this work: 1940-2025 (warm seasons, April-September),
+  stated separately from the notice's year token.
+- Required attribution, verbatim and without brackets: Contains modified
+  Copernicus Climate Change Service information 2026. Neither the European
+  Commission nor ECMWF is responsible for any use that may be made of the
+  Copernicus information or data it contains.
 - Access: free C3S/CDS account with licence acceptance, or the ARCO-ERA5
   public mirror used here (no account required).
 

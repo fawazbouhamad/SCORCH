@@ -1,0 +1,18 @@
+{
+ "min": 0.0249576343854237,
+ "q1": 6.927587314808749,
+ "median": 31.258165493270035,
+ "mean": 54.2598249974016,
+ "q3": 101.51594992515005,
+ "p90": 133.20855742887477,
+ "p95": 149.85208813948609,
+ "p99": 174.59900433326834,
+ "max": 200.38310598392363,
+ "zero_displacement": 0,
+ "nearest_cell_reassigned": 360,
+ "sector_reassigned": 29,
+ "sector_old_count": 145,
+ "sector_new_count": 154,
+ "exceeds_diameter": 0,
+ "outside_hull": 0
+}

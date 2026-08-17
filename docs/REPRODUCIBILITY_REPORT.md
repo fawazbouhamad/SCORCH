@@ -29,20 +29,43 @@ the first two classes.
 
 | Condition | Result |
 |---|---|
-| `pytest tests -q` in a clean checkout WITHOUT the deposit | **212 passed, 34 skipped** (measured in the hash-locked clean-room environment; every skip is deposit-, frozen-catalog- or FINAL-DOCX-dependent -- canonical catalog and axial catalog regression tests, Figure A sigma matrices, deposit Table 1 checksum guard, output-isolation stage cases, the two FINAL-DOCX identity guards, and the 19 document-reading final-DOCX display-geometry/content-identity guards -- each skipping with a clear message) |
-| `pytest tests -q` WITH the deposit (`SCORCH_DATA_DIR`; FINAL DOCX dir via `SCORCH_FINAL_DOCX_DIR`) | **244 passed, 2 skipped** |
+Both profiles below were measured **once, in one pass**, against the same frozen
+collection of **496** tests, on the current working tree: committed head
+`6d483cf9` **plus** the uncommitted Phase 2.2A2 code/test changes.
 
-The two remaining skips with the deposit are the publication-outputs
-isolation cases, which require a materialized `publication_outputs/` tree
-that a source-only checkout deliberately does not ship; the assembly stage
-itself is executed and verified by the reproduction workflow. The
-without-deposit skips are the deposit-dependent regression tests, which
-require either `SCORCH_CANONICAL_DATA_DIR` or a downloaded deposit, plus
-the FINAL-DOCX identity guards, which require the frozen release documents
-(`SCORCH_FINAL_DOCX_DIR`). These
-counts must
-be measured in a checkout that is NOT nested inside the research repository,
-because the discovery helper also finds the research repo's frozen catalog.
+| Condition | Result |
+|---|---|
+| SOURCE-ONLY: `pytest tests -q` with every `SCORCH_*` variable cleared -- no deposit, no archive, no fixtures | **450 passed, 46 skipped, 0 failed, 0 errors, 0 xfailed, 0 xpassed -- exit 0. PASS.** The 46 skips are the deposit-, canonical-catalog-, DOCX- and font-dependent guards, each with an explicit skip reason |
+| REQUIRED-ARCHIVE: `pytest tests -q` with `SCORCH_DATA_DIR` set to a fresh extraction of the v1.0.0 archive candidate, `SCORCH_DATA_ARCHIVE` set to the candidate ZIP and `SCORCH_REQUIRE_ARCHIVE=1` | **473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed, 0 xpassed -- exit 1. EXPECTED FAILURE: the release gate reporting a real, verified blocker. This is NOT a regression and NOT a passing run.** The single failing node is `tests/test_archive_backed_verification.py::test_release_gate_archive_is_available_and_valid`, raising `DepositContractError` with all **nine** `NETCDF_*` issue codes against the unchanged archive's stale metadata. No structural `ARCHIVE_*` code fired, so the container itself is intact. The 22 skips are 21 FINAL-DOCX-dependent guards and 1 pinned-Aptos-font guard; both fixture sets are absent on the measuring machine and were deliberately NOT supplied |
+
+The nine codes reported against the archive are `NETCDF_AUTHORS_RIGHTS_SCOPE`,
+`NETCDF_COVERAGE_LABEL`, `NETCDF_CURRENT_ECDS_URL`, `NETCDF_NOTICE_COUNT`,
+`NETCDF_NOTICE_COVERAGE_YEAR`, `NETCDF_NOTICE_EXACT`, `NETCDF_REFERENCES_STATUS`,
+`NETCDF_RETIRED_CDS_URL` and `NETCDF_SOURCE_CONTRACT`.
+
+**Why the required-archive profile now exits 1.** At the committed head `6d483cf9`
+this profile exited **0** carrying `1 xfailed`, because the archive-staleness guard was
+an unconditional `xfail(strict=True)` that absorbed the defect in every mode, including
+required-archive mode. The uncommitted Phase 2.2A2 change removes that absorption so
+the release gate is a real gate. The move from `exit 0 with 1 xfailed` to `exit 1 with
+1 failed` is a deliberate hardening, not a new defect: the underlying stale-metadata
+condition is the same one, now reported honestly and with a nonzero exit. The archive
+was **not** rebuilt.
+
+A zero-skip fully configured acceptance run is **PENDING** the final release gate and is
+**NOT** claimed at this head: the FINAL-DOCX fixtures and the pinned Aptos Regular face
+are unavailable on the measuring machine, so such a run is not producible here. Final
+release acceptance likewise remains **PENDING** -- see §9.
+
+Superseded totals, each labelled with the revision it belongs to; none is a current
+result. Comparison term by term is invalid because the collection itself grew from 396
+to 496 across the Phase 2.2A2 passes.
+
+| Revision (historical, superseded) | Collected | Source-only | Configured |
+|---|---|---|---|
+| Committed head `6d483cf9`, before the uncommitted Phase 2.2A2 changes | 396 | 350 passed / 46 skipped, exit 0 | 373 passed / 22 skipped / **1 xfailed**, exit 0 |
+| Prior head `44a54a05` | -- | 327 passed / 36 skipped | 363 passed / 0 skipped |
+| Pre-remediation tree, hash-locked clean-room environment | 246 | 212 passed / 34 skipped | 244 passed / 2 skipped |
 
 Known benign import warning (investigated in V5): the netCDF4/cftime
 binary wheels emit `RuntimeWarning: numpy.ndarray size changed` when
@@ -90,7 +113,14 @@ corrected Fig. A / Fig. B extents with matching `wp:extent` and
 embedded publication images pinned byte-for-byte, the supplement
 `docProps/app.xml` page count of 2, and unchanged Table 1 OOXML, alt
 text, captions/prose, comments/tracking state and media relationships),
-bringing the suite to 246 collected tests.
+bringing the suite to 246 collected tests. The Phase 2.2A scope cleanup and the
+2.2A1 correction pass then brought the collection to 396; the Phase 2.2A2 passes
+add the deposit-contract and release-gate exit-code guards, the XLSX equivalence
+guardrails, the Figure 4 pixel/encoded-identity and cross-platform determinism
+guards, the publication-builder contracts and the record-consistency guards,
+bringing the collection to **496** on the current working tree. Every total in
+this paragraph before that last figure is historical and belongs to the pass that
+introduced it.
 
 ## 2. Connected reconstruction: processed field to catalog
 
@@ -151,15 +181,21 @@ and S.2 are RETIRED and appear below only in explicitly historical
 statements. S.3 and S.4 are not current manuscript figures; their scripts
 are retained as internal component producers of Fig. D.
 
-Of those 17, by reproduction class: **6 `data_generated`** (Fig. 2, 3, 12,
-B, D, S.1), **8 `deployment_export_of_reproduced_original`** (Fig. 5, 6, 7,
-9, 10, 11, A, C), **1 `manually_postprocessed_approved_artwork`** (Fig. 8)
-and **2 `frozen_approved_artwork`** (Fig. 1, 4). Figure 9 joined the
+Of those 17, by reproduction class, derived from
+`docs/MANUSCRIPT_FIGURE_IDENTITY.csv`: **9 `data_generated`** (Fig. 2, 3, 5,
+6, 7, 12, B, D, S.1), **5 `deployment_export_of_reproduced_original`**
+(Fig. 9, 10, 11, A, C), **2 `deterministic_producer`** (Fig. 1, 4) and
+**1 `manually_postprocessed_approved_artwork`** (Fig. 8).
+**`frozen_approved_artwork` now has 0 members.** The 2026-08 correction round
+gave Figures 1 and 4 deterministic donor-based runnable producers, so the
+earlier "2 `frozen_approved_artwork` (Fig. 1, 4)" statement is superseded;
+an empty class is not listed as though it described a shipped figure.
+Figure 9 joined the
 deployment-export class in the v1.0.0 pre-release correction: the
 axial-orientation fix regenerated its approved original end-to-end from the
-deposit, so no manual post-processing pass remains. Only the first six are
-byte-identical to the embedded raster when regenerated from data; section 3
-below describes each situation. Per-figure hashes, including the separate
+deposit, so no manual post-processing pass remains. Only the nine
+`data_generated` figures are byte-identical to the embedded raster when
+regenerated from data; section 3 below describes each situation. Per-figure hashes, including the separate
 approved-original, deployed-embed and reproduced-output fields, are in
 `FIGURE_PROVENANCE.csv`, and the machine-readable class per figure is in
 `MANUSCRIPT_FIGURE_IDENTITY.csv`.
@@ -176,7 +212,7 @@ axial mean (`scripts/figures/common/scorch_axial.py`), the reproduced
 embed `7859acbd...` is its deterministic width-1950 LANCZOS downscale
 (`make_manuscript_artwork.py`). The superseded arithmetic-mean artifacts
 (full-resolution `4cb3b38a...`, embed `b023c6e5...`) are HISTORICAL ONLY,
-archived under `legacy_defective_figure09/` and excluded from publication
+archived under `provenance/legacy/figure09/` and excluded from publication
 outputs.
 
 **EXECUTED, three distinct artifacts (Figure 8).** For this figure the
@@ -196,11 +232,20 @@ identical dimensions with **5.10%** of pixels differing: that difference is
 the authors' manual post-processing pass, which the script does not and
 cannot reproduce. The plotted content is reproduced exactly.
 
-**FROZEN (Figures 1 and 4).** Author-created slide exports. No runnable
-producer exists and none is claimed. The frozen PNGs ship in
-`assets/frozen_figures/` with checksums and are byte-identical to the
-deployed manuscript embeds. These are the only two publication figures
-without a shipped producing command.
+**DETERMINISTIC DONOR-BASED PRODUCERS (Figures 1 and 4).** Both figures now
+have runnable, deterministic producers that transform approved donor
+artwork:
+`scripts/figures/fig01/restore_fig01_original_threshold.py` (re-renders one
+authorized text line onto the archived original; emits a difference mask and
+a locality report) and `scripts/figures/fig04/make_fig04_symmetry_final.py`
+(operates on the immutable approved-horizontal donor). Each reproduces its
+shipped asset byte-identically across clean builds, and both are
+byte-identical to the deployed manuscript embeds. Determinism is enforced by
+`tests/test_corrected_schematic_figures.py` and
+`tests/test_fig04_symmetry_final.py`. The Figure 1 producer additionally
+requires the non-redistributable Aptos face, supplied via `--font` or
+`SCORCH_APTOS_FONT`; without it the producer fails deterministically and the
+test skips with an explicit reason.
 
 **V3 label corrections (Figure 12 and the composite now designated
 Fig. D).** Both figures were regenerated with corrected marker-legend
@@ -208,22 +253,29 @@ wording: "Largest centroid per day" and "Largest centroid per event" become
 **"Daily-largest structure centroid"** and **"Event-largest structure
 centroid"**. The concentration-zone distance boxplot's y-axis becomes
 "Distance to nearest top-concentration zone (km)"; that boxplot is
-**panel (a)** of Fig. D in the current layout. The plotted data, quantile
-ranks, ticks, centroids and cross-validation numbers are unchanged. Figure
-12's colorbar already read "Relative centroid-concentration rank, R(s)" and
-is unchanged.
+**panel (a)** of Fig. D in the current layout. Scope of that statement:
+relative to the immediately preceding pre-label asset, the V3 operation
+changed legend and axis WORDING ONLY - plotted data, quantile ranks, ticks,
+centroids and cross-validation numbers were unchanged BY THE V3 STEP.
+Relative to the PRE-REMEDIATION unweighted artifacts, however, the plotted
+centroid positions, the fitted concentration surface and the
+cross-validation distances all DID change under the Tmax-weighted-centroid
+correction. Figure 12's colorbar already read "Relative
+centroid-concentration rank, R(s)" and is unchanged.
 
 *HISTORICAL (V3-era status, superseded -- retained for provenance).* At the
 V3 pass these corrected outputs were intentionally not byte-identical to the
 then-deployed embeds; they were supplied for manual review, and at that time
 nothing had been deployed into either WORKING document.
 
-**CURRENT RESOLUTION (deployed in the historical V12 pre-release pass).**
+**CURRENT RESOLUTION.**
 Both were DEPLOYED on 2026-07-30 in the
-advisor-directed G2 pass. Figure 12's deployed embed is `6a1a5a76...` and
-Fig. D's is `b7c48232...`, and the shipped producers reproduce both
-byte-identically. Neither figure is pending, provisional or awaiting any
-further pass.
+advisor-directed G2 pass (historical G2 embeds: Figure 12 `6a1a5a76...`,
+Fig. D `b7c48232...`, superseded). After the 2026-08 Tmax-weighted-centroid
+correction rounds the current manuscript embeds are Figure 12
+`ce09ab2f...` and Fig. D `88f9e177...`, and the shipped producers
+reproduce both byte-identically. Neither figure is pending, provisional
+or awaiting any further pass.
 
 **Final Fig. D check.** The regenerated composite reproduces the deployed
 figure's content and numbers. Before the V3 label correction its output was
@@ -237,13 +289,18 @@ composite was rearranged to 2 columns x 3 rows - panel (a) the
 concentration-zone distance boxplot, panels (b)-(f) held-out Folds 1-5,
 shared vertical colorbar spanning all three rows, centred marker legend -
 and RELOCATED from the supplementary document into the main manuscript as
-**Fig. D in Appendix D**. Artwork 6050x6019 px, deployed embed
-`b7c48232...`, reproduced byte-identically by the shipped producer
+**Fig. D in Appendix D**. Artwork 6050x6019 px, G2-pass embed
+`b7c48232...` (superseded by the current Tmax-weighted-centroid embed
+`88f9e177...`), reproduced byte-identically by the shipped producer
 `scripts/figures/figS2/make_new_figS2_candidate.py` (legacy internal name).
 Layout and labelling only: dataset, seed 20260704, fold membership
 (152 held-out centroids per fold), refit surfaces, ranks, colours, ticks,
-markers and the zone means 438/286/181/81 km are unchanged and are asserted
-at run time. The superseded supplementary embed was `d3de47b8...`. The
+markers and the zone-mean assertions are unchanged in FORM. The zone means
+themselves moved with the corrected centroids and are now
+**389.670139 / 231.807728 / 151.672110 / 69.064508 km** for the top
+10/20/30/50% zones (the superseded unweighted values were
+437.85/285.66/180.81/81.48 km, quoted in earlier revisions as
+438/286/181/81). They are asserted at run time. The superseded supplementary embed was `d3de47b8...`. The
 separate supplementary document now contains **Fig. S.1 only**.
 
 **V4 correction (internal figS4 component).** The internal fold-map
@@ -256,8 +313,9 @@ component hash: `1f0742fa...`. *HISTORICAL:* at the V4 pass the composite
 output was unchanged at `54ca830c...`, which confirmed the fix affected only
 the internal component. **CURRENT (v1.0.0; resolved in the historical V12 pre-release pass):** that
 composite was subsequently
-rearranged and deployed in the 2026-07-30 G2 pass, so the current manuscript
-Fig. D is `b7c48232...`; `54ca830c...` is a superseded pre-G2 identity and is
+rearranged and deployed in the 2026-07-30 G2 pass as `b7c48232...`
+(itself superseded by the current Tmax-weighted-centroid embed
+`88f9e177...`); `54ca830c...` is a superseded pre-G2 identity and is
 not shipped anywhere in this release.
 
 **Internal component producers (NOT manuscript figures).** The `figS3` and
@@ -278,13 +336,16 @@ row, which claimed an executed byte-identical output that is absent from
 `reproduced/`.)
 
 When internal outputs are discussed anywhere in this release, the correct
-phrasing is: **17 publication figures in four reproduction classes (6
-`data_generated`, 8 `deployment_export_of_reproduced_original`, 1
-`manually_postprocessed_approved_artwork`, 2 `frozen_approved_artwork`),
-plus three internal or superseded diagnostic products.** The phrase "15
-regenerated publication figures" must not be used: it counts the nine
-deployment exports and manually post-processed artworks as if the scripts
-reproduced the embedded rasters, which they do not.
+phrasing is: **17 publication figures in four reproduction classes in use (9
+`data_generated`, 5 `deployment_export_of_reproduced_original`, 2
+`deterministic_producer`, 1 `manually_postprocessed_approved_artwork`),
+plus three internal or superseded diagnostic products.** The count and the
+membership are derived from `docs/MANUSCRIPT_FIGURE_IDENTITY.csv`, not
+asserted here; a fifth class, `frozen_approved_artwork`, remains defined in
+the vocabulary but currently has **0** members. The phrase "15 regenerated
+publication figures" must not be used: it counts the deployment exports and
+the manually post-processed artwork as if the scripts reproduced the embedded
+rasters, which they do not.
 
 ## 4. Tables and numeric results (EXECUTED)
 
@@ -294,8 +355,8 @@ reproduced the embedded rasters, which they do not.
 | Trend tables (Sen slope + Mann-Kendall) | Byte-identical to the corrected local staging copies of the Zenodo data deposit (`figure_table_source_data/table01/`), pending the same online-draft synchronization |
 | Power-law statistics (canonical `--nboot 5000`) | The entire `power_law/statistics/` directory is byte-identical to the deposit, bootstrap CSVs included |
 | variant3 surface extraction | Exact: max absolute difference **0.0** over 1,800 rows against the frozen variant3 CSV |
-| 5-fold CV (seed 20260704) | Mean held-out distance **84.934649 km** (manuscript 84.935); all five CV CSVs byte-identical to the deposit |
-| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **437.854964 / 285.656041 / 180.807535 / 81.475518 km** (manuscript 437.85 / 285.66 / 180.81 / 81.48) |
+| 5-fold CV (seed 20260704) | Mean held-out distance **85.009602 km** (verified from the corrected committed `validation_kfold/cv_summary.csv`); all five CV CSVs byte-identical to the deposit |
+| Concentration-zone CV distances (legacy `risk_zone` file and column names; see `TERMINOLOGY.md`) | **389.670139 / 231.807728 / 151.672110 / 69.064508 km** (weighted centroids; the superseded pre-remediation values were 437.854964 / 285.656041 / 180.807535 / 81.475518 km) |
 | GHCN-ERA5 Aswan validation | r = 0.9802, RMSE = 1.696 C, bias = -1.5952 C, n = 9 (manuscript 0.98 / 1.70 / -1.60) |
 | Canonical counts | 1,800 cells; 15,738 days; Theta = 371; fraction 0.2061; 395 days; 51 events; 760 ellipses; types 3/4/20/24; event-day split 3/4/75/313; event 14 = Type 3 |
 
@@ -320,8 +381,11 @@ unchanged:
 
 * ALL QC CHECKS PASS, with **0 captured fit warnings**.
 * The refit parameter table (all 30 rows) is **identical** to the deposited
-  canonical table, including variant3 `sigma2 = 1.647219` and
-  `scale = 287.707960 km`, trend `~ lon + lat + mean_tmax_z + std_tmax_z`.
+  canonical table, including variant3 `sigma2 = 1.642911` and
+  `scale = 272.455153 km`, trend `~ lon + lat + mean_tmax_z + std_tmax_z`,
+  fitted to the 760 raw-Celsius Tmax-weighted centroids. (The superseded
+  unweighted fit, `sigma2 = 1.647219`, `scale = 287.707960 km`, is retained
+  only under `legacy_unweighted_baseline` in docs/CANONICAL_SCIENCE.json.)
 * The predicted-intensity surface matches the deposited canonical CSV
   exactly (`extract_variant3.py`: shape match, max absolute difference
   **0.000e+00**, EQUAL = True).

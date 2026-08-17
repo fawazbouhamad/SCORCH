@@ -1,0 +1,411 @@
+{
+  "contract_version": "1.1.0",
+  "purpose": "Stable machine-readable invariants for the post-D6 release finalizer. Values here are CURRENT REPOSITORY FACTS and expected counts only. No provisional archive identity is recorded as the RELEASED identity: the finalizer derives the values it replaces from the tracked package record and recomputes the values it writes from the final archive bytes. The pre-D6 candidate is pinned only as a TECHNICAL SOURCE, explicitly labelled as such.",
+  "repository": {
+    "owner": "fawazbouhamad",
+    "name": "SCORCH",
+    "pull_request": 1,
+    "base_branch": "main",
+    "head_branch": "chore/final-repository-cleanup",
+    "expected_main_commit": "bd6e4608c5a56a435307954dd74141dc5348c560",
+    "expected_tag": "v1.0.0",
+    "expected_tag_object": "47d0c06dbe28b2b9347d979689205195512b332c",
+    "expected_tag_commit": "184f15c6c889044324fb07f7545ec73dd849f8e5"
+  },
+  "trusted_contract": {
+    "tracked_path": "scripts/release/finalizer_contract.json",
+    "note": "Production loads the contract from exactly this tracked path inside the verified worktree and requires the on-disk bytes to equal the git blob at the expected HEAD. The production CLI has NO --contract option: an operator cannot point the finalizer at an external file that redefines the required login, the authorization text, the licensed assets or the activation scope. Unit tests inject contracts by passing a dict to the Python functions, which is not a production surface. This block deliberately does NOT record the contract's own hash - a file cannot pin its own digest without circularity - so identity is verified against git, not against a constant stored here.",
+    "expected_head_note": "While the finalizer repair is uncommitted, the on-disk contract differs from the blob at HEAD and production preflight reports CONTRACT_NOT_AT_HEAD by design. Once the repair is committed the two agree and the code no longer fires."
+  },
+  "licence_declaration": {
+    "creator": "Fawaz Bouhamad",
+    "guidance_credit": "Dr. Nasser Najibi",
+    "public_credit": "Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.",
+    "_note": "The Figure 1 and Figure 4 schematic artwork was created by Fawaz Bouhamad, who holds its copyright and is its sole licensor. Dr. Nasser Najibi provided the scientific guidance, review and corrections behind those figures, remains a manuscript coauthor, and is credited here for exactly that contribution. Dr. Najibi is NOT represented as a copyright co-owner or licensor of the artwork, and no email, signature, GitHub comment or other written authorization is sought from them or recorded anywhere in this release. public_credit is the exact credit line the activated licence surfaces carry.",
+    "matching_rule": "EXACT EQUALITY of the whitespace-normalized declared text against the whitespace-normalized text below. Substring containment is forbidden: the required paragraph plus any prefix, suffix, qualification or withdrawal is NOT the declaration.",
+    "text": "I, Fawaz Bouhamad, created the SCORCH Figure 1 and Figure 4 schematic artwork and am the copyright holder and sole licensor of it. I license the seven Figure 1 and Figure 4 artwork files identified by path and SHA-256 in this declaration under the Creative Commons Attribution 4.0 International licence (CC BY 4.0), including the permissions for sharing and adaptation provided by that licence. Dr. Nasser Najibi provided scientific guidance, review and corrections for these figures and is credited for that contribution, and is not a licensor of this artwork. This licence does not extend to unrelated SCORCH figures and does not alter the rights or licences of the software, fonts, or underlying third-party data."
+  },
+  "declaration_source": {
+    "_note": "The ONE source the CC BY 4.0 grant over the artwork rests on: a declaration by the artwork's creator, committed inside this repository and reviewable like any other tracked file. There is no second route, because there is no second licensor. The declaration requires NO external evidence: nothing is preserved in a private mailbox, nothing is supplied on the command line, and no network is consulted. What the finalizer verifies is not consent - the licensor is the person running the release - but SCOPE and INTEGRITY: that the declaration is committed at HEAD, that its bytes equal the reviewed blob, that it pins exactly the seven registered artwork identities, that those identities still hold in the tree, and that it credits Dr. Najibi for scientific guidance without representing them as a licensor. Any drift in identity or scope fails closed.",
+    "schema_version": "1.0.0",
+    "tracked_record_path": "docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json",
+    "must_not_exist_before_declaration": true,
+    "must_be_tracked_at_head": true,
+    "creator": "Fawaz Bouhamad",
+    "guidance_credit": "Dr. Nasser Najibi",
+    "required_fields": [
+      "schema_version",
+      "declaration_date",
+      "declared_text",
+      "licensed_artwork",
+      "creator_attestation",
+      "scientific_guidance_credit"
+    ],
+    "attestation_required_fields": [
+      "creator",
+      "declared_at",
+      "statement"
+    ],
+    "attestation_statement": "I, Fawaz Bouhamad, am the creator and copyright holder of the seven Figure 1 and Figure 4 artwork files identified by path and SHA-256 in this declaration. I license exactly those files under CC BY 4.0, no other party's permission is required for this grant, and no other party is represented as granting it."
+  },
+  "licence_receipt": {
+    "schema_version": "1.0.0",
+    "tracked_path": "docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json",
+    "must_not_exist_before_activation": true,
+    "_note": "The durable machine-readable record of the creator's CC BY 4.0 declaration and of the finalization that acted on it. It MUST NOT exist in the real repository until a valid declaration has been resolved during a real finalization. It is built and validated inside the disposable validation copy and written atomically as part of the same transaction as the licence and identity edits; if any part of the transaction fails, the receipt is removed again. A stdout report is not a receipt. It carries NO comment id, NO permalink, NO login and NO evidence digest, because there is no comment, no third party and no external evidence - inventing those fields would point the durable record at things that do not exist.",
+    "source_discriminator": "licence_source",
+    "source_discriminator_value": "creator_declaration",
+    "required_fields": [
+      "schema_version",
+      "repository",
+      "licence_source",
+      "declaration_date",
+      "declared_text",
+      "declared_text_sha256",
+      "licensed_artwork",
+      "declaration_record_path",
+      "declaration_record_sha256",
+      "declaration_record_blob_sha1",
+      "creator",
+      "declared_at",
+      "scientific_guidance_credit",
+      "activated_at",
+      "finalizer_version",
+      "starting_head"
+    ]
+  },
+  "finalizer_version": "4G-r4",
+  "validation_copy": {
+    "_note": "The disposable validation tree is an INDEPENDENT CLONE at the expected head plus this allowlist, never a copy of the worktree. A shutil.copytree minus four names swept in every ignored artifact in the checkout - editor scratch, stale outputs, half-written downloads - and reproduced SYMLINKS as symlinks; copying tracked worktree BYTES then admitted any transient mutation the checkout happened to be holding while the copy was taken; and copying .git as a directory could not work at all in a linked worktree, where .git is a file, which is how this repository is checked out. The tree is therefore cloned with git from committed objects and checked out at the exact expected head, and the clone's head, tracked set and tree identity are verified before the planned activation and receipt edits are applied. WHAT MAY BE ADMITTED, and why the list is no longer empty: exactly the IMMUTABLE INPUTS validation cannot recreate for itself. Each is a single regular file pinned by BOTH SHA-256 and byte count; a directory, a glob, a link, an unpinned entry or one whose size or digest disagrees is refused. The pre-finalization candidate archive is the INPUT the pending-to-active deposit-notice transition is applied to - the finalized archive is the already-activated OUTPUT, so the two are typed separately and the transition tests may only ever read the candidate. The final-integration DOCX carries the embedded Figure 4 raster whose identity the suite checks and which nothing in the repository can regenerate. WHAT MAY NEVER BE ADMITTED: publication_outputs/. It is DERIVED, and inheriting the operator's copy would make the validation a test of the developer's desk rather than of the release. It is regenerated inside the clone by validation_preparation below, from the finalized archive and the committed repository alone.",
+    "ignored_allowlist": [
+      {
+        "path": "release_staging/scorch_processed_data_pre_D6_local_candidate.zip",
+        "sha256_ref": "technical_source_candidate.sha256",
+        "bytes_ref": "technical_source_candidate.bytes"
+      },
+      {
+        "path": "manuscript_revision_output/figure04_symmetry_integration_round/SCORCH_Manuscript_FINAL_Figure04Symmetry.docx",
+        "sha256": "e896dba06766b906391ba90a823584c9b3d7a07f3f319b7223ce5c3ddebfb2ac",
+        "bytes": 29779357
+      }
+    ]
+  },
+  "validation_preparation": {
+    "_note": "Before the acceptance suite runs, the disposable clone MATERIALISES its own derived inputs from the finalized archive and the committed repository - it inherits none of them. The finalized archive is extracted to a fresh run-owned directory, the canonical reproduction pipeline runs from that extraction into a fresh reproduced/, and the publication builder then writes a fresh publication_outputs/ inside the clone with every path passed explicitly. Both must exit 0. The builder is then run a SECOND time into a separate directory and the two trees compared file-for-file, because a publication tree that is not reproducible is not evidence of anything. Finally every tracked path is re-hashed and required to be unchanged: preparation may create ignored outputs and may not touch the release. If the pipeline cannot rebuild these inputs the run stops with the missing input named - that is a reproducibility defect, and allowlisting a derived output would hide it.",
+    "reproduction_entry": "run_reproduction.py",
+    "reproduction_tier": "fast",
+    "reproduction_out_dirname": "reproduced",
+    "publication_builder": "scripts/publication/build_publication_outputs.py",
+    "publication_out_dirname": "publication_outputs",
+    "require_deterministic_publication_rebuild": true,
+    "require_tracked_paths_unchanged": true
+  },
+  "trusted_interpreter": {
+    "_note": "DELIBERATELY UNPINNED. Production finalization runs sys.executable - the interpreter already running the finalizer - and the CLI has no --python option. The release is accepted on a validator verdict and a pytest summary, and both are simply the standard output of whichever executable was named; a wrapper that prints 'PASS' and a clean JSON summary is a two-line script. If a different interpreter ever has to be used, its realpath and/or sha256 go here and _pinned_interpreter_issues verifies them; with neither field present any non-default interpreter is refused as INTERPRETER_UNTRUSTED. Unit tests pass sys.executable, which is the default and needs no pin."
+  },
+  "isolation_probe_modules": [
+    "test_public_consistency_guards",
+    "test_stale_provenance",
+    "test_corrected_schematic_figures"
+  ],
+  "artwork_licence_markers": {
+    "_note": "EXACT artwork-rights markers. Classification used to scan whole documents for broad words - 'prohibited', 'must not', 'may not', 'no CC BY' - which matched legitimate unrelated text: a 'prohibited-region invariance' note, or a sentence saying the underlying ERA5 data carries no CC BY licence. That made the artwork look PENDING for reasons having nothing to do with the artwork, and would have made a correct activation impossible to complete. Only the exact strings below decide the artwork's state, and only within the five licence surfaces. Every unrelated ERA5, GHCN, Natural Earth, software and font restriction is untouched by this classification. NOTE ON THE FOURTH PENDING MARKER: 'PENDING COAUTHOR AUTHORIZATION' is wording this project no longer uses and no longer believes - the artwork is licensed by its creator, and no coauthor authorization exists or is required. It survives here as a DETECTOR ONLY, because those exact bytes are inside the pinned pre-existing candidate archive, which is a hash-verified technical source this release rebuilds from and cannot edit in place. The finalization REPLACES that block with the activated notice, so the released deposit carries the creator-credit wording and never this string. It appears in no tracked licence record.",
+    "pending": [
+      "CC BY 4.0 PENDING",
+      "licensing is PENDING and not yet in force",
+      "EXCLUDED FROM THE CC BY 4.0 ENTRY",
+      "PENDING COAUTHOR AUTHORIZATION"
+    ],
+    "active": [
+      "The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0)."
+    ]
+  },
+  "identity": {
+    "package_record": "provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json",
+    "package_id": "PKG-DATA-V1",
+    "final_archive_filename": "scorch_processed_data_v1.0.0.zip",
+    "expected_file_count": 8,
+    "expected_reference_count": 56,
+    "fields": [
+      "archive_filename",
+      "archive_sha256",
+      "archive_bytes",
+      "content_root_hash"
+    ],
+    "files": {
+      "provenance/corrections/tmax_weighted_centroids/corrected_outputs/SHA256_MANIFEST.json": {
+        "archive_filename": 1,
+        "archive_sha256": 1,
+        "archive_bytes": 1,
+        "content_root_hash": 1
+      },
+      "docs/RELOCATED_ARTIFACTS.csv": {
+        "archive_filename": 21,
+        "archive_sha256": 21
+      },
+      "docs/CANONICAL_SCIENCE.json": {
+        "archive_filename": 1,
+        "archive_sha256": 1,
+        "archive_bytes": 1
+      },
+      "provenance/legacy/figure09/README.md": {
+        "archive_filename": 2,
+        "archive_sha256": 1
+      },
+      "assets/manuscript_final/README.md": {
+        "archive_filename": 1
+      },
+      "provenance/corrections/tmax_weighted_centroids/xlsx_equivalence/XLSX_SEMANTIC_EQUIVALENCE_REPORT.md": {
+        "archive_filename": 1
+      },
+      "tests/test_public_consistency_guards.py": {
+        "archive_filename": 1
+      },
+      "tests/test_stale_provenance.py": {
+        "archive_filename": 1
+      }
+    }
+  },
+  "protected_historical_records": [
+    "provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/build_manifest.json",
+    "provenance/corrections/tmax_weighted_centroids/freeze/freeze_manifest_pre.json"
+  ],
+  "protected_historical_record_identities": {
+    "_note": "THREE DISTINCT IDENTITIES, deliberately not conflated. git_blob_* is the portable repository identity (LF, what every platform checks out from). worktree_sha256/worktree_bytes are a NON-PORTABLE observation of this Windows checkout, where .gitattributes 'text=auto eol=lf' produced CRLF working-tree bytes. A Windows checkout hash must never be presented as a portable git-blob identity. eol_relationship records the proven relationship: applying CRLF->LF to the worktree bytes reproduces the blob exactly, with zero lone CR bytes. The transaction snapshots the ACTUAL CURRENT BYTES (whatever the platform checked out) and separately verifies the tracked git blob.",
+    "provenance/corrections/tmax_weighted_centroids/corrected/event_global_max_algorithm/build_manifest.json": {
+      "git_blob_sha1": "be4f077caed900b1bc5a0514ac28c97a6fc19349",
+      "git_blob_sha256": "f2aa871a1ba6cf6ef0d1841ba6db7d99a1a0183f836d0fd930d19280f347aa06",
+      "git_blob_bytes": 2652,
+      "worktree_sha256": "015d12cf37014ab59dd70bb832a4bc111122e0f779fb726b6be49f7a4c0b898d",
+      "worktree_bytes": 2706,
+      "worktree_platform": "windows-crlf",
+      "eol_relationship": "crlf_worktree_of_lf_blob"
+    },
+    "provenance/corrections/tmax_weighted_centroids/freeze/freeze_manifest_pre.json": {
+      "git_blob_sha1": "fcc8e93ac43e2f0dd6bd28010bad0e8adcedcc3d",
+      "git_blob_sha256": "0cc314da02c2db65a5fb5b6c963e6703b902fa88cca158031da5471783570b1a",
+      "git_blob_bytes": 27344,
+      "worktree_sha256": "909449de7236cacffafef8aa9f1fec2b3805241e604b5d73eaafff11d4a811a1",
+      "worktree_bytes": 28108,
+      "worktree_platform": "windows-crlf",
+      "eol_relationship": "crlf_worktree_of_lf_blob"
+    }
+  },
+  "historical_netcdf_sha256": "8ec500baae6a62642f5bd37799780eb70214b5ddc8f66c06c72b62a20118af6c",
+  "technical_source_candidate": {
+    "filename": "scorch_processed_data_pre_D6_local_candidate.zip",
+    "status": "LOCAL, UNPUBLISHED, PRE-D6 TECHNICAL SOURCE",
+    "is_released_archive_identity": false,
+    "is_evidence_of_publication_or_deposit": false,
+    "note": "The corrected pre-D6 candidate is the TECHNICAL SOURCE the finalizer extracts and rebuilds from. It is a local, unpublished, pre-D6 working artifact. It is NOT the released archive identity - the released identity is recomputed from the final archive bytes after the licence transition, manifest regeneration and deterministic rebuild. It is NOT evidence of publication or deposit, and nothing may cite it as such. It is never itself shipped, renamed to the release filename, or given a DOI.",
+    "sha256": "7a2ab7568b5ec84ebf11907d2f71bae334ba855cfd2ae7957225e5d34e8dca75",
+    "bytes": 116845703,
+    "content_root_hash": "28e10268d3efbcc5ecacb168f43a805ac85eba70b36ce7f9bd2d88952ed595ad",
+    "topology": {
+      "member_count": 109,
+      "sums_entries": 108,
+      "manifest_rows": 107,
+      "sums_member": "SHA256SUMS",
+      "manifest_member": "FILE_MANIFEST.csv",
+      "validator_member": "validate_deposit.py",
+      "licence_member": "LICENSE.txt"
+    }
+  },
+  "superseded_official_archive": {
+    "filename": "scorch_processed_data_v1.0.0.zip",
+    "path": "release_staging/scorch_processed_data_v1.0.0.zip",
+    "status": "SUPERSEDED. PRESERVED, NEVER OVERWRITTEN.",
+    "note": "The archive the tracked records currently point at. It carries a superseded NetCDF payload. The finalizer never writes to it, never deletes it and never uses it as a build source; its explicit path, SHA-256 and byte count are verified during preflight AND immediately before the write, and it must be byte-identical and present after a successful finalization as well as after a failed one. CRITICAL: the released archive has the SAME FILENAME, so a release-staging destination resolving to this path would destroy it. That collision is refused with RELEASE_DESTINATION_COLLIDES_WITH_SUPERSEDED; the operator must supply a different --release-staging directory.",
+    "sha256": "8d6ca0c5cd77d672a7c73924a1d243dab01d1a592c1730389aa0f1a864871383",
+    "bytes": 116845724,
+    "content_root_hash": "f5fe80d1fe843016af19904f60a0a2e1935f6a31c322f50ee0f4d56becd54205"
+  },
+  "contract_identity_exemption": {
+    "_note": "This file is the ONE tracked file that legitimately names an archive identity without being part of the identity replacement map. It must name the superseded archive it preserves and the pre-D6 technical source it rebuilds from, and both are named by digest. The exemption that lets it do so is FIELD-level and is not a licence for this file: only the exact dotted paths listed below may hold an identity digest, the value at such a path must BE the digest rather than merely contain it, and an identity anywhere else in this file - a sibling field inside one of these blocks, a note, an object key, or a copy hidden in a duplicate key that JSON parsing drops - is reported as IDENTITY_MAPPING_MISMATCH exactly as it would be in any other tracked file. The four permitted PATHS are pinned in release_finalizer.py (CONTRACT_IDENTITY_EXEMPT_FIELDS, from which CONTRACT_IDENTITY_EXEMPT_ROOTS is derived), not here: the declaration below must equal that set exactly, with no repeats and no fifth entry, so editing this contract cannot widen the exemption over 'identity', over a current-release pointer, or over a newly invented sibling inside one of these two blocks. Each of the four declared digests is itself scanned through the whole document, keys included, and permitted only at its own registered path. This file is deliberately NOT in identity.files: a finalization rewrites every file in that map, and these records exist to state historical and candidate fact.",
+    "declared_fields": [
+      "superseded_official_archive.sha256",
+      "superseded_official_archive.content_root_hash",
+      "technical_source_candidate.sha256",
+      "technical_source_candidate.content_root_hash"
+    ]
+  },
+  "publication_outputs_artwork_row": {
+    "_note": "The Figure 1 / Figure 4 row emitted into publication_outputs/README.md. Both wordings live HERE, in the trusted tracked contract, so the builder serves authored prose rather than inventing it. The builder still emits the PENDING row until the repository's actual licence state says otherwise - receipt present and valid, or not - and never because active wording exists.",
+    "pending": "| `assets/frozen_figures/**` (Fig. 1, 4) | CC BY 4.0 PENDING -- not yet in force; the artwork creator's CC BY 4.0 declaration has not been recorded |",
+    "active": "| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (Fig. 1, 4) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0. |"
+  },
+  "release_test_collection": {
+    "_note": "The frozen release test collection. A release run must collect EXACTLY this sorted node-ID set: the count and the SHA-256 of the newline-joined sorted node IDs must both match, and the executed set must equal the collected set. This is what makes 'everything passed' mean 'everything ran'. Regenerate deliberately whenever tests are added or removed - never to make a red run go green.",
+    "node_id_count": 1154,
+    "sorted_node_ids_sha256": "5370666556da8f32b290593da59e5ea40f0761d2fcfff18cbdbecefefb9e513d",
+    "_refrozen": "Refrozen at 4G-r1, the CREATOR-DECLARATION migration. The release stopped modelling the Figure 1 / Figure 4 artwork licence as a permission to be obtained from a coauthor and started modelling it as what it is: a declaration by the artwork's creator. Fawaz Bouhamad created that artwork and licenses it; Dr. Nasser Najibi provided the scientific guidance, review and corrections behind those figures, remains a manuscript coauthor, and is credited for exactly that. Nothing is asked of Dr. Najibi and no approval from them exists or is required. WHAT WAS REMOVED, not merely disabled: the GitHub-comment route (find_authorization, the comment-reading client methods, the required login, the two live cross-reads, the permalink and issue-URL checks) and the external-evidence route (the tracked approval record, the preserved email or signed form, the evidence-format map, the custodian attestation and the --approval-evidence option). A dormant method is a surface a later edit can reach for, so the client can no longer read comments at all and a test asserts it has no such attribute. The receipt's discriminator is now licence_source with the single legal value creator_declaration, and it is REQUIRED: absence is a refusal, not a legacy default, because no receipt has ever been written under any other scheme. WHAT REPLACED IT: one tracked declaration at docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json, committed inside this repository and read with the same component-safe, no-follow walk that protects the receipt. What the finalizer verifies is no longer consent - the licensor is the person running the release - but SCOPE and INTEGRITY: the declaration is tracked at HEAD and byte-equal to its blob, its paragraph is EXACTLY the contracted one under the same equality-not-containment rule as before, it pins exactly the seven registered artwork identities, those identities still hold in the tree, and the guidance credit is exactly the contracted name so it can neither be dropped nor inflated into a co-licence. The operator guide states that narrowed guarantee plainly rather than implying the software authenticates a human. PROSE AND PINS: all five licence surfaces were rewritten in both directions. The PENDING wording no longer says a coauthor's written authorization is awaited - it says the creator's declaration has not been recorded yet - and every ACTIVE destination now carries the public credit line verbatim. That credit is pinned in code as REVIEWED_PUBLIC_CREDIT and every destination is checked to contain it, so a contract edit can neither drop the credit nor turn it into a second grant. REVIEWED_ACTIVATION_DESTINATIONS, REVIEWED_PUBLICATION_ROW_ACTIVE and REVIEWED_DECLARATION_TEXT were all repinned. ONE legacy string survives, as a DETECTOR ONLY and explained where it sits: 'PENDING COAUTHOR AUTHORIZATION' are bytes inside the pinned candidate archive, whose SHA-256 fixes them and which this release rebuilds from rather than edits; the finalization REPLACES that block, so the released deposit carries the creator-credit wording and never that string, and it appears in no tracked licence record. TEST ISOLATION, repaired here because it was found the hard way: the publication-contract helper copied the whole repository with shutil.copytree, and in a linked worktree .git is a POINTER FILE, so every git call in the copy resolved to the real repository and three test commits landed on the operator's branch. The copy now excludes .git, both declaration helpers unlink an inherited pointer before init, and the price of that isolation - one guard that recomputes tracked-file totals from two historical commits has no history to read - is an explicit, single, reason-checked skip allowance in the nested-run assertion. A real finalization validates in a genuine clone WITH history, so that guard runs there and the accepted run still reports zero skips. Recompute the frozen collection ONLY through the finalizer summary plugin: parametrized IDs in test_xlsx_equivalence_guardrails carry embedded XML and newlines, so any line-based scrape of --collect-only output risks reproducing the right COUNT and a wrong DIGEST, which reads as drift when nothing drifted. PRIOR HISTORY: the previous frozen set (1261 / bc3709c6...) was taken at 4D-r3o, the structural provenance reorganization, which moved the correction-evidence packet under provenance/corrections/ and the legacy Figure 9 pointer under provenance/legacy/ with every moved file proven byte-identical. Earlier freezes (4D-r3n back to 4D-r3g) hardened the activation-scope and reviewed-prose machinery that this migration keeps: the path-exact publication row, the refusal of root-anchored paths, the code-pinned seven-work legal scope, and the rule that a receipt is only as good as the committed record it rests on. Those guarantees are unchanged; only the question of WHO licenses the artwork was corrected."
+  },
+  "licence_records": [
+    "docs/LICENSES_AND_ATTRIBUTION.md",
+    "assets/frozen_figures/README.md",
+    "assets/manuscript_final/README.md",
+    ".zenodo.json"
+  ],
+  "expected_pending_marker_count": 4,
+  "figures": {
+    "assets/frozen_figures/fig01/Figure_01.png": "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "assets/frozen_figures/fig01/Figure_01.pdf": "fce1921839131e761cabe894e7b71f8226efafba654cd7f488539af78809917b",
+    "assets/frozen_figures/fig04/Figure_04.png": "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "assets/frozen_figures/fig04/Figure_04.pdf": "53a3f4fe6c15075ed956367712123cd9cc26290c4a09017b7beb87d06d5fc3e4",
+    "scripts/figures/fig01/original/Figure_01_original.png": "cc561b368f84b298b3ee38a39415799cc31d8ca932fa586a32bd7624831ec787",
+    "scripts/figures/fig04/original/Figure_04_original.png": "d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png": "c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2eefc829f"
+  },
+  "ccby_artwork_paths": [
+    "assets/frozen_figures/fig01/Figure_01.png",
+    "assets/frozen_figures/fig01/Figure_01.pdf",
+    "assets/frozen_figures/fig04/Figure_04.png",
+    "assets/frozen_figures/fig04/Figure_04.pdf",
+    "scripts/figures/fig01/original/Figure_01_original.png",
+    "scripts/figures/fig04/original/Figure_04_original.png",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png"
+  ],
+  "ccby_artwork_scope_globs_note": "Directory scopes the authored licence tables are allowed to write INSTEAD OF naming each registered file. Declaring one asserts nothing on its own: declared_artwork_scopes / _assert_declared_scopes_hold_only_registered_artwork expand each scope against the real tree and refuse it if ANY artwork file under it is not one of the seven registered assets. That check is what makes a glob safe to write in a grant sentence - it can only ever stand for registered works - and it is re-run at preflight, so dropping an eighth raster into one of these directories blocks the release instead of silently widening the grant.",
+  "ccby_artwork_scope_globs": [
+    "assets/frozen_figures/fig01/**",
+    "assets/frozen_figures/fig04/**",
+    "scripts/figures/fig01/original/**",
+    "scripts/figures/fig04/original/**",
+    "scripts/figures/fig04/donor/**"
+  ],
+  "ccby_excluded_scope": {
+    "_note": "Categories the artwork activation may NEVER extend CC BY over. Counting third-party rights tokens proves they were not DELETED; it does not prove the activation did not ADD a CC BY claim over them. For each token below, the number of sentences asserting CC BY alongside it must not increase.",
+    "tokens": [
+      "validate_deposit.py",
+      "MIT",
+      "Aptos",
+      "font",
+      "ERA5",
+      "Copernicus",
+      "GHCN-Daily",
+      "Natural Earth",
+      "GPL-3.0-only",
+      "software"
+    ]
+  },
+  "third_party_rights_tokens": [
+    "GPL-3.0-only",
+    "Contains modified Copernicus Climate Change Service information",
+    "Neither the European Commission nor ECMWF is responsible",
+    "GHCN-Daily",
+    "ERA5"
+  ],
+  "archive_topology": {
+    "member_count": 109,
+    "sums_entries": 108,
+    "manifest_rows": 107,
+    "relocation_rows": 21,
+    "expected_netcdf_members": 1,
+    "validator_verdict": {
+      "_note": "The shipped validate_deposit.py prints '[ok] ...' lines and ends with a BARE terminal verdict line. Measured against the real deposit: exit 0, 66 non-empty lines, last line exactly 'PASS', one PASS occurrence, zero FAIL. Counting substrings is not enough - 'BYPASS' and 'COMPASS' both contain 'PASS'. The verdict is therefore an ANCHORED whole-line match, it must be the LAST non-empty line, and exactly one verdict line may appear in the whole output.",
+      "pass_line": "PASS",
+      "fail_line": "FAIL",
+      "must_be_last_non_empty_line": true,
+      "expected_verdict_lines": 1
+    },
+    "sums_member": "SHA256SUMS",
+    "manifest_member": "FILE_MANIFEST.csv",
+    "validator_member": "validate_deposit.py",
+    "licence_member": "LICENSE.txt",
+    "licence_block_replacement": {
+      "_note": "The deposit's own LICENSE.txt is the only licence surface whose authored destination block is a different SIZE from the block it retires: the activated notice runs exactly two lines longer, 13 lines becoming 15. Every tracked record is held to an unchanged line count by _assert_structure_preserved, so without this declaration the deposit's legal notice would be the only surface whose rewrite had no pinned size at all - and it is the surface with the most to lose, carrying the section 0 path table, the MIT grant over validate_deposit.py, and the Copernicus and GHCN-Daily notices the authors have no power to relicense. expected_line_delta is NOT the contract's to choose: release_finalizer.py pins ARCHIVE_LICENCE_EXPECTED_LINE_DELTA and requires this declaration to EQUAL it, so editing this file cannot license a larger rewrite of the deposit's legal notice than the one that was reviewed. adjacent_anchors names passages that must lie OUTSIDE the replaced block and survive it at an unchanged count; each is verified to be outside, because a source block that grew to swallow the Copernicus notice would otherwise be free to rewrite it and still pass every other check.",
+      "expected_line_delta": 2,
+      "source_block_lines": 13,
+      "destination_block_lines": 15,
+      "adjacent_anchors": [
+        "0. LICENCE SCOPE BY PATH (authoritative summary)",
+        "2. SOFTWARE IN THIS DEPOSIT -- MIT",
+        "3. ERA5-DERIVED INFORMATION -- CURRENT COPERNICUS TERMS + ATTRIBUTION",
+        "4. GHCN-DAILY STATION MATERIAL -- SOURCE/USE TERMS + ATTRIBUTION",
+        "Contains modified Copernicus Climate Change Service information 2026.",
+        "Neither the European Commission nor ECMWF is responsible",
+        "GHCN-Daily station observations courtesy of the NOAA National Centers"
+      ]
+    }
+  },
+  "docx_fixtures": {
+    "SCORCH_Manuscript_FINAL_v1.0.0.docx": "9e140b9ea8927ae3b69c4e50afb8301006e8802dcf3e601f1c80c511ca3ca2e3",
+    "SCORCH_Supplementary_Material_FINAL_v1.0.0.docx": "fdd41f686e082f83c14816da21b121345259e1baea700275db8fab04b122f1ec"
+  },
+  "aptos_font_sha256": "95980114fcfd42f2f9c446dae429b70582bf2f03097d68433ea9e7d85a49da0b",
+  "slide_font_faces": {
+    "_note": "The Abadi faces the Figure 5/6/7 and S.1 producers render their type headings with. Abadi ships with Microsoft 365, is cached per user and is NOT redistributable, so like the pinned Aptos face it stays outside this repository, the bundle and every review packet - and like Aptos it is now supplied EXPLICITLY, by --slide-font-dir, instead of being resolved from an ambient LOCALAPPDATA. It is pinned here by SHA-256 because the producers silently fell back to Arial when it was absent, which renders different glyphs; the four affected rasters then failed to match their declared identities and the release could not be accepted. Filenames are numeric and per-machine, so the faces are identified BY DIGEST and the filename is recorded only as a hint.",
+    "sha256": [
+      "296004a47d19fc7f673b2781fc6ce5eacc095cdce96cd106bbb4428db2ef7e63",
+      "6fb33f6d18d9c98b23dce24b4eabd13450676fe7e7ed2c95262a8c683eb5e944",
+      "9b5a6ef9ef2906c6c1df85b4b8ea5860ab590f44065c2cec6de905f17df02c75"
+    ],
+    "family": "Abadi",
+    "required_for_release": true
+  },
+  "ccby_activation_plan": {
+    "authored": true,
+    "authored_by": "Fawaz Bouhamad, the artwork's creator and licensor",
+    "status": "AUTHORED BUT INACTIVE. Wording only; nothing is activated.",
+    "note": "AUTHORED BUT INACTIVE. The from/to pairs below are the exact edit a finalization would apply, written by Fawaz Bouhamad, who created the Figure 1 and Figure 4 artwork and licenses it. Drafting them activates nothing: until the creator's declaration at declaration_source.tracked_record_path is committed and resolves, and the receipt at licence_receipt.tracked_path exists and validates, every licence record still withholds the grant and this repository is PENDING. artwork_licence_markers.active is filled in alongside the plan so the classifier can recognise the new wording; registering a marker asserts nothing either. Activating CC BY over the artwork rewrites legal prose in the four licence records AND in the archive's own LICENSE.txt, so the finalizer will not invent that prose: with authored=false it stops with CCBY_ACTIVATION_PLAN_UNAUTHORED. The plan must cover ALL FIVE licence surfaces - the four tracked records plus the archive member LICENSE.txt - or it is rejected as partial. Every destination carries the credit line in licence_declaration.public_credit, so the activated surfaces name the artwork's creator and credit Dr. Najibi's scientific guidance without representing them as a licensor.",
+    "activation_precondition": "AUTHORED IS NOT ACTIVE. This plan is the exact wording that WOULD be applied, and applying it is gated on the creator's declaration being committed at declaration_source.tracked_record_path, resolving against the seven registered artwork identities, and being recorded in docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json. While that receipt is absent every real licence record still withholds the grant and the repository state is PENDING. Authoring this plan grants nothing and asserts nothing.",
+    "scope": {
+      "assets": [
+        "assets/frozen_figures/fig01/Figure_01.png",
+        "assets/frozen_figures/fig01/Figure_01.pdf",
+        "assets/frozen_figures/fig04/Figure_04.png",
+        "assets/frozen_figures/fig04/Figure_04.pdf",
+        "scripts/figures/fig01/original/Figure_01_original.png",
+        "scripts/figures/fig04/original/Figure_04_original.png",
+        "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png"
+      ],
+      "corrections_covered": [
+        "Figure 1: the threshold-text correction",
+        "Figure 4: the arrow-direction correction",
+        "Figure 4: the symmetry correction"
+      ],
+      "excluded": [
+        "the SCORCH software, which remains GPL-3.0-only",
+        "ERA5 and all Copernicus-derived material",
+        "GHCN-Daily station observations",
+        "Natural Earth boundaries",
+        "the pinned Aptos font and all font rights",
+        "validate_deposit.py, which remains MIT",
+        "every other figure and every underlying third-party dataset"
+      ]
+    },
+    "replacements": [
+      {
+        "file": "docs/LICENSES_AND_ATTRIBUTION.md",
+        "from": " **CC BY 4.0 PENDING - NOT YET IN FORCE.** These three files are author-created slide ARTWORK that happens to sit under a code directory; they are NOT software and are NOT GPL-3.0-only. The row above must never be read as licensing them: a GPL grant over the SCORCH software is not artwork permission. The artwork creator's CC BY 4.0 declaration for these files **has not been recorded** in this repository state. Until it is, no public licence is granted over these three rasters and no CC BY 4.0 grant may be asserted anywhere for them |\n| `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | **GPL-3.0-only** (see `LICENSE`) |\n| `docs/**`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `CITATION.cff`, `.zenodo.json` (author-created documentation and record metadata) | CC BY 4.0 |\n| `assets/frozen_figures/README.md`, `assets/frozen_figures/SHA256SUMS` (the authors' own checksum and documentation records for this directory - text, not artwork) | CC BY 4.0 |\n| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (the shipped Figure 1 and Figure 4 slide artwork, PNG and PDF) | **CC BY 4.0 PENDING - NOT YET IN FORCE.** Same artwork, same gate as the donor rasters above: the artwork creator's CC BY 4.0 declaration **has not been recorded** in this repository state. No CC BY 4.0 grant is in force over Figure 1 or Figure 4 in this repository, in the companion deposit, in `publication_outputs/`, or in any PNG/PDF export derived from them. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no provider terms attach to them; the gate here is the creator's own recorded declaration alone |\n| `assets/frozen_figures/figS1_station_donor/**` (frozen station-comparison artwork) | CC BY 4.0 for the authors' artwork; the depicted station observations remain subject to the GHCN-Daily source/use terms and attribution, and the depicted reanalysis values to the current Copernicus ERA5 terms and required attribution |\n| `assets/manuscript_final/**` (the **six** authenticated manuscript-final figure rasters - Figures 8, 9, 10, 11 and Appendices A and C - and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the frozen slide exports. The count is **six, not nine**: the pre-correction Figure 5, 6 and 7 exports are no longer shipped here (see `docs/RELOCATED_ARTIFACTS.csv`), and the CC BY 4.0 grant in this row covers only these six rasters and the directory's own records |\n| `data/auxiliary/**` (author-generated Method-A analysis data) | CC BY 4.0 for the authors' original processing and contribution + current Copernicus ERA5 terms and required attribution for the underlying ERA5-derived material |\n| `LICENSE` (repository licence file) | The complete, unmodified GNU General Public License v3.0 text, reproduced verbatim under the FSF's own terms for copying that document. It is the controlling software licence for the rows marked GPL-3.0-only above and is not itself separately licensed content. The data attribution notices that earlier revisions appended to this file now live in the \"Relocated data and attribution notices\" section of **this** document, so that `LICENSE` remains the unmodified GPL text and is machine-detectable as `GPL-3.0-only` |\n| Data deposit: `LICENSE.txt` | The deposit's controlling legal and attribution notice; its section 0 is the deposit's authoritative path table |\n| Data deposit: `validate_deposit.py` | **MIT** (software, not CC BY) |\n| Data deposit: author-created processed data and documentation not otherwise identified in this table | CC BY 4.0 for the authors' original contributions |\n| Data deposit: ERA5-derived files (`gridded/**`, `lgcp/tmax_covariate_grid_all_boxes.csv`, `lgcp/covariate_raster_km.csv`, `validation_station/era5_*`, `figure_table_source_data/fig02/*`) | CC BY 4.0 for the authors' processing + current Copernicus ERA5 terms and required attribution |\n| Data deposit: `validation_station/ghcnd_*`, `merged_station_validation.csv`, `recompute_result.json` | GHCN-Daily source/use terms and attribution (applicable source-provider rights retained); authors' processing CC BY 4.0; the merged file's ERA5 column also carries the Copernicus terms; `recompute_result.json` is the authors' derived output under CC BY 4.0 |\n\n## Figure 1 / Figure 4 artwork: CC BY 4.0 PENDING, not yet in force\n\nThe Figure 1 and Figure 4 slide artwork - the shipped assets under\n`assets/frozen_figures/fig01/` and `fig04/`, the archived-original and\nimmutable-donor rasters under `scripts/figures/fig01/original/` and\n`scripts/figures/fig04/{original,donor}/`, and every PNG/PDF export derived\nfrom them, including anything materialized into `publication_outputs/` - is\n**CC BY 4.0 PENDING and NOT YET IN FORCE.**\n\nThis artwork was created by Fawaz Bouhamad, who is its copyright holder\nand sole licensor. Dr. Nasser Najibi provided scientific guidance, review\nand corrections for these figures and is credited for that contribution,\nand is not a licensor of this artwork. The creator's CC BY 4.0\ndeclaration **has not been recorded** in this repository state, so no\nCC BY 4.0 grant exists over this artwork anywhere in this repository, the\ncompanion data deposit, or any export. Two things that are NOT that\ndeclaration: the GPL-3.0 licence covering the SCORCH software, and the\nfact that the artwork's producers and some of its donor rasters sit under\n`scripts/`. No record may state or imply an active\nCC BY 4.0 licence for Figure 1 or Figure 4 while this section stands; that\ncontradiction is machine-enforced by\n`tests/test_public_consistency_guards.py`.",
+        "to": " The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). These three files are author-created slide ARTWORK that happens to sit under a code directory; they are NOT software and are NOT GPL-3.0-only. The row above must never be read as licensing them: a GPL grant over the SCORCH software is not artwork permission. Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0. The creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries reaches exactly the seven declared Figure 1 and Figure 4 artwork assets and nothing else |\n| `environment/**`, `environment.yml`, `pyproject.toml`, `.gitattributes`, `.gitignore` (environment locks, build and repository configuration) | **GPL-3.0-only** (see `LICENSE`) |\n| `docs/**`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `CITATION.cff`, `.zenodo.json` (author-created documentation and record metadata) | CC BY 4.0 |\n| `assets/frozen_figures/README.md`, `assets/frozen_figures/SHA256SUMS` (the authors' own checksum and documentation records for this directory - text, not artwork) | CC BY 4.0 |\n| `assets/frozen_figures/fig01/**`, `assets/frozen_figures/fig04/**` (the shipped Figure 1 and Figure 4 slide artwork, PNG and PDF) | The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Same artwork, same declaration as the donor rasters above: the creator's declaration is recorded in `docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The grant reaches exactly the seven artwork assets identified by path and SHA-256 in that receipt, wherever an exact copy of one of them appears - including the copies carried in the companion deposit and in `publication_outputs/`. CC BY 4.0 permits reproduction, technical format changes and adaptation of that Licensed Material on the terms of the licence itself. What the grant does not do is make an eighth artwork path Licensed Material: an unrelated SCORCH figure is not covered here. Figures 1 and 4 depict no ERA5 or GHCN-Daily material, so no provider terms attach to them; the grant here is the creator's own recorded declaration alone |\n| `assets/frozen_figures/figS1_station_donor/**` (frozen station-comparison artwork) | CC BY 4.0 for the authors' artwork; the depicted station observations remain subject to the GHCN-Daily source/use terms and attribution, and the depicted reanalysis values to the current Copernicus ERA5 terms and required attribution |\n| `assets/manuscript_final/**` (the **six** authenticated manuscript-final figure rasters - Figures 8, 9, 10, 11 and Appendices A and C - and their checksum/README records) | CC BY 4.0 for the authors' artwork + current Copernicus ERA5 terms and required attribution for the depicted ERA5-derived material. These are the exact rasters embedded in the manuscript; each is plotted from the deposit catalogs, which are ERA5-derived, so they follow the Method-A auxiliary-data treatment rather than the plain CC BY 4.0 treatment of the frozen slide exports. The count is **six, not nine**: the pre-correction Figure 5, 6 and 7 exports are no longer shipped here (see `docs/RELOCATED_ARTIFACTS.csv`), and the CC BY 4.0 grant in this row covers only these six rasters and the directory's own records |\n| `data/auxiliary/**` (author-generated Method-A analysis data) | CC BY 4.0 for the authors' original processing and contribution + current Copernicus ERA5 terms and required attribution for the underlying ERA5-derived material |\n| `LICENSE` (repository licence file) | The complete, unmodified GNU General Public License v3.0 text, reproduced verbatim under the FSF's own terms for copying that document. It is the controlling software licence for the rows marked GPL-3.0-only above and is not itself separately licensed content. The data attribution notices that earlier revisions appended to this file now live in the \"Relocated data and attribution notices\" section of **this** document, so that `LICENSE` remains the unmodified GPL text and is machine-detectable as `GPL-3.0-only` |\n| Data deposit: `LICENSE.txt` | The deposit's controlling legal and attribution notice; its section 0 is the deposit's authoritative path table |\n| Data deposit: `validate_deposit.py` | **MIT** (software, not CC BY) |\n| Data deposit: author-created processed data and documentation not otherwise identified in this table | CC BY 4.0 for the authors' original contributions |\n| Data deposit: ERA5-derived files (`gridded/**`, `lgcp/tmax_covariate_grid_all_boxes.csv`, `lgcp/covariate_raster_km.csv`, `validation_station/era5_*`, `figure_table_source_data/fig02/*`) | CC BY 4.0 for the authors' processing + current Copernicus ERA5 terms and required attribution |\n| Data deposit: `validation_station/ghcnd_*`, `merged_station_validation.csv`, `recompute_result.json` | GHCN-Daily source/use terms and attribution (applicable source-provider rights retained); authors' processing CC BY 4.0; the merged file's ERA5 column also carries the Copernicus terms; `recompute_result.json` is the authors' derived output under CC BY 4.0 |\n\n## Figure 1 / Figure 4 artwork: CC BY 4.0 in force\n\nThe Figure 1 and Figure 4 slide artwork - the shipped assets under\n`assets/frozen_figures/fig01/` and `fig04/`, the archived-original and\nimmutable-donor rasters under `scripts/figures/fig01/original/` and\n`scripts/figures/fig04/{original,donor}/`, and exact copies of those seven\nassets wherever they are shipped - is covered by the grant recorded on its\nown line immediately below.\n\nThe Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).\n\nFigure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific\nguidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.\n\nThis artwork was created by Fawaz Bouhamad, its copyright holder and sole\nlicensor; Dr. Najibi is credited for scientific guidance and is not a\nlicensor of it. The creator's CC BY 4.0 declaration is recorded in\n`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`, and the grant it carries is\nlimited to the seven assets identified by path and SHA-256 in it, and to\nexact copies of them. CC BY 4.0 permits adaptation of that Licensed Material\non its own terms; no eighth artwork path is covered. The GPL-3.0 licence\ncovers the SCORCH software, and no third-party data acquires any licence. The activated state is machine-enforced by `tests/test_public_consistency_guards.py`.",
+        "count": 1
+      },
+      {
+        "file": "assets/frozen_figures/README.md",
+        "from": "Figures 1 and 4 carry no such third-party material. **Their CC BY 4.0\nlicensing is PENDING and not yet in force:** this artwork was created by\nFawaz Bouhamad, with scientific guidance from Dr. Nasser Najibi, and the\ncreator's CC BY 4.0 declaration has not been recorded in this repository\nstate. The GPL-3.0 licence covering\nthe SCORCH software is not artwork permission.",
+        "to": "Figures 1 and 4 carry no such third-party material.\nThe Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).\nFigure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.\nThe creator's declaration that this grant rests on is recorded in\n`docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json`. The GPL-3.0 licence covering\nthe SCORCH software is not artwork permission.",
+        "count": 1
+      },
+      {
+        "file": "assets/manuscript_final/README.md",
+        "from": "that directory's `README.md` for the full provenance chains and for the standing\n**CC BY 4.0 PENDING - not yet in force** status of this artwork.",
+        "to": "that directory's `README.md` for the full provenance chains and for the\nrecorded licence status of this artwork. The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.",
+        "count": 1
+      },
+      {
+        "file": ".zenodo.json",
+        "from": "FIGURE 1 / FIGURE 4 ARTWORK IS EXCLUDED FROM THE CC BY 4.0 ENTRY: the Figure 1 and Figure 4 slide artwork (assets/frozen_figures/fig01/**, assets/frozen_figures/fig04/**, the archived-original and immutable-donor rasters under scripts/figures/fig01/original/ and scripts/figures/fig04/original/ and scripts/figures/fig04/donor/, and every PNG/PDF export derived from them) is CC BY 4.0 PENDING and NOT YET IN FORCE, because the creator's CC BY 4.0 declaration for it has not been recorded in this repository state. That artwork must NOT be presented as CC BY 4.0 in the Zenodo form, and this record must not be published asserting a CC BY 4.0 grant over it. All four rights entries - GPL-3.0-only (primary, software), Creative Commons Attribution 4.0 International (scoped to author documentation, record metadata and the station-donor artwork, NOT Figure 1 or Figure 4)",
+        "to": "The Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). The grant covers exactly the seven assets identified by path and SHA-256 in the authorization receipt (assets/frozen_figures/fig01/**, assets/frozen_figures/fig04/**, the archived-original and immutable-donor rasters under scripts/figures/fig01/original/ and scripts/figures/fig04/original/ and scripts/figures/fig04/donor/), and exact copies of them wherever they appear; it reaches no eighth artwork path, and CC BY 4.0 permits adaptation of that material on the terms of the licence itself. It rests on the declaration by the artwork's creator recorded in docs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json. Figure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with scientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0. That artwork is therefore entered as CC BY 4.0 in the Zenodo form. All four rights entries - GPL-3.0-only (primary, software), Creative Commons Attribution 4.0 International (scoped to author documentation, record metadata, the station-donor artwork and the Figure 1 and Figure 4 artwork)",
+        "count": 1
+      },
+      {
+        "file": "archive:LICENSE.txt",
+        "from": "PENDING COAUTHOR AUTHORIZATION -- NOT YET IN FORCE. The extension of this\nCC BY 4.0 licence to the authors' frozen figure assets shipped with the\ncompanion software release (the Figure 1 and Figure 4 schematic artwork\nexported from the authors' presentation slides, and their donors) requires\nseparate written authorization from coauthor Dr. Nasser Najibi, which has\nnot been recorded. The GPL-3.0 approval covering the SCORCH software is not\nartwork permission. Until that authorization is recorded, no CC BY 4.0\nlicence is asserted over that artwork. This qualification does not affect\nany path in the table in section 0, none of which is that artwork. When the\nauthorization is recorded, the frozen station-donor artwork additionally\ndepicts GHCN-Daily and ERA5 material that remains subject to the terms in\nsections 3 and 4, as recorded in that release's path table\n(docs/LICENSES_AND_ATTRIBUTION.md).",
+        "to": "CREATOR DECLARATION RECORDED -- CC BY 4.0 IN FORCE OVER THE FIGURE 1 AND FIGURE 4 ARTWORK.\nThe Figure 1 and Figure 4 slide artwork is licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0).\nFigure 1 and Figure 4 artwork by Fawaz Bouhamad, developed with\nscientific guidance from Dr. Nasser Najibi. Licensed under CC BY 4.0.\nThe extension of this CC BY 4.0 licence to the authors' frozen figure\nassets shipped with the companion software release (the Figure 1 and\nFigure 4 schematic artwork exported from the authors' presentation\nslides, and their donors) rests on the declaration by the artwork's\ncreator recorded in that release as\ndocs/FIGURE_01_04_CC_BY_LICENCE_RECEIPT.json. The GPL-3.0 licence covering the SCORCH\nsoftware is not artwork permission and is unchanged by it. The grant\ndoes not affect any path in the table in section 0, none of which is\nthat artwork. The frozen station-donor artwork additionally depicts\nGHCN-Daily and ERA5 material that remains subject to the terms in\nsections 3 and 4, as recorded in that release's path table.",
+        "count": 1,
+        "_note": "The 'from' block below is the legacy PENDING notice as it exists inside the pinned candidate archive. Those bytes are fixed by the archive's SHA-256 and cannot be edited, so the anchor must match them exactly; the 'to' block is what the released deposit actually carries."
+      }
+    ]
+  }
+}

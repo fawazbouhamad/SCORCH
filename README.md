@@ -1,225 +1,239 @@
 # SCORCH
 
-**SCORCH (Spatiotemporal Classification of Regional Compound Heatwaves)** is
-the framework behind the paper *"Understanding the Spatiotemporal Organization
-of Regionally Extensive Heatwaves Using the SCORCH Framework"* (Bouhamad and
-Najibi). It detects, clusters, and geometrically characterizes regionally
-extensive compound heatwaves in ERA5 daily maximum temperature over the
-Eastern Mediterranean and Middle East (lat 10-46 N, lon 20-70 E, Apr-Sep
-1940-2025), producing a catalog of 51 events / 760 PCA ellipses, a four-class
-event typology, and a first-order centroid-concentration model of where
-heat-structure centroids concentrate spatially.
+**Spatiotemporal Classification of Regional Compound Heatwaves**
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-## What this repository contains
+SCORCH is a reproducible Python framework for detecting and characterizing
+regionally extensive compound heatwaves over the Eastern Mediterranean and
+Middle East. From ERA5-derived daily maximum temperature it detects local
+heatwave episodes, selects the days on which heat is regionally extensive,
+groups consecutive selected days into compound events, resolves the daily
+spatial heat structures within them, summarizes each structure's geometry
+with a PCA ellipse, and assigns every event to one of four types defined by
+duration and daily structural multiplicity.
 
-Two clearly separated things:
+**Documentation:** [Reproducibility](docs/REPRODUCIBILITY_REPORT.md) ·
+[Provider reconstruction](docs/PROVIDER_RECONSTRUCTION_GUIDE.md) ·
+[Figure provenance](docs/FIGURE_PROVENANCE.csv) ·
+[Reproducibility matrix](docs/REPRODUCIBILITY_MATRIX.csv) ·
+[Licences and attribution](docs/LICENSES_AND_ATTRIBUTION.md) ·
+[Terminology](docs/TERMINOLOGY.md)
 
-1. **The installable SCORCH analysis library** (`src/scorch`, distribution
-   name `scorch-heatwaves`, import name `scorch`): the canonical scientific
-   kernels (verbatim copies of the research code, so results are identical to
-   the canonical catalog), catalog loading/validation, the CLI, and builtin
-   end-to-end reconstruction stages.
-2. **Repository-level paper reproduction**: the `scripts/` tree (figure,
-   table, LGCP and validation generators) and `run_reproduction.py` +
-   `Makefile`, which regenerate the publication figures and the manuscript
-   tables from the processed-data deposit. The 17 manuscript figures fall
-   into four honest reproduction classes, not one: **6** are
-   `data_generated` (script output byte-identical to the embedded raster:
-   Fig. 2, 3, 12, B, D, S.1); **8** are
-   `deployment_export_of_reproduced_original` (the plotted content is
-   reproduced byte-identically at full resolution, but the embedded raster
-   is a downscaled deployment export of it: Fig. 5, 6, 7, 9, 10, 11, A,
-   C -- Figure 9 joined this class in the v1.0.0 pre-release correction,
-   which replaced the invalid arithmetic mean of event orientations with
-   the doubled-angle axial mean and regenerated the figure end-to-end);
-   **1** is `manually_postprocessed_approved_artwork` (the approved
-   original carries a manual post-processing pass the script does not
-   reproduce: Fig. 8); and **2** are `frozen_approved_artwork` (author
-   slide exports with no runnable producer, materialized and hash-verified,
-   never regenerated from data: Fig. 1, 4). `docs/FIGURE_PROVENANCE.csv`
-   and `docs/MANUSCRIPT_FIGURE_IDENTITY.csv` carry the per-figure class and
-   hashes. These are NOT installed with the package: you must CLONE THE
-   REPOSITORY to use them.
-   The installed package alone runs the reconstruction, not the figures.
-   `configs/reproduction_fast.yaml` is a repository copy of the canonical
-   stage list; the authoritative copy ships inside the installed package as
-   package data, so `scorch reproduce` needs no repository path.
+## Method summary
 
-## Pipeline overview
+The analysis domain is a 1° grid over the Eastern Mediterranean and Middle
+East (10–46 °N, 20–70 °E), restricted to the April–September warm season for
+1940–2025. This yields 1,800 valid grid boxes across 15,738 warm-season
+days.
 
-1. **Thresholds** -- aggregate 0.25-degree ERA5 daily Tmax to 1-degree grid
-   cells (mean, centres at .5), per-cell 95th-percentile thresholds, 0/1
-   exceedance.
-2. **Heatwave labelling** -- per-cell episodes: split at two consecutive
-   non-exceedance days, trim to exceedance ends, keep runs with >= 3 days and
-   >= 3 exceedance days (single-day gaps bridged).
-3. **Regional selection** -- days whose heatwave-cell count reaches the
-   integer-like P97.5 threshold (Theta = 371; method "higher") are selected
-   (395 days); consecutive selected days form 51 events.
-4. **Clustering** -- per-day DBSCAN on grid-cell distances; Method-A modal
-   parameter selection over a 63-combination grid, then event-global-maximum
-   parameters (max averaged eps; max rounded min_samples) per event.
-5. **Ellipses** -- one sigma = 1.25 PCA ellipse per component (1 km^2
-   eigenvalue variance floor).
-6. **Typology** -- mechanical Types 1-4 from the per-day ellipse counts.
-7. **Centroid-concentration model** -- an inhomogeneous log-Gaussian Cox
-   process fitted to the 760 ellipse centroids (R/spatstat, minimum
-   contrast; trend ~ lon + lat + mean_tmax_z + std_tmax_z) summarizing the
-   relative spatial centroid concentration across the domain, with an
-   occurrence-level five-fold cross-validation. The fitted surface is a
-   relative concentration summary of the observed catalog; it is not a
-   probability, risk, hazard, or susceptibility estimate, and the mapped
-   quantile surface is not a realization of the latent field.
+For each grid cell, the local threshold is the 95th percentile of daily Tmax
+pooled across all April–September days during 1940–2025: a single fixed
+threshold per cell, not a calendar-day climatology. A day is a
+threshold-meeting day for that cell when its Tmax is greater than or equal
+to that value.
 
-## Install
+Local heatwave episodes are delimited by two consecutive non-exceedance
+days, trimmed to begin and end on threshold-meeting days, and retained when
+they span at least three days and contain at least three threshold-meeting
+days. An isolated non-exceedance day inside a qualifying episode is bridged
+and remains part of it. Cells belonging to a retained episode on a given day
+are heatwave-labeled cells.
 
-```bash
-pip install git+https://github.com/fawazbouhamad/SCORCH.git
-# optional extras:
-#   .[maps]      matplotlib + cartopy figure stack
-#   .[download]  xarray/netCDF4/zarr/gcsfs/cdsapi source-data tooling
-#   .[figures]   pymannkendall + imageio + Pillow + pypdf + tabulate
-#                (trend/figure/statistics scripts)
-#   .[full]      everything above
-#   .[dev]       pytest + netCDF4 (netCDF4 enables the NetCDF-dependent tests)
-```
+Days on which the count of heatwave-labeled cells reaches the regional
+97.5th-percentile threshold (*N*<sub>HW</sub>(*t*) ≥ 371) are retained as
+regionally selected days; there are 395 of them. Compound events are the
+maximal runs of consecutive selected days: 51 events. Event construction is
+purely temporal: the consecutive-day runs, not any clustering step, define
+compound events.
 
-Requires Python >= 3.11. The import name is `scorch`; the distribution name
-is `scorch-heatwaves`. This unpinned CONVENIENCE install resolves current
-compatible versions; it is NOT the exact environment that produced the
-paper outputs. For exact reproduction install the hash lock:
-`pip install --require-hashes -r environment/requirements-lock-py312.txt`
-then `pip install --no-deps .`.
+Within each selected day, DBSCAN is applied to that day's heatwave-labeled
+cells to delineate spatially coherent daily heat structures, giving 760
+structures overall. Each structure's geometry is summarized by a PCA ellipse
+at a fixed σ = 1.25, computed without temperature weighting and then rigidly
+translated to the structure's Tmax-weighted centroid (raw degrees Celsius
+within that structure). The translation changes the ellipse's location only;
+it does not alter clustering, PCA axes, orientation, area, shape ratio, or
+typology. Events are then classified by duration and daily structural
+multiplicity into four types, with 3, 4, 20 and 24 events in Types 1–4
+respectively.
 
-Known benign import warning: the netCDF4/cftime binary wheels emit
-`RuntimeWarning: numpy.ndarray size changed` when `netCDF4` is imported
-after pandas/scikit-learn/scipy. This is an upstream wheel artifact that
-occurs on every numpy 2.x tested, INCLUDING the exact hash-locked
-reproduction environment, and does not indicate a real incompatibility
-(all tests pass and every canonical number reproduces). The test
-configuration filters exactly this message; no version pin can eliminate
-it. The R stages (LGCP fit) additionally require R >= 4.3
-with the `spatstat` packages -- see `docs/R_WORKFLOW.md` and
-`environment/renv.lock`.
+SCORCH does not track structures across days: it characterizes each day's
+structures independently and makes no claim about structure identity,
+continuity, splitting, or merging over time. SCORCH also fits a log-Gaussian
+Cox process to the structure centroids; that surface is a relative
+concentration summary, not a probability, risk, hazard, susceptibility, or
+impact estimate, and not a forecast.
 
-## Quickstart (API)
+## Analysis workflow
 
-```python
-import pandas as pd
-import scorch
+<p align="center">
+  <img src="assets/frozen_figures/fig01/Figure_01.png"
+       alt="SCORCH workflow from ERA5 daily maximum temperature through local heatwave detection, regional-day selection, event construction, daily spatial clustering, PCA geometry, event classification, and downstream analyses."
+       width="820">
+</p>
 
-# 1. Label heatwaves in one grid cell's 0/1 exceedance series
-exceed = pd.Series([0, 1, 1, 1, 0, 1, 1, 0],
-                   index=pd.date_range("2000-06-01", periods=8))
-labels, episodes = scorch.identify_heatwaves(exceed)
+<p align="center"><em>SCORCH analysis workflow. Local heatwave episodes are
+identified, regionally selected days are chosen, and maximal
+consecutive-day runs define compound events before daily spatial clustering
+of heatwave-labeled cells and geometric analysis.</em></p>
 
-# 2. Cluster one day's heatwave cells (event-global-max parameters)
-lon = [30.5, 31.5, 32.5, 40.5]
-lat = [20.5, 20.5, 21.5, 30.5]
-labels = scorch.cluster_structures(lon, lat, eps=2.5, min_samples=2)
+## Event typology
 
-# 3. Fit the canonical PCA ellipse (sigma = 1.25)
-ellipse = scorch.fit_pca_ellipses((lon, lat), sigma=1.25)
-print(ellipse["ellipse_area_km2"], ellipse["orientation_deg"])
+<p align="center">
+  <img src="assets/frozen_figures/fig04/Figure_04.png"
+       alt="Four SCORCH compound-heatwave event types defined by event duration and daily heat-structure multiplicity."
+       width="820">
+</p>
 
-# 4. Load and validate the canonical master catalog, re-derive the typology
-master = scorch.load_master("scorch_data/scorch_processed_data_v1.0.0/"
-                            "catalogs/scorch_new_algorithm_master_cluster_"
-                            "ellipse_event_global_max.csv")
-scorch.validate_master(master, expect_canonical_counts=True)
-types = scorch.classify_events(master)
-```
+<p align="center"><em>SCORCH compound-heatwave typology based on duration
+and daily structural multiplicity. The diagram summarizes daily
+configurations and does not represent tracked structure identities,
+splitting, or merging.</em></p>
 
-## Quickstart (CLI)
+## Installation and reproduction
+
+Python orchestrates the whole workflow. The log-Gaussian Cox process stage
+additionally invokes R with `spatstat` through an external `Rscript` call;
+that stage is documented in [docs/R_WORKFLOW.md](docs/R_WORKFLOW.md).
 
 ```bash
-scorch version
-# Download the Zenodo deposit ZIP, extract it safely, locate the deposit
-# root, and verify every embedded checksum (fails hard on any mismatch).
-# fetch-data REQUIRES the deposit identifier: pass --doi (or --url), or set
-# the SCORCH_DATA_DOI environment variable. The DOI is reserved while the
-# Zenodo draft is private and becomes publicly resolvable when the record
-# is published; there is no built-in default to discover it:
-scorch fetch-data --doi 10.5281/zenodo.21717752 --dest scorch_data
-#   (equivalently:  SCORCH_DATA_DOI=10.5281/zenodo.21717752 scorch fetch-data ...
-#    or:            scorch fetch-data --url <deposit record URL> ...)
-# Structure + checksum + row-count + type-count validation:
-scorch validate-deposit --dir scorch_data
-# Deposit-only end-to-end reconstruction (processed field -> catalog),
-# verified stage-by-stage against the archived deposit. Any selected stage
-# that is missing or fails ABORTS with a non-zero exit status:
-# The canonical stage list is BUNDLED with the installed package, so no
-# --config and no repository checkout are needed:
-scorch reproduce --base-dir scorch_data/scorch_processed_data_v1.0.0 \
-    --route fast --out-dir reproduced
-# Provider-level ERA5 reconstruction guide (prints steps; runs nothing):
-scorch reconstruction-guide
-scorch validate-sources --dir /path/to/era5_daily --sample 5
+# 1. install: canonical hash-locked route (fully pinned)
+python -m pip install --require-hashes -r environment/requirements-lock-py312.txt
+python -m pip install --no-deps -e .
+
+# 2. fetch and verify the processed-data deposit
+python -m scorch.cli fetch-data \
+  --doi 10.5281/zenodo.21717752 \
+  --dest scorch_data
+python -m scorch.cli validate-deposit --dir scorch_data
+
+# 3. run the full fast route (canonical bootstrap NBOOT=5000)
+python run_reproduction.py fast \
+    --data-dir scorch_data \
+    --out-dir reproduced \
+    --pub-dir publication_outputs \
+    --nboot 5000
+
+# 4. unit and regression tests
+python -m pytest tests -q
 ```
 
-## Reproduction routes
+Step 1 is the canonical route: it installs the exact hash-pinned
+environment that produced the reported numbers. The convenience alternative
+`python -m pip install -e ".[full,dev]"` resolves dependencies freely and is
+non-canonical.
 
-* **Fast route (recommended; minutes to ~1 hour, no ERA5 download)** --
-  `scorch fetch-data --doi 10.5281/zenodo.21717752` +
-  `scorch reproduce --route fast` runs the complete
-  processed-field -> catalog reconstruction from the deposit: CF NetCDF field
-  consistency (thresholds, exceedance, daily coverage), regional selection
-  (Theta = 371 -> 395 days -> 51 events), Method-A daily DBSCAN parameter
-  selection, event-global parameters, re-clustering (760 structures with
-  identical partitions), PCA ellipse geometry (relative difference < 1e-6),
-  and the typology (3/4/20/24). Every stage verifies against the archived
-  values and fails loudly on any deviation.
-* **Figure regeneration** -- `python run_reproduction.py fast` (or
-  `make fast`) regenerates the manuscript figures and tables from the
-  deposit into `reproduced/`; see `docs/REPRODUCIBILITY_REPORT.md` for the
-  byte-identity results.
-* **Provider-level reconstruction (GUIDE ONLY, not an executable route)** --
-  rebuilding the processed daily field itself from provider-managed ERA5 is
-  documented, not automated: `scorch reconstruction-guide` (or
-  `python run_reproduction.py guide`, or
-  `docs/PROVIDER_RECONSTRUCTION_GUIDE.md`) PRINTS the ordered steps and
-  exits. It reconstructs nothing and verifies nothing. Those steps are
-  STRUCTURALLY VALIDATED ONLY: the scripts ship, import, and expose the
-  documented arguments, but they were not rerun end to end for this release
-  (multi-hour provider download; plan for LOCAL WORKING STORAGE exceeding
-  10 GB - about 8.4 GB of yearly daily-Tmax NetCDF files plus a roughly
-  2 GB derived long-table CSV and intermediates - while the possible
-  NETWORK TRANSFER of hourly source data is separate and of order 100 GB;
-  R + spatstat).
-  There is no `--route full`; no command reports success for work it did not
-  perform.
+Step 2 requires the data record to be published. The data DOI
+`10.5281/zenodo.21717752` is currently reserved and does not yet resolve, so
+`fetch-data --doi` will not retrieve anything until the record is public.
+Until then, point `--data-dir` at an authorized preview or existing local
+copy of the deposit and skip `fetch-data`.
 
-## Documentation
+The fast route begins from the processed deposit, not from raw provider
+files. Rebuilding the inputs from raw ERA5 fields retrieved from the
+Copernicus Climate Data Store is documented in
+[docs/PROVIDER_RECONSTRUCTION_GUIDE.md](docs/PROVIDER_RECONSTRUCTION_GUIDE.md);
+that provider-level route is not fully automated. Useful variants:
+`python run_reproduction.py smoke` (catalog validation plus a figure/table
+subset) and `python run_reproduction.py guide` (print the provider
+reconstruction guide). `--nboot` defaults to the canonical 5000; smaller
+values give a quick, non-canonical run.
 
-* `docs/SOURCE_DATA_PROVENANCE.md` -- ERA5 / GHCN-D provenance and citations.
-* `docs/SOURCE_DOWNLOAD_GUIDE.md` -- obtaining the source data.
-* `docs/R_WORKFLOW.md` -- the R/spatstat centroid-concentration model chain.
-* `docs/TERMINOLOGY.md` -- naming conventions, including legacy "risk"-named
-  files/columns retained for provenance.
-* `docs/PROVIDER_RECONSTRUCTION_GUIDE.md` -- the provider-level ERA5
-  reconstruction guide (documentation only; structurally validated, not
-  rerun end to end).
-* `configs/reproduction_fast.yaml` -- repository copy of the machine-readable
-  stage list (stages, canonical parameters, seeds, expected counts); the
-  authoritative copy ships as package data inside the installed package.
+## Repository structure
 
-## Citation and license
+| Path | Contents |
+|---|---|
+| `assets/` | Figures and figure provenance |
+| `configs/` | Reproducibility configuration |
+| `data/` | Tracked data documentation and auxiliary inputs |
+| `docs/` | Scientific and release documentation |
+| `environment/` | Environment specifications |
+| `scripts/` | Executable workflows and release tools |
+| `src/` | The Python package |
+| `tests/` | Verification and regression tests |
+| `provenance/` | Scientific correction evidence and legacy artifact records |
 
-Code and repository/environment configuration: MIT License. Documentation
-and record metadata: CC BY 4.0. Rights are PATH-SPECIFIC and the complete,
-non-overlapping path table - covering the frozen figure assets, the
-station-donor artwork, the auxiliary Method-A analysis data and the
-governing `LICENSE` notice - is in `docs/LICENSES_AND_ATTRIBUTION.md`. If
-you use this package, please cite
-the SCORCH paper (Bouhamad, F. and Najibi, N.) and the data deposit
-referenced in `docs/SOURCE_DATA_PROVENANCE.md`. The canonical public records
-for the release used in the article are the reserved Zenodo software record
-https://doi.org/10.5281/zenodo.21717874, the reserved Zenodo processed-data
-record https://doi.org/10.5281/zenodo.21717752, and the GitHub release
-<https://github.com/fawazbouhamad/SCORCH/releases/tag/v1.0.0>. RELEASE
-INVARIANT: the exact archive approved for publication must be attached to
-both the GitHub v1.0.0 release and the Zenodo software record; the DOIs
-resolve once the records are published.
-ERA5: Copernicus Climate Change Service; contains modified Copernicus
-Climate Change Service information. GHCN-Daily: NOAA NCEI.
+Per-figure provenance is machine-readable: see
+[docs/FIGURE_PROVENANCE.csv](docs/FIGURE_PROVENANCE.csv),
+[docs/MANUSCRIPT_FIGURE_IDENTITY.csv](docs/MANUSCRIPT_FIGURE_IDENTITY.csv)
+and [docs/REPRODUCIBILITY_MATRIX.csv](docs/REPRODUCIBILITY_MATRIX.csv).
+
+## Data and software availability
+
+| Resource | Identifier | Status |
+|---|---|---|
+| Source repository | https://github.com/fawazbouhamad/SCORCH | Public |
+| Processed-data archive | [10.5281/zenodo.21717752](https://doi.org/10.5281/zenodo.21717752) | Reserved DOI; record forthcoming |
+| Software archive | [10.5281/zenodo.21717874](https://doi.org/10.5281/zenodo.21717874) | Reserved DOI; record forthcoming |
+
+Both Zenodo DOIs are reserved and not yet resolvable. The records are
+unpublished drafts; the DOIs will begin to resolve when the records are
+published, and archive badges will be added at that point, not before.
+
+SCORCH redistributes no raw provider data. ERA5-derived content carries the
+Copernicus/ECMWF terms and required notice, and GHCN-Daily-derived content
+the NOAA/NCEI source and use terms; both are set out in
+[docs/LICENSES_AND_ATTRIBUTION.md](docs/LICENSES_AND_ATTRIBUTION.md).
+
+## Verification status
+
+| Check | Result |
+|---|---|
+| Frozen release test collection | 1,154 tests; sorted node-ID SHA-256 `5370666556da8f32b290593da59e5ea40f0761d2fcfff18cbdbecefefb9e513d` |
+| Source-only profile | 1,108 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
+| Fully configured profile | 1,154 pass; none skip and none fail |
+| Release validation run | 1,154 collected and 1,154 executed in a disposable clone; zero failures, errors, skips, xfails and xpasses |
+| NetCDF release gate | Pass against the released archive |
+| Fast reproduction route | 33/33 stages pass, including the publication-outputs assembly |
+| Reconstruction route | 9/9 stages pass, weighted-centroid stage executing 760/760 |
+
+A count is only meaningful against a known denominator, so the release
+collection is frozen by node-ID digest and the collected and executed node-ID
+sets are recorded separately and compared: 1,154 tests passed because 1,154
+ran, not because the remainder were quietly deselected. The acceptance record
+in
+[docs/CANONICAL_SCIENCE.json](docs/CANONICAL_SCIENCE.json) additionally
+preserves the clean-room measurement at its 496-test recording point, where
+450 passed with 46 skipped in the source-only profile and 473 passed with
+one expected failure in the required-archive profile.
+
+## Citation
+
+Cite the software using the metadata in [`CITATION.cff`](CITATION.cff);
+GitHub renders it under **Cite this repository**. The associated manuscript
+is:
+
+> Bouhamad, F., and Najibi, N. Understanding the Spatiotemporal Organization
+> of Regionally Extensive Heatwaves Using the SCORCH Framework. Manuscript
+> prepared for submission to *Weather and Climate Extremes*.
+
+If you use SCORCH, please cite the software archive and manuscript; if you
+use the deposited data, please also cite the data archive. Citation is
+requested as a matter of scholarly practice and is not an additional
+condition of the GPL.
+
+## License and attribution
+
+SCORCH source code is licensed under the GNU General Public License v3.0
+only (GPL-3.0-only). Data, figures, documentation, and third-party material
+may have separate path-specific terms described in
+[docs/LICENSES_AND_ATTRIBUTION.md](docs/LICENSES_AND_ATTRIBUTION.md).
+Earlier public revisions of this repository were released under the MIT
+License and remain under the licence included with those revisions; see
+[docs/LICENSING_HISTORY.md](docs/LICENSING_HISTORY.md).
+
+Contains modified Copernicus Climate Change Service information 2026.
+Neither the European Commission nor ECMWF is responsible for any use that may
+be made of the Copernicus information or data it contains.
+
+ERA5 coverage used in this work: 1940–2025 (warm seasons, April–September).
+Copernicus licence: https://ecds.ecmwf.int/licences/licence-to-use-copernicus-products
+CC BY 4.0 covers only the authors' contributions; it is not asserted over the
+underlying ERA5 or GHCN-Daily observations.
+
+## Issues and contact
+
+Please open an issue on the
+[issue tracker](https://github.com/fawazbouhamad/SCORCH/issues). Contributor
+guidance is in [CONTRIBUTING.md](CONTRIBUTING.md).

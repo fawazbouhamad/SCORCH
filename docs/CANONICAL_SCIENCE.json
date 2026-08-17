@@ -6,7 +6,7 @@
   "base_commit": "a5853793b6e09bffd78dd93701edeb1419be8a2a (research repository)",
   "generated": "2026-08-04",
   "decisions_doc": "ALIGNMENT_DECISIONS.md (shipped in the release as docs/ALIGNMENT_DECISIONS.md)",
-  "status": "REMEDIATED LOCAL RELEASE CANDIDATE - NOT PUBLISHED, NOT TAGGED, NOT PUSHED",
+  "status": "REMEDIATED PRE-RELEASE CANDIDATE - draft branch chore/final-repository-cleanup PUSHED to origin and draft pull request #1 OPENED against main; NOT merged, NOT tagged, NOT released, NOT deposited, NOT published; v1.0.0 tag unmoved",
   "domain_and_selection": {
     "grid_resolution_deg": 1.0,
     "domain_lon_deg": [
@@ -216,7 +216,7 @@
     "corrected_manuscript_embed_sha256": "7859acbd9ea69047d5a85bda65c4eed25d3592d52c4b0bfaad0a3068226a1431",
     "legacy_defective_full_resolution_sha256": "4cb3b38a5d80db8b2a936ed9ddf8246e2007609cd9c6ae1e6984256f1d1ffa04",
     "legacy_defective_embed_sha256": "b023c6e55359b69d74dd1b93f7199c2f82f12d782cd76f3de5170a8f36460ad1",
-    "legacy_archive_location": "legacy_defective_figure09/ (shipped in this release tree; excluded from all canonical publication outputs)",
+    "legacy_archive_location": "provenance_evidence/legacy_defective_figure09/ inside the LOCAL, UNPUBLISHED processed-data archive candidate (scorch_processed_data_v1.0.0.zip). The repository directory provenance/legacy/figure09/ now retains ONLY its explanatory pointer README; the two rasters are not in the Git tree. Excluded from all canonical publication outputs. NOT deposited, NOT published, NOT publicly retrievable.",
     "event4_before_deg": -21.10137813712798,
     "event4_after_deg": 68.98532754765856,
     "panel_pixel_hashes": {
@@ -347,18 +347,26 @@
   },
   "lgcp": {
     "variant": "variant3",
+    "basis": "fitted to the 760 raw-Celsius Tmax-weighted structure centroids (the authoritative reported locations)",
     "model": "kppm mincon, K-function, exponential covariance; LAEA km window",
     "trend_formula": "~ lon + lat + mean_tmax_z + std_tmax_z",
     "parameters": {
-      "intercept": -11.352611,
-      "lon": -0.016062,
-      "lat": 0.063142,
-      "mean_tmax_z": 0.464404,
-      "std_tmax_z": -0.007187,
-      "sigma2": 1.647219,
-      "scale_km": 287.70796
+      "intercept": -11.457776,
+      "lon": -0.016147,
+      "lat": 0.066264,
+      "mean_tmax_z": 0.546415,
+      "std_tmax_z": -0.010951,
+      "sigma2": 1.642911,
+      "scale_km": 272.455153
     },
-    "phi_disambiguation": "The manuscript's phi = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+    "intensity_min_x1e6": 5.01734,
+    "intensity_max_x1e6": 109.506,
+    "intensity_ratio": 21.8254,
+    "hotspot_lon_lat": [
+      45.5,
+      32.5
+    ],
+    "phi_disambiguation": "The manuscript's phi = 272.5 km (weighted-centroid fit; scale_km = 272.455153) corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
     "numeric_tolerance": 1e-09,
     "string_identity_required_where_currently_achieved": true,
     "expected_qc": {
@@ -374,17 +382,22 @@
     "folds": 5,
     "grid_cells": 1800,
     "cell_area_formula": "A_j = 111.320 * 110.574 * cos(pi * lat_j / 180) km^2",
-    "heldout_mean_fractional_rank_range": [
-      0.59,
-      0.65
-    ],
-    "top20_area_zone_hit_rate_range": [
-      0.28,
-      0.38
-    ],
+    "basis": "held-out evaluation of the weighted-centroid fit; identical fold assignment by occurrence id, 5 folds x 152",
+    "pooled_hit_top10": 0.188158,
+    "pooled_hit_top20": 0.344737,
+    "pooled_hit_top30": 0.476316,
+    "pooled_hit_top50": 0.688158,
     "areal_baseline": 0.2,
-    "heldout_mean_distance_km": 286,
-    "heldout_median_distance_km": 173,
+    "mean_dist_top20_km": 231.808,
+    "median_dist_top20_km": 134.919,
+    "mean_distance_by_zone_km": {
+      "top10": 389.670139,
+      "top20": 231.807728,
+      "top30": 151.67211,
+      "top50": 69.064508
+    },
+    "area_weighted_rank_mean": 0.6438,
+    "area_weighted_rank_median": 0.6801,
     "scope_limits": "Evaluates only the covariate-driven first-order trend. Not event-independent (folds can share events and dates). Not external validation. Does not evaluate the latent covariance component."
   },
   "station_validation": {
@@ -409,7 +422,8 @@
       "ghcnd": 2,
       "era5": 2
     },
-    "canonical_figure_s1_sha256": "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538",
+    "canonical_figure_s1_sha256": "d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634",
+    "superseded_v1_0_0_composite_sha256": "050a0721509656d7337102fe451a400b2bed35ee967965e19ad444b54675f538",
     "superseded_hybrid_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
     "artwork_px": "7440x6559"
   },
@@ -426,7 +440,8 @@
   },
   "document_artifacts": {
     "manuscript_working_docx_sha256": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
-    "supplement_working_docx_figS1_media_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "supplement_working_docx_figS1_media_SUPERSEDED_sha256": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+    "supplement_working_docx_figS1_media_note": "SUPERSEDED author-input baseline, recorded here for provenance only: the pre-correction HYBRID COMPOSITE Figure S.1 media carried by the author-supplied working supplement DOCX. It is NOT the current canonical Figure S.1. The current canonical S.1 is d125a87d0f3a875a737a9175c43f133f9d353adf95bc307e4c3885731d38e634, fully regenerated from deposited GHCN-Daily and ERA5 series.",
     "manuscript_media_count": 16,
     "supplement_media_count": 1,
     "embed_resolution": "17/17 embeds resolved to a byte-exact deterministic derivation",
@@ -438,7 +453,7 @@
   "environment": {
     "python": {
       "version": "3.12.10",
-      "interpreter": "C:/Users/fawaw/AppData/Local/Programs/Python/Python312/python.exe",
+      "interpreter": "<PYTHON-3.12.10>/python.exe",
       "numpy": "2.4.6",
       "pandas": "3.0.3",
       "scipy": "1.17.1",
@@ -448,7 +463,7 @@
     },
     "r": {
       "executed_interpreter_version": "4.5.1",
-      "interpreter_path": "C:/Program Files/R/R-4.5.1/bin/Rscript.exe",
+      "interpreter_path": "<R-4.5.1>/bin/Rscript.exe",
       "spatstat_binaries_built_under": "4.5.3",
       "discrepancy_resolution": "NOT a conflict. R emitted only build-provenance warnings ('package X was built under R version 4.5.3'). The executing interpreter was 4.5.1, matching environment/renv.lock. Documented as: executed under R 4.5.1 with spatstat binaries built under R 4.5.3.",
       "packages": {
@@ -510,7 +525,7 @@
     },
     "zenodo_claim_correction": "Any statement that the Zenodo software archive is identical to the superseded pre-release candidate must be replaced by a precise, path-normalised, SHA-256-backed statement of exactly what matches.",
     "archive_rule": "Build ONE deterministic archive from the final commit; the GitHub release asset and the Zenodo software upload must use that exact archive and SHA-256.",
-    "publication_state": "NOT PUBLISHED - no push, no tag, no Zenodo action",
+    "publication_state": "draft branch chore/final-repository-cleanup PUSHED to origin and draft pull request #1 OPENED against main; NOT merged, NOT tagged, NOT released, NOT deposited, NOT published; v1.0.0 tag unmoved",
     "final_archive": {
       "name": "SCORCH-1.0.0.zip",
       "root_prefix": "SCORCH-1.0.0/",
@@ -522,19 +537,158 @@
     "final_documents": {
       "manuscript": "SCORCH_Manuscript_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
       "supplement": "SCORCH_Supplementary_Material_FINAL_v1.0.0.docx (SHA-256 recorded in the external release evidence)",
-      "originals_untouched": {
+      "author_input_baselines_untouched": {
+        "scope_note": "AUTHOR-INPUT BASELINES ONLY. These are the untouched author-supplied inputs this release was built FROM; they are not current canonical outputs and must never be read as such.",
         "manuscript": "b21d8e9c2653db702f794f732bcf724994ec00feb51590d8f48d6c2ff31fd4aa",
-        "supplement_figS1_media": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc"
+        "supplement_figS1_media_SUPERSEDED": "a5632323514961c61a1b367c1cc2c950c93e1beac48cf7f134826e1367664bdc",
+        "supplement_figS1_media_note": "a5632323... is the SUPERSEDED author-input Figure S.1 baseline - the pre-correction HYBRID COMPOSITE whose panels (c)/(d) came from the frozen legacy donor drawing. It is NOT the current canonical Figure S.1. The current canonical S.1 was fully regenerated from deposited GHCN-Daily and ERA5 series in the v1.0.0 pre-release correction; see docs/FIGURE_PROVENANCE.csv for its current hashes."
       }
-    }
+    },
+    "full_section9_validation": "PENDING at the current head. The last verified 33/33 fast-route + 9/9 reconstruction run was performed at commit 2d6d76f5a9c8995618c403864276e02602b913d5 (2026-08-08); later commits changed documentation, guards and metadata only, and the full chain has NOT been re-run against the current head."
   },
   "acceptance": {
-    "test_suite": "244 passed, 2 skipped with the deposit (publication_outputs not materialised in a source-only checkout - by design); 246 collected including the 56 stale-provenance / structural / lifecycle guards and hardened-guard regression fixtures added in the v1.0.0 final remediation (R2), R3 and R4 passes and the 20 final-DOCX display-geometry / content-identity guards added in R5",
+    "test_suite_prior_head": {
+      "status": "PRIOR HEAD (44a54a05678bbca0d0b19901a7fb9953f7f37d2c) - NOT A CURRENT-HEAD RESULT",
+      "value": "363 passed, 0 failed, 0 errors, 0 skipped WITH the deposit and fixtures (SCORCH_DATA_DIR + SCORCH_CANONICAL_DATA_DIR + SCORCH_FINAL_DOCX_DIR + SCORCH_APTOS_FONT set)",
+      "note": "Measured BEFORE the Phase 2.2A scope cleanup and the 2.2A1 correction pass, in an environment that supplied the FINAL-DOCX fixtures and the pinned Aptos Regular face. Retained as provenance only; it must never be quoted as a current result, and its 0-skip figure is not a current claim."
+    },
+    "test_suite_source_only_prior_head": {
+      "status": "PRIOR HEAD (44a54a05678bbca0d0b19901a7fb9953f7f37d2c) - NOT A CURRENT-HEAD RESULT",
+      "value": "327 passed, 36 skipped in a source-only checkout with no deposit and no fixtures - separately MEASURED, not inferred; the 36 skips are the deposit-, DOCX- and font-dependent guards, each skipping with an explicit reason",
+      "note": "Separately measured at the same prior head; retained as provenance only."
+    },
+    "test_suite_current_head": {
+      "status": "MEASURED on the current working tree: committed head 6d483cf93c6ba29f07fc43b580722fc2446b3e2f PLUS the uncommitted Phase 2.2A2 code/test changes. Both profiles were measured once, in one pass, against the same frozen collection of 496 tests.",
+      "deposit_and_archive_configured": "473 passed, 1 failed, 22 skipped, 0 errors, 0 xfailed, 0 xpassed - EXIT 1. This is an EXPECTED FAILURE and a verified release blocker, NOT a regression and NOT a passing run. SCORCH_DATA_DIR was set to a fresh extraction of the v1.0.0 data-archive candidate, SCORCH_DATA_ARCHIVE to the candidate ZIP (sha256 48a43ca7f1daeaaa831918eea4451447a8e514bbff450ff013b433998c90b9d4, 116845754 bytes, unchanged) and SCORCH_REQUIRE_ARCHIVE=1. The single failing node is tests/test_archive_backed_verification.py::test_release_gate_archive_is_available_and_valid, which raises DepositContractError carrying all NINE NETCDF issue codes against the archive's stale metadata: NETCDF_AUTHORS_RIGHTS_SCOPE, NETCDF_COVERAGE_LABEL, NETCDF_CURRENT_ECDS_URL, NETCDF_NOTICE_COUNT, NETCDF_NOTICE_COVERAGE_YEAR, NETCDF_NOTICE_EXACT, NETCDF_REFERENCES_STATUS, NETCDF_RETIRED_CDS_URL, NETCDF_SOURCE_CONTRACT. No structural ARCHIVE code fired, so the container itself is intact. The 22 skips are 21 FINAL-DOCX-dependent guards (SCORCH_FINAL_DOCX_DIR unset - the fixtures are absent from this checkout) and 1 pinned-Aptos font guard (a non-redistributable Microsoft 365 cloud font, absent here); neither fixture set was supplied.",
+      "source_only": "450 passed, 46 skipped, 0 failed, 0 errors, 0 xfailed, 0 xpassed - EXIT 0. PASS. Measured in a source-only checkout with every SCORCH environment variable cleared: no deposit, no archive, no fixtures - separately MEASURED, not inferred. The 46 skips are the deposit-, canonical-catalog-, DOCX- and font-dependent guards, each with an explicit skip reason.",
+      "collected_total": 496,
+      "required_archive_profile_is_expected_to_fail": "At the committed head 6d483cf9 this profile exited 0 with 1 xfailed, because the archive-staleness guard was an unconditional xfail(strict=True) that absorbed the defect in every mode, including required-archive mode. The uncommitted Phase 2.2A2 change removes that absorption so the release gate is a real gate. The move from 'exit 0 with 1 xfailed' to 'exit 1 with 1 failed' is therefore a deliberate hardening rather than a new defect: the underlying stale-metadata condition is the same one, now reported honestly and with a nonzero exit. The archive was NOT rebuilt; rebuilding it is gated on the outstanding artwork authorization.",
+      "fully_configured_acceptance": "PENDING - deferred to the final section 9 gate. A fully configured 0-skip run is NOT achievable in this environment: the pinned Aptos Regular face is a non-redistributable Microsoft 365 cloud font and the FINAL-DOCX fixtures are absent from this checkout. No 0-skip acceptance is claimed at this head.",
+      "final_release_acceptance": "PENDING. The candidate is internally aligned but the formal release gate is NOT met, for two independent reasons: (1) the artwork authorization for Figures 1 and 4 from coauthor Dr. Nasser Najibi has not been recorded, so CC BY 4.0 over that artwork remains PENDING and NOT IN FORCE; and (2) the unchanged v1.0.0 archive candidate still carries stale NetCDF metadata, which the required-archive profile correctly reports as one failure with a nonzero exit. Neither is resolvable by editing records, and no archive rebuild is authorized."
+    },
+    "test_suite_committed_head_before_phase22a2": {
+      "status": "SUPERSEDED - measured at committed head 6d483cf93c6ba29f07fc43b580722fc2446b3e2f BEFORE the uncommitted Phase 2.2A2 code/test changes. NOT A CURRENT RESULT.",
+      "value": "396 collected. Source-only: 350 passed, 46 skipped, exit 0. Deposit-and-archive configured: 373 passed, 22 skipped, 1 xfailed, exit 0.",
+      "note": "Superseded by the current-head measurement for two reasons, both of which must be kept in view when comparing the numbers. First, the collection grew from 396 to 496 as the Phase 2.2A2 passes added deposit-contract, release-gate exit-code, XLSX guardrail, Figure 4 determinism, publication-builder and record-consistency guards, so the passed counts are not comparable term by term. Second, the configured profile's exit code changed from 0 to 1 by design: its 1 xfailed was an unconditional xfail(strict=True) absorbing the stale-NetCDF blocker, and removing that absorption converted the same defect into one ordinary, honestly reported failure. Retained as provenance only; it must never be quoted as a current result."
+    },
     "reproduction_stages": "33/33 PASS from a fresh extraction of the archive, exit 0",
     "publication_outputs": "PASS - 17 figures, 45 panels, 1 source component (Figure 8 only), 6 table files; Table 1 reconciled cell by cell with 0 declared presentation differences",
     "deposit_integrity": "93/93 files verified against the deposit's own SHA256SUMS in the corrected LOCAL STAGING COPY of the Zenodo data deposit, after the authorized table01 correction (manuscript header, canonical labels, manuscript column order, frequency-inference rows removed) and manifest regeneration; nothing else in the deposit was modified. The ONLINE Zenodo data draft still carried the pre-correction table01 files at audit time; uploading the corrected table01/ files and re-verifying the online draft checksums is a REQUIRED MANUAL RELEASE STEP before publication.",
     "docx_embeds": "17/17 FINAL-DOCX embeds byte-identical to the final publication assets",
     "determinism": "Figure S.1 regenerated byte-identically in an independent clean-room run; SCORCH-1.0.0.zip built twice byte-identically",
-    "archive_verified": "recorded in the external release-evidence sidecar RELEASE_IDENTITY.json"
+    "archive_verified": "recorded in the external release-evidence sidecar RELEASE_IDENTITY.json",
+    "test_suite_historical": {
+      "status": "HISTORICAL - NOT CURRENT",
+      "value": "244 passed, 2 skipped with the deposit (publication_outputs not materialised in a source-only checkout - by design); 246 collected including the 56 stale-provenance / structural / lifecycle guards and hardened-guard regression fixtures added in the v1.0.0 final remediation (R2), R3 and R4 passes and the 20 final-DOCX display-geometry / content-identity guards added in R5",
+      "note": "pre-remediation measurement retained for provenance only"
+    }
+  },
+  "centroid_convention": {
+    "status": "REMEDIATED (fix/tmax-weighted-centroids)",
+    "authoritative_location": "raw-Celsius Tmax-weighted centroid, computed AFTER the complete unweighted sigma=1.25 PCA ellipse; ellipse rigidly translated (no refit/resize/rotate)",
+    "weight_definition": "w_hk(t) = Tmax_hk(t): raw observed daily Tmax expressed in degrees Celsius, following the approved weighting convention (not anomaly, exceedance, Kelvin, abs(), clipped, shifted, or standardized)",
+    "equation": "lambda_w = sum(lon_k*w_k)/sum(w_k); phi_w = sum(lat_k*w_k)/sum(w_k), per structure, member cells only",
+    "weights_source": "scorch_processed_daily_tmax_field_v1.0.0.nc tmax (units degC), joined by exact date + 1-degree cell centre",
+    "upstream_unchanged": [
+      "thresholds",
+      "selected days",
+      "events",
+      "clustering",
+      "DBSCAN noise",
+      "Appendix A",
+      "sigma=1.25",
+      "unweighted PCA covariance/eigvals/eigvecs/axes/area/ratio/orientation",
+      "event classification",
+      "Table 1",
+      "area tails"
+    ],
+    "catalog_fields": {
+      "authoritative": [
+        "centroid_lon_tmax_weighted",
+        "centroid_lat_tmax_weighted"
+      ],
+      "generic_aliases_map_to": "tmax_weighted",
+      "unweighted_preserved": [
+        "pca_origin_lon_unweighted",
+        "pca_origin_lat_unweighted",
+        "centroid_lon_unweighted",
+        "centroid_lat_unweighted"
+      ],
+      "alias_prohibition": "generic centroid aliases must not be consumed by clustering, PCA, or Appendix A"
+    },
+    "validation_module": "scripts/figures/common/tmax_weighted_centroid.py",
+    "failure_policy": "missing/duplicate/non-finite/zero-or-negative Celsius weights raise WeightedCentroidError; no silent unweighted fallback",
+    "displacement_audit": {
+      "n": 760,
+      "median_km": 31.258165493270035,
+      "mean_km": 54.2598249974016,
+      "max_km": 200.38310598392363,
+      "zero_displacements": 0,
+      "all_within_convex_hull": true,
+      "none_exceed_structure_diameter": true
+    }
+  },
+  "sector_counts_38_48E_29_37N": {
+    "convention": "post hoc descriptive window, fixed BEFORE viewing weighted results",
+    "unweighted": {
+      "structures": "145/760",
+      "daily_largest": "144/395",
+      "event_largest": "18/51"
+    },
+    "tmax_weighted": {
+      "structures": "154/760",
+      "daily_largest": "153/395",
+      "event_largest": "19/51"
+    }
+  },
+  "legacy_unweighted_baseline": {
+    "status": "HISTORICAL - SUPERSEDED",
+    "explanation": "Frozen record of the pre-remediation fit computed on UNWEIGHTED PCA origins rather than the raw-Celsius Tmax-weighted centroids. Retained for provenance only. These values are NOT the reported results and must not be cited, consumed, or compared as current.",
+    "superseded_by": [
+      "lgcp",
+      "cross_validation"
+    ],
+    "lgcp": {
+      "variant": "variant3",
+      "model": "kppm mincon, K-function, exponential covariance; LAEA km window",
+      "trend_formula": "~ lon + lat + mean_tmax_z + std_tmax_z",
+      "parameters": {
+        "intercept": -11.352611,
+        "lon": -0.016062,
+        "lat": 0.063142,
+        "mean_tmax_z": 0.464404,
+        "std_tmax_z": -0.007187,
+        "sigma2": 1.647219,
+        "scale_km": 287.70796
+      },
+      "phi_disambiguation": "The pre-remediation manuscript candidate's scale = 287.7 km corresponds to the output field 'scale_km'. It is NOT the separate software field also named 'phi'; spatstat's kppm does not define a cluster-strength phi for this LGCP parameterisation.",
+      "numeric_tolerance": 1e-09,
+      "string_identity_required_where_currently_achieved": true,
+      "expected_qc": {
+        "captured_fit_warnings": 0,
+        "all_qc_checks_pass": true
+      },
+      "grid_cells": 1800,
+      "rank_convention": "pandas ascending fractional rank with average ties"
+    },
+    "cross_validation": {
+      "design": "occurrence-level five-fold",
+      "seed": 20260704,
+      "folds": 5,
+      "grid_cells": 1800,
+      "cell_area_formula": "A_j = 111.320 * 110.574 * cos(pi * lat_j / 180) km^2",
+      "heldout_mean_fractional_rank_range": [
+        0.59,
+        0.65
+      ],
+      "top20_area_zone_hit_rate_range": [
+        0.28,
+        0.38
+      ],
+      "areal_baseline": 0.2,
+      "heldout_mean_distance_km": 286,
+      "heldout_median_distance_km": 173,
+      "scope_limits": "Evaluates only the covariate-driven first-order trend. Not event-independent (folds can share events and dates). Not external validation. Does not evaluate the latent covariance component."
+    }
   }
 }

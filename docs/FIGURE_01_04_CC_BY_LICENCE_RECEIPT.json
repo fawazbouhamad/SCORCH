@@ -1,0 +1,26 @@
+{
+  "activated_at": "2026-08-16T00:00:00Z",
+  "creator": "Fawaz Bouhamad",
+  "declaration_date": "2026-08-16T00:00:00Z",
+  "declaration_record_blob_sha1": "cbea5d38f786c50d467bbfea07dd08b9dc4521ac",
+  "declaration_record_path": "docs/FIGURE_01_04_CC_BY_CREATOR_DECLARATION.json",
+  "declaration_record_sha256": "00563f5319d656638bfa1522988752b649a79cd700a16b5b238906952cdeadde",
+  "declared_at": "2026-08-16T00:00:00Z",
+  "declared_text": "I, Fawaz Bouhamad, created the SCORCH Figure 1 and Figure 4 schematic artwork and am the copyright holder and sole licensor of it. I license the seven Figure 1 and Figure 4 artwork files identified by path and SHA-256 in this declaration under the Creative Commons Attribution 4.0 International licence (CC BY 4.0), including the permissions for sharing and adaptation provided by that licence. Dr. Nasser Najibi provided scientific guidance, review and corrections for these figures and is credited for that contribution, and is not a licensor of this artwork. This licence does not extend to unrelated SCORCH figures and does not alter the rights or licences of the software, fonts, or underlying third-party data.",
+  "declared_text_sha256": "3cf30b842353b0ba4575c3bd3fd2397f52b86dbe186396c72c65a31ecd7c6222",
+  "finalizer_version": "4G-r4",
+  "licence_source": "creator_declaration",
+  "licensed_artwork": {
+    "assets/frozen_figures/fig01/Figure_01.pdf": "fce1921839131e761cabe894e7b71f8226efafba654cd7f488539af78809917b",
+    "assets/frozen_figures/fig01/Figure_01.png": "d3e0ca5eeefd811777480a412e5f4ec7f79007f7b2f15b2dc150ff3808f99280",
+    "assets/frozen_figures/fig04/Figure_04.pdf": "53a3f4fe6c15075ed956367712123cd9cc26290c4a09017b7beb87d06d5fc3e4",
+    "assets/frozen_figures/fig04/Figure_04.png": "74ea37f0ab54453a7c28895edd381cad3a75c199af88c60de67154721db23484",
+    "scripts/figures/fig01/original/Figure_01_original.png": "cc561b368f84b298b3ee38a39415799cc31d8ca932fa586a32bd7624831ec787",
+    "scripts/figures/fig04/donor/Figure_04_approved_horizontal.png": "c35d9ed6ccea8d7f6d8ec8ad92d65fb3c5dd2df16d82b015b7a531b2eefc829f",
+    "scripts/figures/fig04/original/Figure_04_original.png": "d595fb363d0a284abc1f9cc3049661f5786d1e42cf5e30ea3e50cea143a3bcde"
+  },
+  "repository": "fawazbouhamad/SCORCH",
+  "schema_version": "1.0.0",
+  "scientific_guidance_credit": "Dr. Nasser Najibi",
+  "starting_head": "3f935c51d5d6bb68c1c25951210ff9c2c1dd0bb2"
+}
