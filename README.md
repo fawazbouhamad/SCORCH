@@ -182,15 +182,17 @@ the NOAA/NCEI source and use terms; both are set out in
 |---|---|
 | Frozen release test collection | 1,154 tests; sorted node-ID SHA-256 `5370666556da8f32b290593da59e5ea40f0761d2fcfff18cbdbecefefb9e513d` |
 | Source-only profile | 1,108 pass and 46 skip (deposit-, catalog-, DOCX- and font-dependent guards); none fail |
-| Fully configured profile | 1,152 pass, with 2 expected pre-finalization identity check failures |
-| NetCDF release gate | Pass against the corrected candidate archive |
+| Fully configured profile | 1,154 pass; none skip and none fail |
+| Release validation run | 1,154 collected and 1,154 executed in a disposable clone; zero failures, errors, skips, xfails and xpasses |
+| NetCDF release gate | Pass against the released archive |
 | Fast reproduction route | 33/33 stages pass, including the publication-outputs assembly |
 | Reconstruction route | 9/9 stages pass, weighted-centroid stage executing 760/760 |
 
-The two configured-profile failures are expected before release
-finalization: they compare the corrected candidate archive against
-superseded identity values that the controlled finalization step will
-update. The acceptance record in
+A count is only meaningful against a known denominator, so the release
+collection is frozen by node-ID digest and the collected and executed node-ID
+sets are recorded separately and compared: 1,154 tests passed because 1,154
+ran, not because the remainder were quietly deselected. The acceptance record
+in
 [docs/CANONICAL_SCIENCE.json](docs/CANONICAL_SCIENCE.json) additionally
 preserves the clean-room measurement at its 496-test recording point, where
 450 passed with 46 skipped in the source-only profile and 473 passed with
