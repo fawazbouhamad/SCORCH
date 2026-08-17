@@ -9009,6 +9009,27 @@ def test_run_validation_asks_for_its_own_short_base_directory():
     assert '"retained_basetemp"' in src and '"basetemp_failures"' in src
 
 
+def test_every_isolation_probe_module_can_answer_the_probe():
+    """The gate asks each named module for its root; each must have one.
+
+    `test_stale_provenance` resolved its repository root as `ROOT` and never
+    as `REPO`, so the probe read an empty string and the gate could only
+    report the module as unresolved - a release could not complete, and the
+    reason was a spelling rather than an isolation defect. The gate was never
+    reached until the validation run stopped failing first, which is exactly
+    how a latent gap survives: behind an earlier failure.
+    """
+    modules = _REAL_CONTRACT["isolation_probe_modules"]
+    assert modules, "the contract names no isolation probe modules"
+    for name in modules:
+        path = REPO / "tests" / f"{name}.py"
+        assert path.is_file(), path
+        source = path.read_text(encoding="utf-8")
+        assert re.search(r"^REPO\s*=", source, re.M), \
+            (f"{name} exposes no module-level REPO, so the isolation probe "
+             f"cannot learn which tree it resolved")
+
+
 def test_the_machine_setting_is_read_and_never_written():
     """LongPathsEnabled is the operator's setting, not this tool's."""
     src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")

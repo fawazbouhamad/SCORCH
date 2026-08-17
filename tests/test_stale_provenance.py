@@ -43,6 +43,13 @@ import pytest
 
 TESTS = Path(__file__).resolve().parent
 ROOT = TESTS.parent
+#: The same directory under the name the finalizer's isolation probe reads.
+#: That probe imports this module and asks which repository root it resolved,
+#: so a validation run can PROVE it executed the disposable copy rather than
+#: the real worktree. This module spelled its root `ROOT`, so the probe found
+#: nothing and could only report the module as unresolved. The answer was
+#: always here; it just had another name.
+REPO = ROOT
 
 # --- canonical constants (docs/CANONICAL_SCIENCE.json) ----------------------
 TABLE1_CANONICAL_SHA = (
