@@ -4589,7 +4589,9 @@ def _tree_manifest(root):
 
 
 def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
-                              contract, candidate_archive=None):
+                              contract, candidate_archive=None,
+                              aptos_font=None, final_docx_dir=None,
+                              slide_font_dir=None):
     """Materialise the clone's DERIVED inputs, from the release alone.
 
     The acceptance suite needs a ``publication_outputs/`` tree. Inheriting the
@@ -4682,6 +4684,26 @@ def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
         "SCORCH_DATA_DIR": str(extraction),
         "SCORCH_CANONICAL_DATA_DIR": str(extraction),
     })
+    # THE SAME PINNED INPUTS THE ACCEPTANCE RUN GETS. Regenerating the figures
+    # is typesetting: without the pinned Aptos face the producers fall back to
+    # whatever the isolated HOME's empty font cache resolves, the rasters come
+    # out a few pixels different, and the publication builder - which routes by
+    # SHA-256 and never by filename - correctly reports that the declared
+    # manuscript-final raster is not present. Preparation and validation must
+    # run under one set of inputs or the first silently invalidates the second.
+    if aptos_font:
+        env["SCORCH_APTOS_FONT"] = str(aptos_font)
+    if final_docx_dir:
+        env["SCORCH_FINAL_DOCX_DIR"] = str(final_docx_dir)
+    if slide_font_dir:
+        # The Abadi heading faces, named explicitly and REQUIRED. Without this
+        # the producers resolved them from ambient LOCALAPPDATA, which a
+        # hermetic environment does not carry, and silently rendered Arial
+        # instead - four rasters then failed to match their declared
+        # identities. Demanding them turns that silent substitution into a
+        # refusal.
+        env["SCORCH_SLIDE_FONT_DIR"] = str(slide_font_dir)
+        env["SCORCH_REQUIRE_SLIDE_FONTS"] = "1"
 
     def run(argv, what):
         proc = subprocess.run([str(python_exe)] + argv, cwd=str(copy_root),
@@ -4775,7 +4797,7 @@ def prepare_validation_inputs(copy_root, python_exe, extraction, work, *,
 
 def run_validation(copy_root, python_exe, final_archive, extraction, *,
                    final_docx_dir=None, aptos_font=None, summary_path,
-                   candidate_archive=None):
+                   candidate_archive=None, slide_font_dir=None):
     """Run the full suite in the disposable copy against the FINAL archive.
 
     The previous version validated against whatever data the ambient
@@ -4825,6 +4847,9 @@ def run_validation(copy_root, python_exe, final_archive, extraction, *,
         env["SCORCH_FINAL_DOCX_DIR"] = str(final_docx_dir)
     if aptos_font:
         env["SCORCH_APTOS_FONT"] = str(aptos_font)
+    if slide_font_dir:
+        env["SCORCH_SLIDE_FONT_DIR"] = str(slide_font_dir)
+        env["SCORCH_REQUIRE_SLIDE_FONTS"] = "1"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONPATH"] = os.pathsep.join(["src", str(plugin_dir)])
     # Nothing loads itself into this run. Any plugin installed in the ambient
@@ -4923,7 +4948,7 @@ def validation_acceptance_issues(summary, contract=None):
 # ---------------------------------------------------------------------------
 def preflight(repo_root, expect_branch, expect_head, *, contract,
               github=None, candidate_archive=None, final_docx_dir=None,
-              aptos_font=None):
+              aptos_font=None, slide_font_dir=None):
     """Verify every invariant finalization depends on. Writes nothing, ever."""
     report = Report("preflight")
     root = Path(repo_root).resolve()
@@ -5245,6 +5270,44 @@ def preflight(repo_root, expect_branch, expect_head, *, contract,
                         f"{font} hashes {got}, the pinned face is "
                         f"{contract['aptos_font_sha256']}; a different face "
                         f"is a substitution, not the pinned font")
+
+    # --- the pinned SLIDE faces, for the same reason ------------------------
+    # Abadi renders the Figure 5/6/7 and S.1 type headings. It was resolved
+    # from ambient LOCALAPPDATA and, when absent, silently replaced by Arial -
+    # different glyphs, different pixels, four rasters that no longer matched
+    # their declared identities. It is named explicitly now and verified by
+    # digest here, so a substitution is a refusal rather than a surprise nine
+    # minutes into a finalization.
+    faces = contract.get("slide_font_faces") or {}
+    if faces.get("required_for_release"):
+        sdir = slide_font_dir or os.environ.get(
+            "SCORCH_SLIDE_FONT_DIR", "").strip()
+        if not sdir:
+            report.fail(
+                "SLIDE_FONT_MISSING",
+                f"the pinned {faces.get('family', 'slide')} faces are not "
+                f"available (--slide-font-dir / SCORCH_SLIDE_FONT_DIR unset); "
+                f"they are non-redistributable Microsoft 365 cloud fonts and "
+                f"NO SUBSTITUTE IS PERMITTED - falling back to Arial renders "
+                f"different glyphs and the figures stop reproducing")
+        elif not Path(sdir).is_dir():
+            report.fail("SLIDE_FONT_MISSING", f"{sdir} is not a directory")
+        else:
+            # Identified BY DIGEST: the cloud-font cache names files with
+            # per-machine numeric names, so a filename proves nothing.
+            present = sorted(
+                sha256_file(p) for p in Path(sdir).glob("*.ttf")
+                if p.is_file())
+            want = sorted(faces.get("sha256") or [])
+            report.note("slide_font_dir", {"path": sdir,
+                                           "faces": len(present)})
+            missing = [d for d in want if d not in present]
+            if missing:
+                report.fail(
+                    "SLIDE_FONT_MISMATCH",
+                    f"{sdir} does not hold the pinned "
+                    f"{faces.get('family', 'slide')} face(s) {missing}; a "
+                    f"different face is a substitution, not the pinned font")
 
     # --- the activation plan, which is authored but authorizes nothing -----
     # It is authored today, so this no longer fires. It stays because the
@@ -5724,7 +5787,8 @@ def _utc_now_iso():
 
 def finalize(repo_root, expect_branch, expect_head, *, contract,
              candidate_archive, release_staging, github=None,
-             final_docx_dir=None, aptos_font=None, python_exe=None,
+             final_docx_dir=None, aptos_font=None, slide_font_dir=None,
+             python_exe=None,
              confirm=None, activated_at=None):
     """Apply the release finalization, or change nothing at all."""
     report = Report("finalize")
@@ -5746,7 +5810,8 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
     # 1. Every preflight invariant, rechecked.
     pre = preflight(root, expect_branch, expect_head, contract=contract,
                     github=github, candidate_archive=candidate_archive,
-                    final_docx_dir=final_docx_dir, aptos_font=aptos_font)
+                    final_docx_dir=final_docx_dir, aptos_font=aptos_font,
+                    slide_font_dir=slide_font_dir)
     report.note("preflight", pre.as_dict())
     for code in pre.codes:
         report.fail(code, pre.detail.get(code, ""))
@@ -5938,7 +6003,10 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
                         prepare_validation_inputs(
                             copy_root, python_exe, extraction, work,
                             contract=contract,
-                            candidate_archive=candidate_archive))
+                            candidate_archive=candidate_archive,
+                            aptos_font=aptos_font,
+                            final_docx_dir=final_docx_dir,
+                            slide_font_dir=slide_font_dir))
             report.note("isolation_diagnostics",
                         isolation_diagnostics(
                             copy_root, python_exe,
@@ -5956,6 +6024,7 @@ def finalize(repo_root, expect_branch, expect_head, *, contract,
             summary = run_validation(
                 copy_root, python_exe, final_path, extraction,
                 final_docx_dir=final_docx_dir, aptos_font=aptos_font,
+                slide_font_dir=slide_font_dir,
                 summary_path=work / "pytest_summary.json",
                 candidate_archive=candidate_in_copy)
             report.note("validation", summary)
@@ -7442,6 +7511,13 @@ def build_parser():
         p.add_argument("--candidate-archive")
         p.add_argument("--final-docx-dir")
         p.add_argument("--aptos-font")
+        # The Abadi slide faces the Figure 5/6/7 and S.1 type headings
+        # are set in. Named explicitly, for the same reason as the Aptos
+        # face: they are non-redistributable Microsoft 365 cloud fonts,
+        # and resolving them from an ambient LOCALAPPDATA made a silent
+        # Arial substitution possible - which changes the rendered pixels
+        # and stops four figures reproducing their declared identities.
+        p.add_argument("--slide-font-dir")
         # There is deliberately NO option that supplies, asserts or points at
         # the artwork licence. The grant rests on a declaration committed in
         # this repository by the artwork's creator and reviewed like any other
@@ -7482,7 +7558,8 @@ def main(argv=None):
     common = dict(contract=contract,
                   candidate_archive=args.candidate_archive,
                   final_docx_dir=args.final_docx_dir,
-                  aptos_font=args.aptos_font)
+                  aptos_font=args.aptos_font,
+                  slide_font_dir=args.slide_font_dir)
     if args.mode == "preflight":
         report = preflight(args.repo_root, args.expect_branch,
                            args.expect_head, **common)

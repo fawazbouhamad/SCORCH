@@ -8599,3 +8599,71 @@ def test_production_never_commits_into_the_repository_under_test():
     src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
     for forbidden in ('"commit"', '"push"', '"merge"', '"tag"'):
         assert forbidden not in src.replace(".zenodo.json", ""), forbidden
+
+
+# ---------------------------------------------------------------------------
+# 44. 4G-r3: the slide faces are an INPUT, and their absence is not silent
+#
+# Abadi renders the Figure 5/6/7 and S.1 type headings. It was resolved from
+# ambient LOCALAPPDATA and silently replaced by Arial when absent - different
+# glyphs, different pixels, and four rasters that no longer matched their
+# declared identities. A finalization got nine minutes in before the
+# publication builder reported the declared raster "not present".
+# ---------------------------------------------------------------------------
+def _q1_style():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_scorch_q1_style", REPO / "scripts/figures/common/q1_style.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_slide_faces_are_pinned_and_required(monkeypatch):
+    faces = _REAL_CONTRACT["slide_font_faces"]
+    assert faces["required_for_release"] is True
+    assert faces["family"] == "Abadi"
+    assert faces["sha256"] and all(
+        re.fullmatch(r"[0-9a-f]{64}", d) for d in faces["sha256"])
+    assert len(set(faces["sha256"])) == len(faces["sha256"])
+
+
+def test_a_missing_slide_face_refuses_instead_of_substituting(tmp_path,
+                                                             monkeypatch):
+    """The silent Arial fallback is what cost a release; it must be loud."""
+    empty = tmp_path / "no_fonts"
+    empty.mkdir()
+    monkeypatch.setenv("SCORCH_SLIDE_FONT_DIR", str(empty))
+    monkeypatch.setenv("SCORCH_REQUIRE_SLIDE_FONTS", "1")
+    # The refusal fires at IMPORT, because HEADING_FAMILY is resolved at module
+    # scope - which is the right moment: a producer must not get halfway
+    # through rendering before discovering it is setting the wrong face.
+    with pytest.raises(RuntimeError) as exc:
+        _q1_style()
+    assert "Abadi" in str(exc.value)
+    assert "different glyphs" in str(exc.value)
+
+    # Without the demand the fallback is still available - and still named.
+    monkeypatch.delenv("SCORCH_REQUIRE_SLIDE_FONTS")
+    assert _q1_style().register_slide_fonts() == "Arial"
+
+
+def test_an_explicit_slide_font_dir_beats_the_ambient_cache(monkeypatch,
+                                                           tmp_path):
+    """The explicit input decides, so a hermetic run is not at the mercy of
+    whatever LOCALAPPDATA happens to hold."""
+    style = _q1_style()
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "ambient"))
+    monkeypatch.setenv("SCORCH_SLIDE_FONT_DIR", str(tmp_path / "explicit"))
+    assert style.slide_font_dir() == str(tmp_path / "explicit")
+    monkeypatch.delenv("SCORCH_SLIDE_FONT_DIR")
+    assert "Abadi" in style.slide_font_dir()
+
+
+def test_the_finalizer_supplies_the_slide_faces_to_both_environments():
+    """Preparation and validation must run under one set of inputs."""
+    src = (_RELEASE_DIR / "release_finalizer.py").read_text(encoding="utf-8")
+    assert src.count('env["SCORCH_SLIDE_FONT_DIR"] = str(slide_font_dir)') == 2
+    assert src.count('env["SCORCH_REQUIRE_SLIDE_FONTS"] = "1"') == 2
+    assert '"--slide-font-dir"' in src
+    assert "SLIDE_FONT_MISMATCH" in src and "SLIDE_FONT_MISSING" in src
